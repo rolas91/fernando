@@ -29,6 +29,7 @@ function shouldServeFrontend() {
 async function bootstrap() {
   ensureRuntimeEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.setGlobalPrefix('api');
   app.enableCors({
     origin:
       process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ??
@@ -57,23 +58,9 @@ async function bootstrap() {
       const expressApp = app.getHttpAdapter().getInstance();
       const indexFilePath = join(frontendDistPath, 'index.html');
       const apiPrefixes = [
+        '/api',
         '/docs',
         '/docs-json',
-        '/dr-auth',
-        '/integrations',
-        '/workers',
-        '/projects',
-        '/work-orders',
-        '/clients',
-        '/equipment',
-        '/timesheets',
-        '/form-templates',
-        '/form-submissions',
-        '/incidents',
-        '/notifications',
-        '/activity-feed',
-        '/company-settings',
-        '/availability-requests',
         '/realtime',
         '/socket.io',
       ];

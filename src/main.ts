@@ -58,8 +58,8 @@ async function bootstrap() {
     candidateDistPaths.find((candidate) => existsSync(candidate)) ||
     candidateDistPaths[0];
   if (shouldServeFrontend()) {
-    if (existsSync(frontendDistPath)) {
-      const indexFilePath = join(frontendDistPath, 'index.html');
+    const indexFilePath = join(frontendDistPath, 'index.html');
+    if (existsSync(frontendDistPath) && existsSync(indexFilePath)) {
       const apiPrefixes = [
         '/api',
         '/docs',
@@ -85,7 +85,7 @@ async function bootstrap() {
       console.log(`🖥️ Serving frontend static files from: ${frontendDistPath}`);
     } else {
       console.warn(
-        `⚠️ SERVE_FRONTEND enabled but dist not found: ${frontendDistPath}`,
+        `⚠️ SERVE_FRONTEND enabled but frontend build is incomplete. path=${frontendDistPath}, index=${indexFilePath}`,
       );
       expressApp.get('/', (_req: Request, res: Response) => {
         return res

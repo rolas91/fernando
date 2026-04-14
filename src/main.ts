@@ -29,7 +29,11 @@ function shouldServeFrontend() {
 async function bootstrap() {
   ensureRuntimeEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance();
   app.setGlobalPrefix('api');
+  expressApp.get('/healthz', (_req: Request, res: Response) => {
+    return res.status(200).json({ status: 'ok' });
+  });
   app.enableCors({
     origin:
       process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ??
@@ -55,7 +59,6 @@ async function bootstrap() {
     candidateDistPaths[0];
   if (shouldServeFrontend()) {
     if (existsSync(frontendDistPath)) {
-      const expressApp = app.getHttpAdapter().getInstance();
       const indexFilePath = join(frontendDistPath, 'index.html');
       const apiPrefixes = [
         '/api',
@@ -84,6 +87,11 @@ async function bootstrap() {
       console.warn(
         `⚠️ SERVE_FRONTEND enabled but dist not found: ${frontendDistPath}`,
       );
+      expressApp.get('/', (_req: Request, res: Response) => {
+        return res
+          .status(200)
+          .send('Backend running. Frontend build not found.');
+      });
     }
   }
 
@@ -112,9 +120,10 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`🚀 API corriendo en: http://localhost:${port}/api`);
   console.log(`📚 Swagger docs en: http://localhost:${port}/docs`);
+  console.log(`❤️ Healthcheck en: http://localhost:${port}/healthz`);
 }
 
 void bootstrap();

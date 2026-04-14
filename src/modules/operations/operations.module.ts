@@ -20,6 +20,7 @@ import { ClientsController } from './controllers/clients.controller';
 import { CompanySettingsController } from './controllers/company-settings.controller';
 import { EquipmentController } from './controllers/equipment.controller';
 import { FormSubmissionsController } from './controllers/form-submissions.controller';
+import { FormContractController } from './controllers/form-contract.controller';
 import { FormTemplatesController } from './controllers/form-templates.controller';
 import { IncidentsController } from './controllers/incidents.controller';
 import { NotificationsController } from './controllers/notifications.controller';
@@ -72,6 +73,7 @@ import { DrAuthModule } from '../dr-auth/dr-auth.module';
     TimesheetsController,
     FormTemplatesController,
     FormSubmissionsController,
+    FormContractController,
     IncidentsController,
     NotificationsController,
     ActivityFeedController,

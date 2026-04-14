@@ -16,6 +16,10 @@ export class CreateFormTemplateDto {
   category?: string;
 
   @IsOptional()
+  @IsString()
+  contractVersion?: string;
+
+  @IsOptional()
   @IsArray()
   fields?: Record<string, unknown>[];
 

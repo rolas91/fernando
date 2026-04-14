@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -21,7 +22,13 @@ export class FormTemplatesController {
   constructor(private readonly service: FormTemplatesService) {}
 
   @Get()
-  findAll() {
+  findAll(
+    @Query('projectId') projectId?: string,
+    @Query('role') role?: string,
+  ) {
+    if (projectId || role) {
+      return this.service.findAssigned({ projectId, role });
+    }
     return this.service.findAll();
   }
 

@@ -14,6 +14,14 @@ export class WorkOrder {
   @Column({ name: 'project_id', type: 'varchar', length: 64, default: '' })
   projectId: string;
 
+  @Column({
+    name: 'work_order_type_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
+  workOrderTypeId: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   title: string;
 

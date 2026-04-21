@@ -8,6 +8,10 @@ export class CreateWorkOrderDto {
   @IsString()
   projectId?: string;
 
+  @IsOptional()
+  @IsString()
+  workOrderTypeId?: string;
+
   @IsString()
   title: string;
 

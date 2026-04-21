@@ -11,8 +11,11 @@ import { FormTemplate } from '../../entities/form-template.entity';
 import { Incident } from '../../entities/incident.entity';
 import { Notification } from '../../entities/notification.entity';
 import { Project } from '../../entities/project.entity';
+import { Shift } from '../../entities/shift.entity';
+import { StatusCatalog } from '../../entities/status-catalog.entity';
 import { Timesheet } from '../../entities/timesheet.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
+import { WorkOrderType } from '../../entities/work-order-type.entity';
 import { Worker } from '../../entities/worker.entity';
 import { ActivityFeedController } from './controllers/activity-feed.controller';
 import { AvailabilityRequestsController } from './controllers/availability-requests.controller';
@@ -25,8 +28,11 @@ import { FormTemplatesController } from './controllers/form-templates.controller
 import { IncidentsController } from './controllers/incidents.controller';
 import { NotificationsController } from './controllers/notifications.controller';
 import { ProjectsController } from './controllers/projects.controller';
+import { ShiftsController } from './controllers/shifts.controller';
+import { StatusCatalogController } from './controllers/status-catalog.controller';
 import { TimesheetsController } from './controllers/timesheets.controller';
 import { WorkOrdersController } from './controllers/work-orders.controller';
+import { WorkOrderTypesController } from './controllers/work-order-types.controller';
 import { WorkersController } from './controllers/workers.controller';
 import { ActivityFeedService } from './services/activity-feed.service';
 import { AvailabilityRequestsService } from './services/availability-requests.service';
@@ -38,8 +44,11 @@ import { FormTemplatesService } from './services/form-templates.service';
 import { IncidentsService } from './services/incidents.service';
 import { NotificationsService } from './services/notifications.service';
 import { ProjectsService } from './services/projects.service';
+import { ShiftsService } from './services/shifts.service';
+import { StatusCatalogService } from './services/status-catalog.service';
 import { TimesheetsService } from './services/timesheets.service';
 import { WorkOrdersService } from './services/work-orders.service';
+import { WorkOrderTypesService } from './services/work-order-types.service';
 import { WorkersService } from './services/workers.service';
 import { OperationsAuthGuard } from './operations-auth.guard';
 import { DrAuthModule } from '../dr-auth/dr-auth.module';
@@ -50,8 +59,11 @@ import { DrAuthModule } from '../dr-auth/dr-auth.module';
     RealtimeModule,
     TypeOrmModule.forFeature([
       Worker,
+      Shift,
+      StatusCatalog,
       Project,
       WorkOrder,
+      WorkOrderType,
       Client,
       Equipment,
       Timesheet,
@@ -66,8 +78,11 @@ import { DrAuthModule } from '../dr-auth/dr-auth.module';
   ],
   controllers: [
     WorkersController,
+    ShiftsController,
+    StatusCatalogController,
     ProjectsController,
     WorkOrdersController,
+    WorkOrderTypesController,
     ClientsController,
     EquipmentController,
     TimesheetsController,
@@ -82,8 +97,11 @@ import { DrAuthModule } from '../dr-auth/dr-auth.module';
   ],
   providers: [
     WorkersService,
+    ShiftsService,
+    StatusCatalogService,
     ProjectsService,
     WorkOrdersService,
+    WorkOrderTypesService,
     ClientsService,
     EquipmentService,
     TimesheetsService,
@@ -98,8 +116,11 @@ import { DrAuthModule } from '../dr-auth/dr-auth.module';
   ],
   exports: [
     WorkersService,
+    ShiftsService,
+    StatusCatalogService,
     ProjectsService,
     WorkOrdersService,
+    WorkOrderTypesService,
     ClientsService,
     EquipmentService,
     TimesheetsService,

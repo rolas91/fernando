@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
 import { UpdateFormSubmissionDto } from '../dto/update-form-submission.dto';
@@ -31,11 +31,13 @@ export class FormSubmissionsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateFormSubmissionDto })
   create(@Body() dto: CreateFormSubmissionDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateFormSubmissionDto })
   update(@Param('id') id: string, @Body() dto: UpdateFormSubmissionDto) {
     return this.service.update(id, dto);
   }

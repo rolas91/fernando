@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateEquipmentDto } from '../dto/create-equipment.dto';
 import { UpdateEquipmentDto } from '../dto/update-equipment.dto';
@@ -31,11 +31,13 @@ export class EquipmentController {
   }
 
   @Post()
+  @ApiBody({ type: CreateEquipmentDto })
   create(@Body() dto: CreateEquipmentDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateEquipmentDto })
   update(@Param('id') id: string, @Body() dto: UpdateEquipmentDto) {
     return this.service.update(id, dto);
   }

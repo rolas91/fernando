@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
@@ -7,8 +6,9 @@ import { ensureRuntimeEnv } from '../config/ensure-env';
 import { CompanySettings } from '../entities/company-settings.entity';
 import { Shift } from '../entities/shift.entity';
 import { StatusCatalog } from '../entities/status-catalog.entity';
-import { UserProfile } from '../entities/user-profile.entity';
+import { User } from '../entities/user.entity';
 import { WorkOrderType } from '../entities/work-order-type.entity';
+import { AccessService } from '../modules/access/services/access.service';
 
 const SALT_ROUNDS = 10;
 
@@ -728,12 +728,12 @@ async function seedStatusCatalog(dataSource: DataSource) {
   console.log(`Status catalog seed OK. created=${created}, updated=${updated}`);
 }
 
-async function seedUsers(dataSource: DataSource) {
+async function seedUsers(dataSource: DataSource, accessService: AccessService) {
   const resetPasswords = asBoolean(
     process.env.SEED_USERS_RESET_PASSWORDS,
     false,
   );
-  const usersRepo = dataSource.getRepository(UserProfile);
+  const usersRepo = dataSource.getRepository(User);
   const users = getSeedUsers();
 
   let created = 0;
@@ -745,26 +745,25 @@ async function seedUsers(dataSource: DataSource) {
 
     if (!existing) {
       const passwordHash = await bcrypt.hash(user.password, SALT_ROUNDS);
-      await usersRepo.save(
+      const createdUser = await usersRepo.save(
         usersRepo.create({
-          id: randomUUID(),
           email,
           passwordHash,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role,
           phone: user.phone,
+          avatarUrl: null,
           status: 'active',
           lastLogin: null,
         }),
       );
+      await accessService.replaceAppRoleForUser(createdUser.id, user.role);
       created += 1;
       continue;
     }
 
     existing.firstName = user.firstName;
     existing.lastName = user.lastName;
-    existing.role = user.role;
     existing.phone = user.phone;
     existing.status = existing.status || 'active';
 
@@ -772,7 +771,8 @@ async function seedUsers(dataSource: DataSource) {
       existing.passwordHash = await bcrypt.hash(user.password, SALT_ROUNDS);
     }
 
-    await usersRepo.save(existing);
+    const saved = await usersRepo.save(existing);
+    await accessService.replaceAppRoleForUser(saved.id, user.role);
     updated += 1;
   }
 
@@ -789,11 +789,12 @@ async function seedDr() {
 
   try {
     const dataSource = app.get(DataSource);
+    const accessService = app.get(AccessService);
     await seedCatalogs(dataSource);
     await seedShiftCatalog(dataSource);
     await seedWorkOrderTypeCatalog(dataSource);
     await seedStatusCatalog(dataSource);
-    await seedUsers(dataSource);
+    await seedUsers(dataSource, accessService);
     console.log('Seed DR OK.');
   } finally {
     await app.close();

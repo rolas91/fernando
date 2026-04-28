@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateProjectDto } from '../dto/create-project.dto';
 import { UpdateProjectDto } from '../dto/update-project.dto';
@@ -31,11 +31,13 @@ export class ProjectsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateProjectDto })
   create(@Body() dto: CreateProjectDto) {
     return this.projectsService.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateProjectDto })
   update(@Param('id') id: string, @Body() dto: UpdateProjectDto) {
     return this.projectsService.update(id, dto);
   }

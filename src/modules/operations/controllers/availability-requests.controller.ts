@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateAvailabilityRequestDto } from '../dto/create-availability-request.dto';
 import { UpdateAvailabilityRequestDto } from '../dto/update-availability-request.dto';
@@ -31,11 +31,13 @@ export class AvailabilityRequestsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateAvailabilityRequestDto })
   create(@Body() dto: CreateAvailabilityRequestDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateAvailabilityRequestDto })
   update(@Param('id') id: string, @Body() dto: UpdateAvailabilityRequestDto) {
     return this.service.update(id, dto);
   }

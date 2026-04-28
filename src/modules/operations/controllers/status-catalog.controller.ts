@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateStatusCatalogDto } from '../dto/create-status-catalog.dto';
 import { UpdateStatusCatalogDto } from '../dto/update-status-catalog.dto';
@@ -31,11 +31,13 @@ export class StatusCatalogController {
   }
 
   @Post()
+  @ApiBody({ type: CreateStatusCatalogDto })
   create(@Body() dto: CreateStatusCatalogDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateStatusCatalogDto })
   update(@Param('id') id: string, @Body() dto: UpdateStatusCatalogDto) {
     return this.service.update(id, dto);
   }

@@ -1,73 +1,66 @@
 import {
   CanActivate,
-  ForbiddenException,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { DrAuthService } from '../dr-auth/dr-auth.service';
+import type { UserAccessContext } from '../access/ports/access.port';
+import { OPERATIONS_RESOURCE_PERMISSIONS } from '../access/access-policy';
+import { AccessService } from '../access/services/access.service';
+import { AuthTokenService } from '../auth/services/auth-token.service';
 
-type Role = 'admin' | 'manager' | 'scheduler' | 'viewer';
 type Action = 'read' | 'write';
-
-const WRITE_RULES: Record<string, Role[]> = {
-  workers: ['admin', 'manager'],
-  equipment: ['admin', 'manager'],
-  clients: ['admin', 'manager'],
-  projects: ['admin', 'manager'],
-  'form-templates': ['admin', 'manager'],
-  'company-settings': ['admin', 'manager'],
-  'work-orders': ['admin', 'manager', 'scheduler'],
-  timesheets: ['admin', 'manager', 'scheduler'],
-  notifications: ['admin', 'manager', 'scheduler'],
-  'activity-feed': ['admin', 'manager', 'scheduler'],
-  'form-submissions': ['admin', 'manager', 'scheduler'],
-  incidents: ['admin', 'manager', 'scheduler'],
-  'availability-requests': ['admin', 'manager', 'scheduler'],
-};
 
 @Injectable()
 export class OperationsAuthGuard implements CanActivate {
-  constructor(private readonly authService: DrAuthService) {}
+  constructor(
+    private readonly authTokenService: AuthTokenService,
+    private readonly accessService: AccessService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<{
       method: string;
       originalUrl?: string;
       headers: Record<string, string | undefined>;
-      user?: { id: string; role: Role };
+      user?: UserAccessContext;
     }>();
     const authHeader = req.headers.authorization || '';
     const token = authHeader.startsWith('Bearer ')
       ? authHeader.slice(7).trim()
       : '';
+
     if (!token) {
       if (this.isDevBypassEnabled()) return true;
       throw new UnauthorizedException('Missing bearer token');
     }
 
-    const verified = this.authService.verifyAccessToken(token);
-    if (!verified) {
+    let payload: { sub: string };
+    try {
+      payload = this.authTokenService.verifyAccessToken(token);
+    } catch {
       if (this.isDevBypassEnabled()) return true;
       throw new UnauthorizedException('Invalid token');
     }
 
+    const user = await this.accessService.getUserAccessContext(payload.sub);
     const method = req.method.toUpperCase();
     const action: Action = ['GET', 'HEAD', 'OPTIONS'].includes(method)
       ? 'read'
       : 'write';
     const resource = this.extractResource(req.originalUrl || '');
+    const permission = OPERATIONS_RESOURCE_PERMISSIONS[
+      resource as keyof typeof OPERATIONS_RESOURCE_PERMISSIONS
+    ]?.[action];
 
-    if (action === 'write') {
-      const allowedRoles = WRITE_RULES[resource] || ['admin', 'manager'];
-      if (!allowedRoles.includes(verified.role)) {
-        throw new ForbiddenException(
-          `Role ${verified.role} cannot write ${resource}`,
-        );
-      }
+    if (permission && !user.permissions.includes(permission)) {
+      throw new ForbiddenException(
+        `User ${user.email} cannot ${action} ${resource}`,
+      );
     }
 
-    req.user = { id: verified.userId, role: verified.role };
+    req.user = user;
     return true;
   }
 

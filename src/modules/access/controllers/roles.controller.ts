@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Permissions } from '../decorators/permissions.decorator';
 import { PermissionsGuard } from '../guards/permissions.guard';
@@ -30,6 +30,7 @@ export class RolesController {
 
   @Post()
   @Permissions('access.manage')
+  @ApiBody({ type: CreateRoleDto })
   create(@Body() dto: CreateRoleDto) {
     return this.commandBus.execute(
       new CreateRoleCommand(dto.key, dto.name, dto.description),
@@ -38,6 +39,7 @@ export class RolesController {
 
   @Post(':roleKey/permissions')
   @Permissions('access.manage')
+  @ApiBody({ type: GrantPermissionDto })
   grantPermission(
     @Param('roleKey') roleKey: string,
     @Body() dto: GrantPermissionDto,

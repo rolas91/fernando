@@ -2,22 +2,24 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Permission } from '../../../entities/permission.entity';
 import { Role } from '../../../entities/role.entity';
 import { User } from '../../../entities/user.entity';
-
-export type UserAccessContext = {
-  id: string;
-  email: string;
-  roles: string[];
-  permissions: string[];
-};
+import {
+  APP_ROLE_KEYS,
+  APP_ROLE_NAMES,
+  DEFAULT_PERMISSION_DESCRIPTIONS,
+  DEFAULT_ROLE_GRANTS,
+  derivePrimaryRole,
+} from '../access-policy';
+import type { UserAccessContext } from '../ports/access.port';
 
 @Injectable()
-export class AccessService {
+export class AccessService implements OnModuleInit {
   constructor(
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
@@ -26,6 +28,10 @@ export class AccessService {
     @InjectRepository(Permission)
     private readonly permissionsRepo: Repository<Permission>,
   ) {}
+
+  async onModuleInit() {
+    await this.ensureDefaults();
+  }
 
   async createPermission(key: string, description?: string | null) {
     const normalized = key.trim().toLowerCase();
@@ -126,6 +132,31 @@ export class AccessService {
     return this.getUserAccessContext(userId);
   }
 
+  async replaceAppRoleForUser(userId: string, roleKey: string) {
+    const rk = roleKey.trim().toLowerCase();
+    const role = await this.rolesRepo.findOne({ where: { key: rk } });
+    if (!role) {
+      throw new NotFoundException('Rol no encontrado');
+    }
+
+    const user = await this.usersRepo.findOne({
+      where: { id: userId },
+      relations: { roles: true },
+    });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const preservedRoles = (user.roles ?? []).filter(
+      (existingRole) =>
+        !APP_ROLE_KEYS.includes(existingRole.key as (typeof APP_ROLE_KEYS)[number]),
+    );
+    user.roles = [...preservedRoles, role];
+    await this.usersRepo.save(user);
+
+    return this.getUserAccessContext(userId);
+  }
+
   async ensureRoleExists(roleKey: string, name?: string) {
     const rk = roleKey.trim().toLowerCase();
     const existing = await this.rolesRepo.findOne({ where: { key: rk } });
@@ -141,6 +172,15 @@ export class AccessService {
     return this.rolesRepo.save(created);
   }
 
+  async listUserAccessContexts(): Promise<UserAccessContext[]> {
+    const users = await this.usersRepo.find({
+      order: { createdAt: 'ASC' },
+      relations: { roles: { permissions: true } },
+    });
+
+    return users.map((user) => this.buildUserAccessContext(user));
+  }
+
   async getUserAccessContext(userId: string): Promise<UserAccessContext> {
     const user = await this.usersRepo.findOne({
       where: { id: userId },
@@ -151,7 +191,11 @@ export class AccessService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    const roles = (user.roles ?? []).map((r) => r.key);
+    return this.buildUserAccessContext(user);
+  }
+
+  private buildUserAccessContext(user: User): UserAccessContext {
+    const roles = (user.roles ?? []).map((role) => role.key);
     const permissions = new Set<string>();
     for (const role of user.roles ?? []) {
       for (const permission of role.permissions ?? []) {
@@ -162,36 +206,40 @@ export class AccessService {
     return {
       id: user.id,
       email: user.email,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      phone: user.phone || '',
+      avatarUrl: user.avatarUrl || '',
+      status: user.status || 'active',
+      lastLogin: user.lastLogin?.toISOString() || null,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+      role: derivePrimaryRole(roles),
       roles,
       permissions: Array.from(permissions).sort(),
     };
   }
 
   async ensureDefaults() {
-    // Idempotente: crea un set mínimo para arrancar.
-    const accessManage = await this.permissionsRepo.findOne({
-      where: { key: 'access.manage' },
-    });
-    if (!accessManage) {
-      await this.createPermission(
-        'access.manage',
-        'Administrar roles/permisos',
-      );
+    for (const [permissionKey, description] of Object.entries(
+      DEFAULT_PERMISSION_DESCRIPTIONS,
+    )) {
+      const existing = await this.permissionsRepo.findOne({
+        where: { key: permissionKey },
+      });
+      if (!existing) {
+        await this.createPermission(permissionKey, description);
+      }
     }
 
-    const accessRead = await this.permissionsRepo.findOne({
-      where: { key: 'access.read' },
-    });
-    if (!accessRead) {
-      await this.createPermission('access.read', 'Leer roles/permisos');
+    for (const roleKey of APP_ROLE_KEYS) {
+      await this.ensureRoleExists(roleKey, APP_ROLE_NAMES[roleKey]);
     }
 
-    await this.ensureRoleExists('user', 'User');
-    await this.ensureRoleExists('admin', 'Admin');
-
-    // Asigna permisos a admin (y access.read a user) si aún no están
-    await this.grantPermissionToRole('admin', 'access.manage');
-    await this.grantPermissionToRole('admin', 'access.read');
-    await this.grantPermissionToRole('user', 'access.read');
+    for (const [roleKey, permissionKeys] of Object.entries(DEFAULT_ROLE_GRANTS)) {
+      for (const permissionKey of permissionKeys) {
+        await this.grantPermissionToRole(roleKey, permissionKey);
+      }
+    }
   }
 }

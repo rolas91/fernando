@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
@@ -33,20 +29,34 @@ export class AuthService {
     private readonly tokenService: AuthTokenService,
   ) {}
 
-  async register(email: string, password: string): Promise<AuthResponse> {
-    const existing = await this.users.findByEmail(email);
-    if (existing) {
-      throw new ConflictException('El correo ya está registrado');
-    }
+  async register(input: {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+  }): Promise<AuthResponse> {
+    const passwordHash = await this.passwordHasher.hash(input.password);
+    const user = await this.users.create({
+      email: input.email,
+      passwordHash,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone,
+      status: 'active',
+      lastLogin: new Date(),
+    });
 
-    const passwordHash = await this.passwordHasher.hash(password);
-    const user = await this.users.create(email, passwordHash);
-
-    const defaultRoleKey = this.configService.get<string>(
-      'DEFAULT_ROLE_KEY',
-      'user',
-    );
-    await this.access.ensureRoleExists(defaultRoleKey, 'User');
+    const configuredDefaultRole = this.configService
+      .get<string>('DEFAULT_ROLE_KEY', 'viewer')
+      .trim()
+      .toLowerCase();
+    const defaultRoleKey = ['admin', 'manager', 'scheduler', 'viewer'].includes(
+      configuredDefaultRole,
+    )
+      ? configuredDefaultRole
+      : 'viewer';
+    await this.access.ensureRoleExists(defaultRoleKey, defaultRoleKey);
     await this.access.assignRoleToUser(user.id, defaultRoleKey);
 
     return this.buildAuthResponse(user.id, user.email);
@@ -63,6 +73,7 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
+    await this.users.touchLastLogin(user.id, new Date());
     return this.buildAuthResponse(user.id, user.email);
   }
 

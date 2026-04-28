@@ -4,7 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmModuleOptions } from './config/database.config';
 import { AccessModule } from './modules/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { DrAuthModule } from './modules/dr-auth/dr-auth.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -19,7 +18,6 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     }),
     AccessModule,
     AuthModule,
-    DrAuthModule,
     RealtimeModule,
     IntegrationsModule,
     OperationsModule,

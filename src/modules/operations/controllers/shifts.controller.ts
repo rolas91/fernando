@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateShiftDto } from '../dto/create-shift.dto';
 import { UpdateShiftDto } from '../dto/update-shift.dto';
@@ -31,11 +31,13 @@ export class ShiftsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateShiftDto })
   create(@Body() dto: CreateShiftDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateShiftDto })
   update(@Param('id') id: string, @Body() dto: UpdateShiftDto) {
     return this.service.update(id, dto);
   }

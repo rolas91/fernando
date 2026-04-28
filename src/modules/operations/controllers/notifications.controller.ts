@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateNotificationDto } from '../dto/create-notification.dto';
 import { UpdateNotificationDto } from '../dto/update-notification.dto';
@@ -31,11 +31,13 @@ export class NotificationsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateNotificationDto })
   create(@Body() dto: CreateNotificationDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateNotificationDto })
   update(@Param('id') id: string, @Body() dto: UpdateNotificationDto) {
     return this.service.update(id, dto);
   }

@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateActivityFeedItemDto } from '../dto/create-activity-feed-item.dto';
 import { UpdateActivityFeedItemDto } from '../dto/update-activity-feed-item.dto';
@@ -31,11 +31,13 @@ export class ActivityFeedController {
   }
 
   @Post()
+  @ApiBody({ type: CreateActivityFeedItemDto })
   create(@Body() dto: CreateActivityFeedItemDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateActivityFeedItemDto })
   update(@Param('id') id: string, @Body() dto: UpdateActivityFeedItemDto) {
     return this.service.update(id, dto);
   }

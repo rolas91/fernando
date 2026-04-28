@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { RealtimeModule } from '../realtime/realtime.module';
 import { ActivityFeedItem } from '../../entities/activity-feed.entity';
 import { AvailabilityRequest } from '../../entities/availability-request.entity';
 import { Client } from '../../entities/client.entity';
@@ -12,18 +11,22 @@ import { Incident } from '../../entities/incident.entity';
 import { Notification } from '../../entities/notification.entity';
 import { Project } from '../../entities/project.entity';
 import { Shift } from '../../entities/shift.entity';
+import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-confirmation.entity';
 import { StatusCatalog } from '../../entities/status-catalog.entity';
 import { Timesheet } from '../../entities/timesheet.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
 import { WorkOrderType } from '../../entities/work-order-type.entity';
 import { Worker } from '../../entities/worker.entity';
+import { AccessModule } from '../access/access.module';
+import { AuthModule } from '../auth/auth.module';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { ActivityFeedController } from './controllers/activity-feed.controller';
 import { AvailabilityRequestsController } from './controllers/availability-requests.controller';
 import { ClientsController } from './controllers/clients.controller';
 import { CompanySettingsController } from './controllers/company-settings.controller';
 import { EquipmentController } from './controllers/equipment.controller';
-import { FormSubmissionsController } from './controllers/form-submissions.controller';
 import { FormContractController } from './controllers/form-contract.controller';
+import { FormSubmissionsController } from './controllers/form-submissions.controller';
 import { FormTemplatesController } from './controllers/form-templates.controller';
 import { IncidentsController } from './controllers/incidents.controller';
 import { NotificationsController } from './controllers/notifications.controller';
@@ -31,8 +34,8 @@ import { ProjectsController } from './controllers/projects.controller';
 import { ShiftsController } from './controllers/shifts.controller';
 import { StatusCatalogController } from './controllers/status-catalog.controller';
 import { TimesheetsController } from './controllers/timesheets.controller';
-import { WorkOrdersController } from './controllers/work-orders.controller';
 import { WorkOrderTypesController } from './controllers/work-order-types.controller';
+import { WorkOrdersController } from './controllers/work-orders.controller';
 import { WorkersController } from './controllers/workers.controller';
 import { ActivityFeedService } from './services/activity-feed.service';
 import { AvailabilityRequestsService } from './services/availability-requests.service';
@@ -47,19 +50,20 @@ import { ProjectsService } from './services/projects.service';
 import { ShiftsService } from './services/shifts.service';
 import { StatusCatalogService } from './services/status-catalog.service';
 import { TimesheetsService } from './services/timesheets.service';
-import { WorkOrdersService } from './services/work-orders.service';
 import { WorkOrderTypesService } from './services/work-order-types.service';
+import { WorkOrdersService } from './services/work-orders.service';
 import { WorkersService } from './services/workers.service';
 import { OperationsAuthGuard } from './operations-auth.guard';
-import { DrAuthModule } from '../dr-auth/dr-auth.module';
 
 @Module({
   imports: [
-    DrAuthModule,
+    AccessModule,
+    AuthModule,
     RealtimeModule,
     TypeOrmModule.forFeature([
       Worker,
       Shift,
+      ShiftAssignmentConfirmation,
       StatusCatalog,
       Project,
       WorkOrder,

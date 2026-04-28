@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
 import { UpdateTimesheetDto } from '../dto/update-timesheet.dto';
@@ -31,11 +31,13 @@ export class TimesheetsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateTimesheetDto })
   create(@Body() dto: CreateTimesheetDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateTimesheetDto })
   update(@Param('id') id: string, @Body() dto: UpdateTimesheetDto) {
     return this.service.update(id, dto);
   }

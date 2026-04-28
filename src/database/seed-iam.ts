@@ -32,12 +32,14 @@ async function seedIam() {
     const existing = await usersService.findByEmail(adminEmail);
     const user =
       existing ??
-      (await usersService.create(
-        adminEmail,
-        await bcrypt.hash(adminPassword, SALT_ROUNDS),
-      ));
+      (await usersService.create({
+        email: adminEmail,
+        passwordHash: await bcrypt.hash(adminPassword, SALT_ROUNDS),
+        status: 'active',
+        lastLogin: null,
+      }));
 
-    await accessService.assignRoleToUser(user.id, 'admin');
+    await accessService.replaceAppRoleForUser(user.id, 'admin');
 
     console.log(`Seed IAM OK. Admin: ${user.email}`);
   } finally {

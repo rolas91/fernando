@@ -9,4 +9,8 @@ export class AuthTokenService {
   signAccessToken(payload: JwtPayload): string {
     return this.jwtService.sign(payload);
   }
+
+  verifyAccessToken(token: string): JwtPayload {
+    return this.jwtService.verify<JwtPayload>(token);
+  }
 }

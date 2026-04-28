@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Permissions } from '../decorators/permissions.decorator';
 import { PermissionsGuard } from '../guards/permissions.guard';
@@ -28,6 +28,7 @@ export class PermissionsController {
 
   @Post()
   @Permissions('access.manage')
+  @ApiBody({ type: CreatePermissionDto })
   create(@Body() dto: CreatePermissionDto) {
     return this.commandBus.execute(
       new CreatePermissionCommand(dto.key, dto.description),

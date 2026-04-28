@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateWorkerDto } from '../dto/create-worker.dto';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
@@ -31,11 +31,13 @@ export class WorkersController {
   }
 
   @Post()
+  @ApiBody({ type: CreateWorkerDto })
   create(@Body() dto: CreateWorkerDto) {
     return this.workersService.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateWorkerDto })
   update(@Param('id') id: string, @Body() dto: UpdateWorkerDto) {
     return this.workersService.update(id, dto);
   }

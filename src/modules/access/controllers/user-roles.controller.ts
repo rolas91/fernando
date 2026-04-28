@@ -1,6 +1,6 @@
 import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { Permissions } from '../decorators/permissions.decorator';
 import { AssignRoleDto } from '../dto/assign-role.dto';
@@ -20,6 +20,7 @@ export class UserRolesController {
 
   @Post(':userId/roles')
   @Permissions('access.manage')
+  @ApiBody({ type: AssignRoleDto })
   assignRole(@Param('userId') userId: string, @Body() dto: AssignRoleDto) {
     return this.commandBus.execute(
       new AssignRoleToUserCommand(userId, dto.roleKey),

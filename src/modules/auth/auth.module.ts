@@ -8,6 +8,7 @@ import { AccessModule } from '../access/access.module';
 import { UsersModule } from '../users/users.module';
 import { ensureRuntimeEnv } from '../../config/ensure-env';
 import { AuthController } from './controllers/auth.controller';
+import { UsersController } from './controllers/users.controller';
 import { LoginHandler } from './handlers/login.handler';
 import { RegisterHandler } from './handlers/register.handler';
 import { AuthTokenService } from './services/auth-token.service';
@@ -37,7 +38,7 @@ const commandHandlers = [RegisterHandler, LoginHandler];
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, UsersController],
   providers: [
     ...commandHandlers,
     AuthService,
@@ -45,5 +46,6 @@ const commandHandlers = [RegisterHandler, LoginHandler];
     PasswordHasherService,
     JwtStrategy,
   ],
+  exports: [AuthTokenService, PasswordHasherService],
 })
 export class AuthModule {}

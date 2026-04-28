@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateWorkOrderTypeDto } from '../dto/create-work-order-type.dto';
 import { UpdateWorkOrderTypeDto } from '../dto/update-work-order-type.dto';
@@ -31,11 +31,13 @@ export class WorkOrderTypesController {
   }
 
   @Post()
+  @ApiBody({ type: CreateWorkOrderTypeDto })
   create(@Body() dto: CreateWorkOrderTypeDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateWorkOrderTypeDto })
   update(@Param('id') id: string, @Body() dto: UpdateWorkOrderTypeDto) {
     return this.service.update(id, dto);
   }

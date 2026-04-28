@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateFormTemplateDto } from '../dto/create-form-template.dto';
 import { UpdateFormTemplateDto } from '../dto/update-form-template.dto';
@@ -38,11 +38,13 @@ export class FormTemplatesController {
   }
 
   @Post()
+  @ApiBody({ type: CreateFormTemplateDto })
   create(@Body() dto: CreateFormTemplateDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateFormTemplateDto })
   update(@Param('id') id: string, @Body() dto: UpdateFormTemplateDto) {
     return this.service.update(id, dto);
   }

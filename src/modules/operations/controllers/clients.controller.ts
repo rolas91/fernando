@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateClientDto } from '../dto/create-client.dto';
 import { UpdateClientDto } from '../dto/update-client.dto';
@@ -31,11 +31,13 @@ export class ClientsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateClientDto })
   create(@Body() dto: CreateClientDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateClientDto })
   update(@Param('id') id: string, @Body() dto: UpdateClientDto) {
     return this.service.update(id, dto);
   }

@@ -5,6 +5,7 @@ import { WorkOrder } from '../../../entities/work-order.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateWorkOrderDto } from '../dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from '../dto/update-work-order.dto';
+import { normalizeWorkOrderShifts } from '../utils/work-order-shifts.util';
 
 @Injectable()
 export class WorkOrdersService {
@@ -25,7 +26,10 @@ export class WorkOrdersService {
   }
 
   create(dto: CreateWorkOrderDto) {
-    const entity = this.workOrdersRepo.create(dto);
+    const entity = this.workOrdersRepo.create({
+      ...dto,
+      shifts: normalizeWorkOrderShifts(dto.shifts),
+    });
     return this.workOrdersRepo.save(entity).then((saved) => {
       this.realtime.emitTableUpdated('work_orders');
       return saved;
@@ -35,6 +39,9 @@ export class WorkOrdersService {
   async update(id: string, dto: UpdateWorkOrderDto) {
     const workOrder = await this.findOne(id);
     Object.assign(workOrder, dto);
+    if (dto.shifts !== undefined) {
+      workOrder.shifts = normalizeWorkOrderShifts(dto.shifts, workOrder.shifts);
+    }
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
     return saved;

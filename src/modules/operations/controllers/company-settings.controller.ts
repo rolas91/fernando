@@ -8,7 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateCompanySettingsDto } from '../dto/create-company-settings.dto';
 import { UpdateCompanySettingsDto } from '../dto/update-company-settings.dto';
@@ -31,11 +31,13 @@ export class CompanySettingsController {
   }
 
   @Post()
+  @ApiBody({ type: CreateCompanySettingsDto })
   create(@Body() dto: CreateCompanySettingsDto) {
     return this.service.create(dto);
   }
 
   @Patch(':id')
+  @ApiBody({ type: UpdateCompanySettingsDto })
   update(@Param('id') id: string, @Body() dto: UpdateCompanySettingsDto) {
     return this.service.update(id, dto);
   }

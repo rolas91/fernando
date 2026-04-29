@@ -54,6 +54,7 @@ import { WorkOrderTypesService } from './services/work-order-types.service';
 import { WorkOrdersService } from './services/work-orders.service';
 import { WorkersService } from './services/workers.service';
 import { OperationsAuthGuard } from './operations-auth.guard';
+import { SpacesStorageService } from './services/spaces-storage.service';
 
 @Module({
   imports: [
@@ -116,6 +117,7 @@ import { OperationsAuthGuard } from './operations-auth.guard';
     ActivityFeedService,
     AvailabilityRequestsService,
     CompanySettingsService,
+    SpacesStorageService,
     OperationsAuthGuard,
   ],
   exports: [

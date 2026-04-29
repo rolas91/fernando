@@ -39,6 +39,14 @@ export class CreateWorkOrderDto {
   notes?: string;
 
   @IsOptional()
+  @IsString()
+  dispatchNote?: string;
+
+  @IsOptional()
+  @IsArray()
+  fileUploads?: string[];
+
+  @IsOptional()
   @IsArray()
   attachments?: string[];
 }

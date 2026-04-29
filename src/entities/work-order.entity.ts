@@ -48,6 +48,12 @@ export class WorkOrder {
   @Column({ type: 'text', default: '' })
   notes: string;
 
+  @Column({ name: 'dispatch_note', type: 'text', default: '' })
+  dispatchNote: string;
+
+  @Column({ name: 'file_uploads', type: 'text', array: true, default: '{}' })
+  fileUploads: string[];
+
   @Column({ type: 'text', array: true, default: '{}' })
   attachments: string[];
 

@@ -10,6 +10,7 @@ export interface ShiftWorkerConfirmation {
 
 type ShiftRoleLike = {
   id?: string;
+  startTime?: unknown;
   assignedWorkers?: unknown;
   workerConfirmations?: unknown;
   [key: string]: unknown;
@@ -17,6 +18,7 @@ type ShiftRoleLike = {
 
 type ShiftLike = {
   id?: string;
+  defaultRoleStartTime?: unknown;
   roles?: unknown;
   [key: string]: unknown;
 };
@@ -39,6 +41,12 @@ function asStringArray(value: unknown): string[] {
     result.push(trimmed);
   });
   return result;
+}
+
+function asOptionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
 }
 
 function sanitizeConfirmation(
@@ -133,6 +141,7 @@ export function normalizeWorkOrderShifts(
 
       return {
         ...roleRecord,
+        startTime: asOptionalString(roleRecord.startTime),
         assignedWorkers,
         workerConfirmations,
       };
@@ -140,6 +149,7 @@ export function normalizeWorkOrderShifts(
 
     return {
       ...shiftRecord,
+      defaultRoleStartTime: asOptionalString(shiftRecord.defaultRoleStartTime),
       roles: normalizedRoles,
     };
   });

@@ -14,6 +14,8 @@ export class StatusCatalog {
   @Column({ type: 'varchar', length: 32 })
   scope:
     | 'work_order'
+    | 'work_status'
+    | 'shift'
     | 'timesheet'
     | 'project'
     | 'equipment'

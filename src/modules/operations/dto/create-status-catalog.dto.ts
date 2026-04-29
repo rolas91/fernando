@@ -7,6 +7,8 @@ export class CreateStatusCatalogDto {
   @IsString()
   @IsIn([
     'work_order',
+    'work_status',
+    'shift',
     'timesheet',
     'project',
     'equipment',
@@ -16,6 +18,8 @@ export class CreateStatusCatalogDto {
   ])
   scope:
     | 'work_order'
+    | 'work_status'
+    | 'shift'
     | 'timesheet'
     | 'project'
     | 'equipment'

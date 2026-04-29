@@ -11,6 +11,10 @@ export class CreateCertificationDto {
   @IsString()
   description?: string;
 
+  @IsOptional()
+  @IsString()
+  documentUrl?: string;
+
   @IsString()
   status: string;
 }

@@ -22,6 +22,9 @@ export class Certification {
   @Column({ type: 'varchar', length: 24, default: 'active' })
   status: string;
 
+  @Column({ name: 'document_url', type: 'text', nullable: true })
+  documentUrl: string | null;
+
   @ManyToMany(() => Worker, (worker) => worker.certifications)
   workers: Worker[];
 

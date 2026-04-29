@@ -5,6 +5,7 @@ import { Certification } from '../../../entities/certification.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateCertificationDto } from '../dto/create-certification.dto';
 import { UpdateCertificationDto } from '../dto/update-certification.dto';
+import { SpacesStorageService } from './spaces-storage.service';
 
 @Injectable()
 export class CertificationsService {
@@ -12,6 +13,7 @@ export class CertificationsService {
     @InjectRepository(Certification)
     private readonly repo: Repository<Certification>,
     private readonly realtime: RealtimeGateway,
+    private readonly spacesStorage: SpacesStorageService,
   ) {}
 
   findAll() {
@@ -43,6 +45,9 @@ export class CertificationsService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
+    if (item.documentUrl) {
+      await this.spacesStorage.deleteManyPublicFiles([item.documentUrl]);
+    }
     await this.repo.remove(item);
     this.realtime.emitTableUpdated('certifications');
     this.realtime.emitTableUpdated('workers');

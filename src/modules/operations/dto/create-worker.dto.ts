@@ -18,6 +18,26 @@ export class CreateWorkerDto {
   @IsString()
   phone?: string;
 
+  @IsOptional()
+  @IsString()
+  driverLicense?: string;
+
+  @IsOptional()
+  @IsString()
+  primaryAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  zipCode?: string;
+
+  @IsOptional()
+  @IsString()
+  state?: string;
+
   @IsString()
   type: string;
 

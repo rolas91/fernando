@@ -26,6 +26,25 @@ export class SpacesStorageService {
     files: UploadFileCandidate[],
     workOrderId?: string,
   ) {
+    return this.uploadFilesForScope('work-orders', files, workOrderId);
+  }
+
+  async uploadCertificationDocuments(
+    files: UploadFileCandidate[],
+    certificationId?: string,
+  ) {
+    return this.uploadFilesForScope(
+      'certifications',
+      files,
+      certificationId,
+    );
+  }
+
+  private async uploadFilesForScope(
+    scopePrefix: string,
+    files: UploadFileCandidate[],
+    scopeId?: string,
+  ) {
     this.assertConfigured();
     if (!Array.isArray(files) || files.length === 0) {
       return [];
@@ -40,7 +59,11 @@ export class SpacesStorageService {
     }> = [];
     for (const file of files) {
       if (!file?.buffer?.length) continue;
-      const key = this.buildObjectKey(file.originalname || 'upload.bin', workOrderId);
+      const key = this.buildObjectKey(
+        scopePrefix,
+        file.originalname || 'upload.bin',
+        scopeId,
+      );
       await this.putObject(key, file.buffer, file.mimetype || 'application/octet-stream');
       uploads.push({
         url: this.buildPublicUrl(key),
@@ -190,13 +213,18 @@ export class SpacesStorageService {
     };
   }
 
-  private buildObjectKey(originalName: string, workOrderId?: string) {
-    const prefix = this.normalizePrefix(
+  private buildObjectKey(
+    scopePrefix: string,
+    originalName: string,
+    scopeId?: string,
+  ) {
+    const basePrefix = this.normalizePrefix(
       this.configService.get<string>('SPACES_PREFIX') || 'work-orders',
     );
+    const prefix = this.normalizePrefix(`${basePrefix}/${scopePrefix}`);
     const safeName = this.sanitizeFileName(originalName);
     const date = new Date().toISOString().slice(0, 10);
-    const scope = workOrderId?.trim() || 'draft';
+    const scope = scopeId?.trim() || 'draft';
     return `${prefix}/${scope}/${date}/${randomUUID()}-${safeName}`;
   }
 

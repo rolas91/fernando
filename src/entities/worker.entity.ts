@@ -26,6 +26,21 @@ export class Worker {
   @Column({ type: 'varchar', length: 64, default: '' })
   phone: string;
 
+  @Column({ name: 'driver_license', type: 'varchar', length: 120, default: '' })
+  driverLicense: string;
+
+  @Column({ name: 'primary_address', type: 'text', default: '' })
+  primaryAddress: string;
+
+  @Column({ type: 'varchar', length: 120, default: '' })
+  city: string;
+
+  @Column({ name: 'zip_code', type: 'varchar', length: 32, default: '' })
+  zipCode: string;
+
+  @Column({ type: 'varchar', length: 64, default: '' })
+  state: string;
+
   @Column({ type: 'varchar', length: 100 })
   type: string;
 

@@ -23,6 +23,9 @@ export class Client {
   @Column({ type: 'varchar', length: 64, default: '' })
   phone: string;
 
+  @Column({ type: 'varchar', length: 255, default: '' })
+  website: string;
+
   @Column({ type: 'text', default: '' })
   address: string;
 

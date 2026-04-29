@@ -29,7 +29,7 @@ export class CreateWorkerDto {
 
   @IsOptional()
   @IsArray()
-  certifications?: Record<string, unknown>[];
+  certificationIds?: string[];
 
   @IsOptional()
   @IsArray()

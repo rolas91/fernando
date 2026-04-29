@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ActivityFeedItem } from '../../entities/activity-feed.entity';
 import { AvailabilityRequest } from '../../entities/availability-request.entity';
+import { Certification } from '../../entities/certification.entity';
 import { Client } from '../../entities/client.entity';
 import { CompanySettings } from '../../entities/company-settings.entity';
 import { Equipment } from '../../entities/equipment.entity';
@@ -22,6 +23,7 @@ import { AuthModule } from '../auth/auth.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { ActivityFeedController } from './controllers/activity-feed.controller';
 import { AvailabilityRequestsController } from './controllers/availability-requests.controller';
+import { CertificationsController } from './controllers/certifications.controller';
 import { ClientsController } from './controllers/clients.controller';
 import { CompanySettingsController } from './controllers/company-settings.controller';
 import { EquipmentController } from './controllers/equipment.controller';
@@ -39,6 +41,7 @@ import { WorkOrdersController } from './controllers/work-orders.controller';
 import { WorkersController } from './controllers/workers.controller';
 import { ActivityFeedService } from './services/activity-feed.service';
 import { AvailabilityRequestsService } from './services/availability-requests.service';
+import { CertificationsService } from './services/certifications.service';
 import { ClientsService } from './services/clients.service';
 import { CompanySettingsService } from './services/company-settings.service';
 import { EquipmentService } from './services/equipment.service';
@@ -63,6 +66,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     RealtimeModule,
     TypeOrmModule.forFeature([
       Worker,
+      Certification,
       Shift,
       ShiftAssignmentConfirmation,
       StatusCatalog,
@@ -98,10 +102,12 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     NotificationsController,
     ActivityFeedController,
     AvailabilityRequestsController,
+    CertificationsController,
     CompanySettingsController,
   ],
   providers: [
     WorkersService,
+    CertificationsService,
     ShiftsService,
     StatusCatalogService,
     ProjectsService,
@@ -122,6 +128,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
   ],
   exports: [
     WorkersService,
+    CertificationsService,
     ShiftsService,
     StatusCatalogService,
     ProjectsService,

@@ -2,9 +2,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinTable,
+  ManyToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Certification } from './certification.entity';
 
 @Entity('workers')
 export class Worker {
@@ -32,8 +35,21 @@ export class Worker {
   @Column({ type: 'varchar', length: 32 })
   status: string;
 
-  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
-  certifications: Record<string, unknown>[];
+  @ManyToMany(() => Certification, (certification) => certification.workers, {
+    eager: false,
+  })
+  @JoinTable({
+    name: 'worker_certifications',
+    joinColumn: {
+      name: 'worker_id',
+      referencedColumnName: 'id',
+    },
+    inverseJoinColumn: {
+      name: 'certification_id',
+      referencedColumnName: 'id',
+    },
+  })
+  certifications: Certification[];
 
   @Column({ type: 'text', array: true, default: '{}' })
   skills: string[];

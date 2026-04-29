@@ -13,6 +13,86 @@ export class CreateIamTables20260407000100 implements MigrationInterface {
     // For uuid_generate_v4() (PrimaryGeneratedColumn('uuid'))
     await queryRunner.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
 
+    const hasUsers = await queryRunner.hasTable('users');
+    if (!hasUsers) {
+      await queryRunner.createTable(
+        new Table({
+          name: 'users',
+          columns: [
+            {
+              name: 'id',
+              type: 'uuid',
+              isPrimary: true,
+              isNullable: false,
+              default: 'uuid_generate_v4()',
+            },
+            {
+              name: 'email',
+              type: 'varchar',
+              isNullable: false,
+              isUnique: true,
+            },
+            {
+              name: 'password_hash',
+              type: 'varchar',
+              isNullable: false,
+            },
+            {
+              name: 'first_name',
+              type: 'varchar',
+              length: '120',
+              isNullable: false,
+              default: "''",
+            },
+            {
+              name: 'last_name',
+              type: 'varchar',
+              length: '120',
+              isNullable: false,
+              default: "''",
+            },
+            {
+              name: 'phone',
+              type: 'varchar',
+              length: '64',
+              isNullable: false,
+              default: "''",
+            },
+            {
+              name: 'avatar_url',
+              type: 'text',
+              isNullable: true,
+            },
+            {
+              name: 'status',
+              type: 'varchar',
+              length: '32',
+              isNullable: false,
+              default: "'active'",
+            },
+            {
+              name: 'last_login',
+              type: 'timestamp',
+              isNullable: true,
+            },
+            {
+              name: 'created_at',
+              type: 'timestamp',
+              isNullable: false,
+              default: 'now()',
+            },
+            {
+              name: 'updated_at',
+              type: 'timestamp',
+              isNullable: false,
+              default: 'now()',
+            },
+          ],
+        }),
+        true,
+      );
+    }
+
     const hasRoles = await queryRunner.hasTable('roles');
     if (!hasRoles) {
       await queryRunner.createTable(
@@ -220,5 +300,8 @@ export class CreateIamTables20260407000100 implements MigrationInterface {
 
     const hasRoles = await queryRunner.hasTable('roles');
     if (hasRoles) await queryRunner.dropTable('roles', true);
+
+    const hasUsers = await queryRunner.hasTable('users');
+    if (hasUsers) await queryRunner.dropTable('users', true);
   }
 }

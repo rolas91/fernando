@@ -40,6 +40,10 @@ export class SpacesStorageService {
     );
   }
 
+  async uploadWorkerFiles(files: UploadFileCandidate[], workerId?: string) {
+    return this.uploadFilesForScope('workers', files, workerId);
+  }
+
   private async uploadFilesForScope(
     scopePrefix: string,
     files: UploadFileCandidate[],

@@ -409,6 +409,13 @@ export class CreateOperationsTables20260407000200
             isNullable: false,
             default: "'{}'",
           },
+          {
+            name: 'file_uploads',
+            type: 'text',
+            isArray: true,
+            isNullable: false,
+            default: "'{}'",
+          },
           { name: 'hire_date', type: 'date', isNullable: true },
           {
             name: 'hourly_rate',

@@ -6,6 +6,7 @@ import { Worker } from '../../../entities/worker.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateWorkerDto } from '../dto/create-worker.dto';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
+import { SpacesStorageService } from './spaces-storage.service';
 
 @Injectable()
 export class WorkersService {
@@ -15,6 +16,7 @@ export class WorkersService {
     @InjectRepository(Certification)
     private readonly certificationsRepo: Repository<Certification>,
     private readonly realtime: RealtimeGateway,
+    private readonly spacesStorage: SpacesStorageService,
   ) {}
 
   findAll() {
@@ -44,11 +46,12 @@ export class WorkersService {
     const certifications = await this.resolveCertifications(
       dto.certificationIds,
     );
+    const { certificationIds: _certificationIds, hourlyRate, ...rest } = dto;
     const entity = this.workersRepo.create({
-      ...dto,
+      ...rest,
       certifications,
       hourlyRate:
-        dto.hourlyRate !== undefined ? String(dto.hourlyRate) : undefined,
+        hourlyRate !== undefined ? String(hourlyRate) : undefined,
     });
     const saved = await this.workersRepo.save(entity);
     this.realtime.emitTableUpdated('workers');
@@ -61,11 +64,12 @@ export class WorkersService {
       dto.certificationIds !== undefined
         ? await this.resolveCertifications(dto.certificationIds)
         : worker.certifications;
+    const { certificationIds: _certificationIds, hourlyRate, ...rest } = dto;
     Object.assign(worker, {
-      ...dto,
+      ...rest,
       certifications,
       hourlyRate:
-        dto.hourlyRate !== undefined ? String(dto.hourlyRate) : undefined,
+        hourlyRate !== undefined ? String(hourlyRate) : worker.hourlyRate,
     });
     const saved = await this.workersRepo.save(worker);
     this.realtime.emitTableUpdated('workers');
@@ -74,6 +78,7 @@ export class WorkersService {
 
   async remove(id: string) {
     const worker = await this.findOne(id);
+    await this.spacesStorage.deleteManyPublicFiles(worker.fileUploads || []);
     await this.workersRepo.remove(worker);
     this.realtime.emitTableUpdated('workers');
     return { success: true };

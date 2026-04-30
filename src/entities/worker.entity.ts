@@ -69,6 +69,9 @@ export class Worker {
   @Column({ type: 'text', array: true, default: '{}' })
   skills: string[];
 
+  @Column({ name: 'file_uploads', type: 'text', array: true, default: '{}' })
+  fileUploads: string[];
+
   @Column({ name: 'hire_date', type: 'date', nullable: true })
   hireDate: string | null;
 

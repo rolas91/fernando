@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateWorkerDto {
@@ -56,10 +57,15 @@ export class CreateWorkerDto {
   skills?: string[];
 
   @IsOptional()
+  @IsArray()
+  fileUploads?: string[];
+
+  @IsOptional()
   @IsString()
   hireDate?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   hourlyRate?: number;
 

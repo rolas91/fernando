@@ -231,6 +231,27 @@ export class CreateOperationsTables20260407000200
             isNullable: false,
             default: "''",
           },
+          {
+            name: 'project_type_id',
+            type: 'varchar',
+            length: '64',
+            isNullable: false,
+            default: "''",
+          },
+          {
+            name: 'project_manager',
+            type: 'varchar',
+            length: '180',
+            isNullable: false,
+            default: "''",
+          },
+          {
+            name: 'project_manager_email',
+            type: 'varchar',
+            length: '255',
+            isNullable: false,
+            default: "''",
+          },
           { name: 'location', type: 'text', isNullable: false, default: "''" },
           {
             name: 'city',
@@ -266,6 +287,42 @@ export class CreateOperationsTables20260407000200
             default: "''",
           },
           { name: 'notes', type: 'text', isNullable: false, default: "''" },
+          {
+            name: 'created_at',
+            type: 'timestamp',
+            isNullable: false,
+            default: 'now()',
+          },
+          {
+            name: 'updated_at',
+            type: 'timestamp',
+            isNullable: false,
+            default: 'now()',
+          },
+        ],
+      }),
+    );
+
+    await this.createIfMissing(
+      queryRunner,
+      new Table({
+        name: 'project_types',
+        columns: [
+          { name: 'id', type: 'varchar', length: '64', isPrimary: true },
+          { name: 'name', type: 'varchar', length: '180', isNullable: false },
+          {
+            name: 'description',
+            type: 'text',
+            isNullable: false,
+            default: "''",
+          },
+          {
+            name: 'status',
+            type: 'varchar',
+            length: '24',
+            isNullable: false,
+            default: "'active'",
+          },
           {
             name: 'created_at',
             type: 'timestamp',

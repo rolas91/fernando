@@ -20,6 +20,20 @@ export class Project {
   @Column({ name: 'client_id', type: 'varchar', length: 64, default: '' })
   clientId: string;
 
+  @Column({ name: 'project_type_id', type: 'varchar', length: 64, default: '' })
+  projectTypeId: string;
+
+  @Column({ name: 'project_manager', type: 'varchar', length: 180, default: '' })
+  projectManager: string;
+
+  @Column({
+    name: 'project_manager_email',
+    type: 'varchar',
+    length: 255,
+    default: '',
+  })
+  projectManagerEmail: string;
+
   @Column({ type: 'text', default: '' })
   location: string;
 

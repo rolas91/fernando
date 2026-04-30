@@ -17,6 +17,18 @@ export class CreateProjectDto {
 
   @IsOptional()
   @IsString()
+  projectTypeId?: string;
+
+  @IsOptional()
+  @IsString()
+  projectManager?: string;
+
+  @IsOptional()
+  @IsString()
+  projectManagerEmail?: string;
+
+  @IsOptional()
+  @IsString()
   location?: string;
 
   @IsOptional()

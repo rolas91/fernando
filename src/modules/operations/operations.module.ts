@@ -11,6 +11,7 @@ import { FormTemplate } from '../../entities/form-template.entity';
 import { Incident } from '../../entities/incident.entity';
 import { Notification } from '../../entities/notification.entity';
 import { Project } from '../../entities/project.entity';
+import { ProjectType } from '../../entities/project-type.entity';
 import { Shift } from '../../entities/shift.entity';
 import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-confirmation.entity';
 import { StatusCatalog } from '../../entities/status-catalog.entity';
@@ -33,6 +34,7 @@ import { FormTemplatesController } from './controllers/form-templates.controller
 import { IncidentsController } from './controllers/incidents.controller';
 import { NotificationsController } from './controllers/notifications.controller';
 import { ProjectsController } from './controllers/projects.controller';
+import { ProjectTypesController } from './controllers/project-types.controller';
 import { ShiftsController } from './controllers/shifts.controller';
 import { StatusCatalogController } from './controllers/status-catalog.controller';
 import { TimesheetsController } from './controllers/timesheets.controller';
@@ -50,6 +52,7 @@ import { FormTemplatesService } from './services/form-templates.service';
 import { IncidentsService } from './services/incidents.service';
 import { NotificationsService } from './services/notifications.service';
 import { ProjectsService } from './services/projects.service';
+import { ProjectTypesService } from './services/project-types.service';
 import { ShiftsService } from './services/shifts.service';
 import { StatusCatalogService } from './services/status-catalog.service';
 import { TimesheetsService } from './services/timesheets.service';
@@ -71,6 +74,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
       ShiftAssignmentConfirmation,
       StatusCatalog,
       Project,
+      ProjectType,
       WorkOrder,
       WorkOrderType,
       Client,
@@ -90,6 +94,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     ShiftsController,
     StatusCatalogController,
     ProjectsController,
+    ProjectTypesController,
     WorkOrdersController,
     WorkOrderTypesController,
     ClientsController,
@@ -111,6 +116,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     ShiftsService,
     StatusCatalogService,
     ProjectsService,
+    ProjectTypesService,
     WorkOrdersService,
     WorkOrderTypesService,
     ClientsService,
@@ -132,6 +138,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     ShiftsService,
     StatusCatalogService,
     ProjectsService,
+    ProjectTypesService,
     WorkOrdersService,
     WorkOrderTypesService,
     ClientsService,

@@ -36,6 +36,18 @@ export class CreateWorkOrderDto {
 
   @IsOptional()
   @IsString()
+  requesterName?: string;
+
+  @IsOptional()
+  @IsString()
+  contactEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  contactPhoneNumber?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 
   @IsOptional()

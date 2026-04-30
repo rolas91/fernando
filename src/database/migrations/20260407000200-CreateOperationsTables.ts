@@ -642,6 +642,27 @@ export class CreateOperationsTables20260407000200
             isNullable: false,
             default: "'[]'::jsonb",
           },
+          {
+            name: 'requester_name',
+            type: 'varchar',
+            length: '180',
+            isNullable: false,
+            default: "''",
+          },
+          {
+            name: 'contact_email',
+            type: 'varchar',
+            length: '255',
+            isNullable: false,
+            default: "''",
+          },
+          {
+            name: 'contact_phone_number',
+            type: 'varchar',
+            length: '64',
+            isNullable: false,
+            default: "''",
+          },
           { name: 'notes', type: 'text', isNullable: false, default: "''" },
           {
             name: 'dispatch_note',

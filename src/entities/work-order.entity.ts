@@ -45,6 +45,20 @@ export class WorkOrder {
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
   shifts: Record<string, unknown>[];
 
+  @Column({ name: 'requester_name', type: 'varchar', length: 180, default: '' })
+  requesterName: string;
+
+  @Column({ name: 'contact_email', type: 'varchar', length: 255, default: '' })
+  contactEmail: string;
+
+  @Column({
+    name: 'contact_phone_number',
+    type: 'varchar',
+    length: 64,
+    default: '',
+  })
+  contactPhoneNumber: string;
+
   @Column({ type: 'text', default: '' })
   notes: string;
 

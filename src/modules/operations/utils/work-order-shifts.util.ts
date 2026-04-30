@@ -10,6 +10,7 @@ export interface ShiftWorkerConfirmation {
 
 type ShiftRoleLike = {
   id?: string;
+  requiredCount?: unknown;
   startTime?: unknown;
   assignedWorkers?: unknown;
   workerConfirmations?: unknown;
@@ -47,6 +48,19 @@ function asOptionalString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function asPositiveInt(value: unknown, fallback = 1): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(1, Math.floor(value));
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return Math.max(1, parsed);
+    }
+  }
+  return fallback;
 }
 
 function sanitizeConfirmation(
@@ -119,7 +133,11 @@ export function normalizeWorkOrderShifts(
       const roleRecord = asObject(role) as ShiftRoleLike;
       const roleId =
         typeof roleRecord.id === 'string' ? roleRecord.id.trim() : '';
-      const assignedWorkers = asStringArray(roleRecord.assignedWorkers);
+      const requiredCount = asPositiveInt(roleRecord.requiredCount);
+      const assignedWorkers = asStringArray(roleRecord.assignedWorkers).slice(
+        0,
+        requiredCount,
+      );
       const previousRole = roleId ? previousRoleById.get(roleId) : undefined;
       const existingConfirmations = Array.isArray(previousRole?.workerConfirmations)
         ? previousRole?.workerConfirmations
@@ -141,6 +159,7 @@ export function normalizeWorkOrderShifts(
 
       return {
         ...roleRecord,
+        requiredCount,
         startTime: asOptionalString(roleRecord.startTime),
         assignedWorkers,
         workerConfirmations,

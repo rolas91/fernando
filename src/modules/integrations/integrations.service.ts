@@ -498,11 +498,12 @@ export class IntegrationsService {
       });
     }
 
+    const wasConfirmed = record.status === 'confirmed';
     record.token = request.token;
-    record.status = 'pending';
+    record.status = wasConfirmed ? 'confirmed' : 'pending';
     record.deliveryChannel = request.deliveryChannel;
     record.requestedAt = new Date(request.requestedAtIso);
-    record.respondedAt = null;
+    record.respondedAt = wasConfirmed ? record.respondedAt : null;
     record.lastMessage = request.message;
     record.lastSentTo = request.recipient;
     record.providerMessageSid = request.providerMessageSid || null;
@@ -519,7 +520,7 @@ export class IntegrationsService {
         workerId: request.workerId,
       },
       {
-        status: 'pending',
+        status: wasConfirmed ? 'confirmed' : 'pending',
         requestedAt: request.requestedAtIso,
         respondedAt: undefined,
         notificationChannel: request.deliveryChannel,

@@ -1,4 +1,5 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateWorkOrderDto {
   @IsString()
@@ -45,6 +46,22 @@ export class CreateWorkOrderDto {
   @IsOptional()
   @IsString()
   contactPhoneNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  assignmentAddress?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber()
+  latitude?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @Type(() => Number)
+  @IsNumber()
+  longitude?: number | null;
 
   @IsOptional()
   @IsString()

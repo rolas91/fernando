@@ -76,7 +76,7 @@ export class MigrateUserProfilesToUsers20260428000200
       VALUES
         (uuid_generate_v4(), 'admin', 'Admin', null, now(), now()),
         (uuid_generate_v4(), 'manager', 'Manager', null, now(), now()),
-        (uuid_generate_v4(), 'scheduler', 'Scheduler', null, now(), now()),
+        (uuid_generate_v4(), 'scheduler', 'Schedule', null, now(), now()),
         (uuid_generate_v4(), 'viewer', 'Viewer', null, now(), now())
       ON CONFLICT (key) DO NOTHING
     `);

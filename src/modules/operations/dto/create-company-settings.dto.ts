@@ -37,5 +37,9 @@ export class CreateCompanySettingsDto {
 
   @IsOptional()
   @IsArray()
+  materialTypes?: string[];
+
+  @IsOptional()
+  @IsArray()
   jobStatuses?: string[];
 }

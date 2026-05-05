@@ -4,10 +4,12 @@ import {
   Entity,
   JoinTable,
   ManyToMany,
+  OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Certification } from './certification.entity';
+import { Skill } from './skill.entity';
+import { WorkerCertification } from './worker-certification.entity';
 
 @Entity('workers')
 export class Worker {
@@ -50,24 +52,30 @@ export class Worker {
   @Column({ type: 'varchar', length: 32 })
   status: string;
 
-  @ManyToMany(() => Certification, (certification) => certification.workers, {
+  @OneToMany(
+    () => WorkerCertification,
+    (workerCertification) => workerCertification.worker,
+    {
+      eager: false,
+    },
+  )
+  workerCertifications: WorkerCertification[];
+
+  @ManyToMany(() => Skill, (skill) => skill.workers, {
     eager: false,
   })
   @JoinTable({
-    name: 'worker_certifications',
+    name: 'worker_skills',
     joinColumn: {
       name: 'worker_id',
       referencedColumnName: 'id',
     },
     inverseJoinColumn: {
-      name: 'certification_id',
+      name: 'skill_id',
       referencedColumnName: 'id',
     },
   })
-  certifications: Certification[];
-
-  @Column({ type: 'text', array: true, default: '{}' })
-  skills: string[];
+  skills: Skill[];
 
   @Column({ name: 'file_uploads', type: 'text', array: true, default: '{}' })
   fileUploads: string[];

@@ -252,7 +252,7 @@ export class IntegrationsService {
         httpStatus: 404,
         state: 'invalid',
         title: 'Shift not found',
-        description: 'The linked work order no longer exists, so this confirmation cannot be applied.',
+        description: 'The linked assignment no longer exists, so this confirmation cannot be applied.',
       };
     }
 
@@ -315,7 +315,7 @@ export class IntegrationsService {
         : 'Shift confirmed successfully',
       description: alreadyConfirmed
         ? 'This shift was already confirmed earlier.'
-        : 'Your confirmation was saved and the scheduler has been updated.',
+        : 'Your confirmation was saved and the schedule has been updated.',
       workerName,
       projectName: workOrder.title,
       shiftDate: typeof shift.date === 'string' ? shift.date : undefined,
@@ -430,7 +430,7 @@ export class IntegrationsService {
       where: { id: confirmation.workOrderId! },
     });
     if (!workOrder) {
-      throw new Error(`Work order ${confirmation.workOrderId} was not found.`);
+      throw new Error(`Assignment ${confirmation.workOrderId} was not found.`);
     }
 
     workOrder.shifts = normalizeWorkOrderShifts(workOrder.shifts);

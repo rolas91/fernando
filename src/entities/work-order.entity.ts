@@ -59,6 +59,15 @@ export class WorkOrder {
   })
   contactPhoneNumber: string;
 
+  @Column({ name: 'assignment_address', type: 'text', default: '' })
+  assignmentAddress: string;
+
+  @Column({ type: 'double precision', nullable: true })
+  latitude: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  longitude: number | null;
+
   @Column({ type: 'text', default: '' })
   notes: string;
 

@@ -1,16 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { WorkOrderType } from '../../../entities/work-order-type.entity';
+import { Skill } from '../../../entities/skill.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
-import { CreateWorkOrderTypeDto } from '../dto/create-work-order-type.dto';
-import { UpdateWorkOrderTypeDto } from '../dto/update-work-order-type.dto';
+import { CreateSkillDto } from '../dto/create-skill.dto';
+import { UpdateSkillDto } from '../dto/update-skill.dto';
 
 @Injectable()
-export class WorkOrderTypesService {
+export class SkillsService {
   constructor(
-    @InjectRepository(WorkOrderType)
-    private readonly repo: Repository<WorkOrderType>,
+    @InjectRepository(Skill)
+    private readonly repo: Repository<Skill>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -20,29 +20,32 @@ export class WorkOrderTypesService {
 
   async findOne(id: string) {
     const item = await this.repo.findOne({ where: { id } });
-    if (!item) throw new NotFoundException(`Assignment type ${id} not found`);
+    if (!item) throw new NotFoundException(`Skill ${id} not found`);
     return item;
   }
 
-  create(dto: CreateWorkOrderTypeDto) {
+  create(dto: CreateSkillDto) {
     return this.repo.save(this.repo.create(dto)).then((saved) => {
-      this.realtime.emitTableUpdated('work_order_types');
+      this.realtime.emitTableUpdated('skills');
+      this.realtime.emitTableUpdated('workers');
       return saved;
     });
   }
 
-  async update(id: string, dto: UpdateWorkOrderTypeDto) {
+  async update(id: string, dto: UpdateSkillDto) {
     const item = await this.findOne(id);
     Object.assign(item, dto);
     const saved = await this.repo.save(item);
-    this.realtime.emitTableUpdated('work_order_types');
+    this.realtime.emitTableUpdated('skills');
+    this.realtime.emitTableUpdated('workers');
     return saved;
   }
 
   async remove(id: string) {
     const item = await this.findOne(id);
     await this.repo.remove(item);
-    this.realtime.emitTableUpdated('work_order_types');
+    this.realtime.emitTableUpdated('skills');
+    this.realtime.emitTableUpdated('workers');
     return { success: true };
   }
 }

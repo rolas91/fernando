@@ -40,6 +40,7 @@ export class CreateCertificationsAndWorkerRelations20260429000300
       CREATE TABLE IF NOT EXISTS worker_certifications (
         worker_id varchar(64) NOT NULL,
         certification_id varchar(64) NOT NULL,
+        expiration_date date NULL,
         PRIMARY KEY (worker_id, certification_id),
         CONSTRAINT fk_worker_certifications_worker
           FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,

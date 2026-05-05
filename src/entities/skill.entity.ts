@@ -2,14 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  OneToMany,
+  ManyToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { WorkerCertification } from './worker-certification.entity';
+import { Worker } from './worker.entity';
 
-@Entity('certifications')
-export class Certification {
+@Entity('skills')
+export class Skill {
   @PrimaryColumn({ type: 'varchar', length: 64 })
   id: string;
 
@@ -22,14 +22,8 @@ export class Certification {
   @Column({ type: 'varchar', length: 24, default: 'active' })
   status: string;
 
-  @Column({ name: 'document_url', type: 'text', nullable: true })
-  documentUrl: string | null;
-
-  @OneToMany(
-    () => WorkerCertification,
-    (workerCertification) => workerCertification.certification,
-  )
-  workerCertifications: WorkerCertification[];
+  @ManyToMany(() => Worker, (worker) => worker.skills)
+  workers: Worker[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

@@ -10,7 +10,7 @@ export type AppRoleKey = (typeof APP_ROLE_KEYS)[number];
 export const APP_ROLE_NAMES: Record<AppRoleKey, string> = {
   admin: 'Admin',
   manager: 'Manager',
-  scheduler: 'Scheduler',
+  scheduler: 'Schedule',
   viewer: 'Viewer',
 };
 
@@ -120,6 +120,19 @@ for (const [resource, permissions] of Object.entries(
   DEFAULT_PERMISSION_DESCRIPTIONS[permissions.read] = `Leer ${resource}`;
   DEFAULT_PERMISSION_DESCRIPTIONS[permissions.write] = `Editar ${resource}`;
 }
+
+DEFAULT_PERMISSION_DESCRIPTIONS[
+  OPERATIONS_RESOURCE_PERMISSIONS['work-orders'].read
+] = 'Leer asignaciones';
+DEFAULT_PERMISSION_DESCRIPTIONS[
+  OPERATIONS_RESOURCE_PERMISSIONS['work-orders'].write
+] = 'Editar asignaciones';
+DEFAULT_PERMISSION_DESCRIPTIONS[
+  OPERATIONS_RESOURCE_PERMISSIONS['work-order-types'].read
+] = 'Leer tipos de asignación';
+DEFAULT_PERMISSION_DESCRIPTIONS[
+  OPERATIONS_RESOURCE_PERMISSIONS['work-order-types'].write
+] = 'Editar tipos de asignación';
 
 export const DEFAULT_ROLE_GRANTS: Record<AppRoleKey, string[]> = {
   viewer: [...allOperationsReadPermissions],

@@ -25,7 +25,7 @@ export class WorkOrdersService {
 
   async findOne(id: string) {
     const workOrder = await this.workOrdersRepo.findOne({ where: { id } });
-    if (!workOrder) throw new NotFoundException(`Work order ${id} not found`);
+    if (!workOrder) throw new NotFoundException(`Assignment ${id} not found`);
     return workOrder;
   }
 
@@ -65,7 +65,7 @@ export class WorkOrdersService {
       await this.spacesStorage.deleteManyPublicFiles(workOrder.fileUploads || []);
     } catch (error) {
       this.logger.warn(
-        `Could not delete stored files for work order ${id}: ${
+        `Could not delete stored files for assignment ${id}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );

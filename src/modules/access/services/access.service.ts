@@ -233,7 +233,12 @@ export class AccessService implements OnModuleInit {
     }
 
     for (const roleKey of APP_ROLE_KEYS) {
-      await this.ensureRoleExists(roleKey, APP_ROLE_NAMES[roleKey]);
+      const expectedName = APP_ROLE_NAMES[roleKey];
+      const role = await this.ensureRoleExists(roleKey, expectedName);
+      if (role.name !== expectedName) {
+        role.name = expectedName;
+        await this.rolesRepo.save(role);
+      }
     }
 
     for (const [roleKey, permissionKeys] of Object.entries(DEFAULT_ROLE_GRANTS)) {

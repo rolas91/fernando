@@ -35,6 +35,9 @@ export class CompanySettings {
   @Column({ name: 'equipment_types', type: 'text', array: true, default: '{}' })
   equipmentTypes: string[];
 
+  @Column({ name: 'material_types', type: 'text', array: true, default: '{}' })
+  materialTypes: string[];
+
   @Column({ name: 'job_statuses', type: 'text', array: true, default: '{}' })
   jobStatuses: string[];
 

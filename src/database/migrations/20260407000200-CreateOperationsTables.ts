@@ -51,6 +51,13 @@ export class CreateOperationsTables20260407000200
             default: "'{}'",
           },
           {
+            name: 'material_types',
+            type: 'text',
+            isArray: true,
+            isNullable: false,
+            default: "'{}'",
+          },
+          {
             name: 'job_statuses',
             type: 'text',
             isArray: true,
@@ -460,13 +467,6 @@ export class CreateOperationsTables20260407000200
             isNullable: false,
           },
           {
-            name: 'skills',
-            type: 'text',
-            isArray: true,
-            isNullable: false,
-            default: "'{}'",
-          },
-          {
             name: 'file_uploads',
             type: 'text',
             isArray: true,
@@ -505,6 +505,53 @@ export class CreateOperationsTables20260407000200
       queryRunner,
       new Table({
         name: 'equipment',
+        columns: [
+          { name: 'id', type: 'varchar', length: '64', isPrimary: true },
+          { name: 'name', type: 'varchar', length: '180', isNullable: false },
+          { name: 'type', type: 'varchar', length: '120', isNullable: false },
+          {
+            name: 'identifier',
+            type: 'varchar',
+            length: '120',
+            isNullable: false,
+            default: "''",
+          },
+          {
+            name: 'brand',
+            type: 'varchar',
+            length: '120',
+            isNullable: false,
+            default: "''",
+          },
+          {
+            name: 'status',
+            type: 'varchar',
+            length: '32',
+            isNullable: false,
+          },
+          { name: 'last_maintenance', type: 'date', isNullable: true },
+          { name: 'next_maintenance', type: 'date', isNullable: true },
+          { name: 'notes', type: 'text', isNullable: false, default: "''" },
+          {
+            name: 'created_at',
+            type: 'timestamp',
+            isNullable: false,
+            default: 'now()',
+          },
+          {
+            name: 'updated_at',
+            type: 'timestamp',
+            isNullable: false,
+            default: 'now()',
+          },
+        ],
+      }),
+    );
+
+    await this.createIfMissing(
+      queryRunner,
+      new Table({
+        name: 'materials',
         columns: [
           { name: 'id', type: 'varchar', length: '64', isPrimary: true },
           { name: 'name', type: 'varchar', length: '180', isNullable: false },
@@ -1140,12 +1187,13 @@ export class CreateOperationsTables20260407000200
       'notifications',
       'incidents',
       'form_submissions',
-      'form_templates',
-      'timesheets',
-      'work_orders',
-      'shifts',
-      'equipment',
-      'workers',
+        'form_templates',
+        'timesheets',
+        'work_orders',
+        'shifts',
+        'materials',
+        'equipment',
+        'workers',
       'work_order_types',
       'projects',
       'clients',

@@ -9,16 +9,19 @@ import { Equipment } from '../../entities/equipment.entity';
 import { FormSubmission } from '../../entities/form-submission.entity';
 import { FormTemplate } from '../../entities/form-template.entity';
 import { Incident } from '../../entities/incident.entity';
+import { Material } from '../../entities/material.entity';
 import { Notification } from '../../entities/notification.entity';
 import { Project } from '../../entities/project.entity';
 import { ProjectType } from '../../entities/project-type.entity';
 import { Shift } from '../../entities/shift.entity';
 import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-confirmation.entity';
+import { Skill } from '../../entities/skill.entity';
 import { StatusCatalog } from '../../entities/status-catalog.entity';
 import { Timesheet } from '../../entities/timesheet.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
 import { WorkOrderType } from '../../entities/work-order-type.entity';
 import { Worker } from '../../entities/worker.entity';
+import { WorkerCertification } from '../../entities/worker-certification.entity';
 import { AccessModule } from '../access/access.module';
 import { AuthModule } from '../auth/auth.module';
 import { RealtimeModule } from '../realtime/realtime.module';
@@ -32,10 +35,12 @@ import { FormContractController } from './controllers/form-contract.controller';
 import { FormSubmissionsController } from './controllers/form-submissions.controller';
 import { FormTemplatesController } from './controllers/form-templates.controller';
 import { IncidentsController } from './controllers/incidents.controller';
+import { MaterialsController } from './controllers/materials.controller';
 import { NotificationsController } from './controllers/notifications.controller';
 import { ProjectsController } from './controllers/projects.controller';
 import { ProjectTypesController } from './controllers/project-types.controller';
 import { ShiftsController } from './controllers/shifts.controller';
+import { SkillsController } from './controllers/skills.controller';
 import { StatusCatalogController } from './controllers/status-catalog.controller';
 import { TimesheetsController } from './controllers/timesheets.controller';
 import { WorkOrderTypesController } from './controllers/work-order-types.controller';
@@ -50,10 +55,12 @@ import { EquipmentService } from './services/equipment.service';
 import { FormSubmissionsService } from './services/form-submissions.service';
 import { FormTemplatesService } from './services/form-templates.service';
 import { IncidentsService } from './services/incidents.service';
+import { MaterialsService } from './services/materials.service';
 import { NotificationsService } from './services/notifications.service';
 import { ProjectsService } from './services/projects.service';
 import { ProjectTypesService } from './services/project-types.service';
 import { ShiftsService } from './services/shifts.service';
+import { SkillsService } from './services/skills.service';
 import { StatusCatalogService } from './services/status-catalog.service';
 import { TimesheetsService } from './services/timesheets.service';
 import { WorkOrderTypesService } from './services/work-order-types.service';
@@ -69,6 +76,8 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     RealtimeModule,
     TypeOrmModule.forFeature([
       Worker,
+      Skill,
+      WorkerCertification,
       Certification,
       Shift,
       ShiftAssignmentConfirmation,
@@ -79,6 +88,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
       WorkOrderType,
       Client,
       Equipment,
+      Material,
       Timesheet,
       FormTemplate,
       FormSubmission,
@@ -92,6 +102,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
   controllers: [
     WorkersController,
     ShiftsController,
+    SkillsController,
     StatusCatalogController,
     ProjectsController,
     ProjectTypesController,
@@ -99,6 +110,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkOrderTypesController,
     ClientsController,
     EquipmentController,
+    MaterialsController,
     TimesheetsController,
     FormTemplatesController,
     FormSubmissionsController,
@@ -114,6 +126,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkersService,
     CertificationsService,
     ShiftsService,
+    SkillsService,
     StatusCatalogService,
     ProjectsService,
     ProjectTypesService,
@@ -121,6 +134,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkOrderTypesService,
     ClientsService,
     EquipmentService,
+    MaterialsService,
     TimesheetsService,
     FormTemplatesService,
     FormSubmissionsService,
@@ -136,6 +150,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkersService,
     CertificationsService,
     ShiftsService,
+    SkillsService,
     StatusCatalogService,
     ProjectsService,
     ProjectTypesService,
@@ -143,6 +158,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkOrderTypesService,
     ClientsService,
     EquipmentService,
+    MaterialsService,
     TimesheetsService,
     FormTemplatesService,
     FormSubmissionsService,

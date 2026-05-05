@@ -34,6 +34,7 @@ const DEFAULT_SETTINGS: Pick<
   | 'overtimeRules'
   | 'workerTypes'
   | 'equipmentTypes'
+  | 'materialTypes'
   | 'jobStatuses'
 > = {
   id: 'default',
@@ -67,6 +68,14 @@ const DEFAULT_SETTINGS: Pick<
     'Light Tower',
     'Generator',
     'CMS Mini',
+  ],
+  materialTypes: [
+    'Sign',
+    'Cone',
+    'Barricade',
+    'Drum',
+    'Sandbag',
+    'Delineator',
   ],
   jobStatuses: [
     'Pending',
@@ -740,6 +749,10 @@ async function seedCatalogs(dataSource: DataSource) {
     existing.equipmentTypes,
     DEFAULT_SETTINGS.equipmentTypes,
   );
+  existing.materialTypes = mergeUnique(
+    existing.materialTypes,
+    DEFAULT_SETTINGS.materialTypes,
+  );
   existing.jobStatuses = mergeUnique(
     existing.jobStatuses,
     DEFAULT_SETTINGS.jobStatuses,
@@ -803,7 +816,7 @@ async function seedWorkOrderTypeCatalog(dataSource: DataSource) {
   }
 
   console.log(
-    `Work order types seed OK. created=${created}, updated=${updated}`,
+    `Assignment types seed OK. created=${created}, updated=${updated}`,
   );
 }
 

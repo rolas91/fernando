@@ -1,5 +1,20 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+
+export class WorkerCertificationAssignmentDto {
+  @IsString()
+  certificationId: string;
+
+  @IsOptional()
+  @IsString()
+  expirationDate?: string;
+}
 
 export class CreateWorkerDto {
   @IsString()
@@ -51,6 +66,16 @@ export class CreateWorkerDto {
   @IsOptional()
   @IsArray()
   certificationIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WorkerCertificationAssignmentDto)
+  certificationAssignments?: WorkerCertificationAssignmentDto[];
+
+  @IsOptional()
+  @IsArray()
+  skillIds?: string[];
 
   @IsOptional()
   @IsArray()

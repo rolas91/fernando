@@ -11,14 +11,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
-const multer = require('multer');
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateWorkOrderDto } from '../dto/create-work-order.dto';
 import { DeleteWorkOrderUploadDto } from '../dto/delete-work-order-upload.dto';
 import { UpdateWorkOrderDto } from '../dto/update-work-order.dto';
 import { WorkOrdersService } from '../services/work-orders.service';
-import { FilesInterceptor } from '@nestjs/platform-express';
 import { SpacesStorageService } from '../services/spaces-storage.service';
+import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options';
 
 @ApiTags('operations')
 @Controller('work-orders')
@@ -50,10 +50,11 @@ export class WorkOrdersController {
     },
   })
   @UseInterceptors(
-    FilesInterceptor('files', 10, {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: 25 * 1024 * 1024 },
-    }),
+    FilesInterceptor(
+      'files',
+      10,
+      createSpacesUploadMulterOptions('work-orders'),
+    ),
   )
   uploadFiles(
     @UploadedFiles() files: Array<{ originalname?: string; mimetype?: string; buffer?: Buffer; size?: number }>,

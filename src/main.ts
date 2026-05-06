@@ -6,6 +6,7 @@ import { existsSync } from 'fs';
 import type { NextFunction, Request, Response } from 'express';
 import { join, resolve } from 'path';
 import { AppModule } from './app.module';
+import { MulterExceptionFilter } from './common/filters/multer-exception.filter';
 import { ensureRuntimeEnv } from './config/ensure-env';
 
 function isSwaggerEnabled() {
@@ -47,6 +48,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.useGlobalFilters(new MulterExceptionFilter());
 
   const configuredDistPath = process.env.FRONTEND_DIST_PATH?.trim();
   const candidateDistPaths = [

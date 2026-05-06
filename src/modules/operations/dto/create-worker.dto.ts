@@ -1,12 +1,25 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsArray,
+  IsEmail,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import {
+  IsDateOnlyPastOrPresent,
+  IsDateOnlyTodayOrFuture,
+  IsUsNanpPhone,
+  normalizeUsPhoneDisplay,
+} from '../validation/worker-field.validators';
 
 export class WorkerCertificationAssignmentDto {
   @IsString()
@@ -21,27 +34,60 @@ export class CreateWorkerDto {
   @IsString()
   id: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
   firstName: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
   lastName: string;
 
-  @IsOptional()
-  @IsString()
-  email?: string;
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsEmail()
+  email: string;
 
-  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? normalizeUsPhoneDisplay(value.trim())
+      : value,
+  )
   @IsString()
-  phone?: string;
+  @IsNotEmpty()
+  @MaxLength(32)
+  @IsUsNanpPhone()
+  phone: string;
 
-  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    return value
+      .normalize('NFKD')
+      .replace(/[^A-Za-z0-9*-]/g, '')
+      .slice(0, 24)
+      .toUpperCase();
+  })
+  @ValidateIf((_, v) => typeof v === 'string' && v.trim() !== '')
   @IsString()
+  @MinLength(3, {
+    message: 'Licencia debe tener al menos 3 caracteres cuando se proporciona.',
+  })
+  @MaxLength(24)
+  @Matches(/^[A-Z0-9*\-]+$/, {
+    message:
+      'Licencia debe contener solo letras mayúsculas, números, * y guión.',
+  })
   driverLicense?: string;
 
   @IsOptional()
-  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @ValidateIf((_, v) => v !== null && v !== undefined && v !== '')
   @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Fecha inválida (use YYYY-MM-DD).',
+  })
+  @IsDateOnlyTodayOrFuture()
   driverLicenseExpiration?: string | null;
 
   @IsOptional()
@@ -76,13 +122,19 @@ export class CreateWorkerDto {
   @IsNumber()
   longitude?: number | null;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty()
   type: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty()
   role: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty()
   status: string;
 
   @IsOptional()
@@ -108,13 +160,23 @@ export class CreateWorkerDto {
   fileUploads?: string[];
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== undefined && v !== null && v !== '')
   @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Fecha de contratación inválida.',
+  })
+  @IsDateOnlyPastOrPresent()
   hireDate?: string;
 
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  hourlyRate?: number;
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return NaN;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : NaN;
+  })
+  @IsNumber({}, { message: 'La tarifa horaria debe ser un número válido.' })
+  @Min(0, { message: 'La tarifa horaria no puede ser negativa.' })
+  @Max(750, { message: 'La tarifa horaria no debe superar 750.' })
+  hourlyRate: number;
 
   @IsOptional()
   @IsString()

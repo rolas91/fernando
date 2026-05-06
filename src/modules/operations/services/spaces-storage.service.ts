@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -6,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, randomUUID } from 'crypto';
+import {
+  ALLOWED_MIME_BY_UPLOAD_SCOPE,
+  parseSpacesUploadMaxBytes,
+} from '../constants/spaces-upload.constants';
 
 type UploadFileCandidate = {
   originalname?: string;
@@ -45,7 +50,7 @@ export class SpacesStorageService {
   }
 
   private async uploadFilesForScope(
-    scopePrefix: string,
+    scopePrefix: 'workers' | 'work-orders' | 'certifications',
     files: UploadFileCandidate[],
     scopeId?: string,
   ) {
@@ -53,6 +58,16 @@ export class SpacesStorageService {
     if (!Array.isArray(files) || files.length === 0) {
       return [];
     }
+
+    const allowedMime = ALLOWED_MIME_BY_UPLOAD_SCOPE[scopePrefix];
+    if (!allowedMime) {
+      throw new InternalServerErrorException(
+        `Unknown upload scope: ${scopePrefix}`,
+      );
+    }
+    const maxBytes = parseSpacesUploadMaxBytes(
+      this.configService.get<string>('SPACES_UPLOAD_MAX_BYTES'),
+    );
 
     const uploads: Array<{
       url: string;
@@ -62,18 +77,23 @@ export class SpacesStorageService {
       contentType: string;
     }> = [];
     for (const file of files) {
-      if (!file?.buffer?.length) continue;
+      this.assertUploadCandidate(file, allowedMime, maxBytes);
+      const body = file.buffer!;
       const key = this.buildObjectKey(
         scopePrefix,
         file.originalname || 'upload.bin',
         scopeId,
       );
-      await this.putObject(key, file.buffer, file.mimetype || 'application/octet-stream');
+      await this.putObject(
+        key,
+        body,
+        file.mimetype || 'application/octet-stream',
+      );
       uploads.push({
         url: this.buildPublicUrl(key),
         key,
         name: file.originalname || this.getFileNameFromKey(key),
-        size: file.size || file.buffer.length,
+        size: file.size || body.length,
         contentType: file.mimetype || 'application/octet-stream',
       });
     }
@@ -117,6 +137,31 @@ export class SpacesStorageService {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException(
         'DigitalOcean Spaces is not configured in this environment.',
+      );
+    }
+  }
+
+  private assertUploadCandidate(
+    file: UploadFileCandidate,
+    allowedMime: ReadonlySet<string>,
+    maxBytes: number,
+  ) {
+    const buffer = file.buffer;
+    if (!buffer?.length) {
+      throw new BadRequestException('Uno o más archivos están vacíos.');
+    }
+    const reported = file.size ?? buffer.length;
+    if (reported > maxBytes || buffer.length > maxBytes) {
+      throw new BadRequestException(
+        'El archivo supera el tamaño máximo permitido.',
+      );
+    }
+    const mime =
+      (file.mimetype || '').trim().toLowerCase() ||
+      'application/octet-stream';
+    if (!allowedMime.has(mime)) {
+      throw new BadRequestException(
+        `Tipo de archivo no permitido (${mime}).`,
       );
     }
   }

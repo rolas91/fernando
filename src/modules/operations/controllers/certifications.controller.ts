@@ -11,7 +11,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
-const multer = require('multer');
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateCertificationDto } from '../dto/create-certification.dto';
@@ -19,6 +18,7 @@ import { DeleteUploadDto } from '../dto/delete-upload.dto';
 import { UpdateCertificationDto } from '../dto/update-certification.dto';
 import { CertificationsService } from '../services/certifications.service';
 import { SpacesStorageService } from '../services/spaces-storage.service';
+import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options';
 
 @ApiTags('operations')
 @Controller('certifications')
@@ -50,10 +50,11 @@ export class CertificationsController {
     },
   })
   @UseInterceptors(
-    FilesInterceptor('files', 1, {
-      storage: multer.memoryStorage(),
-      limits: { fileSize: 25 * 1024 * 1024 },
-    }),
+    FilesInterceptor(
+      'files',
+      1,
+      createSpacesUploadMulterOptions('certifications'),
+    ),
   )
   uploadFiles(
     @UploadedFiles()

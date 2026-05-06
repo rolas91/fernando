@@ -29,6 +29,24 @@ export class Client {
   @Column({ type: 'text', default: '' })
   address: string;
 
+  @Column({ type: 'varchar', length: 180, default: '' })
+  city: string;
+
+  @Column({ type: 'varchar', length: 120, default: '' })
+  state: string;
+
+  @Column({ name: 'zip_code', type: 'varchar', length: 32, default: '' })
+  zipCode: string;
+
+  @Column({ type: 'varchar', length: 120, default: 'USA' })
+  country: string;
+
+  @Column({ type: 'double precision', nullable: true })
+  latitude: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  longitude: number | null;
+
   @Column({ type: 'varchar', length: 32 })
   status: string;
 

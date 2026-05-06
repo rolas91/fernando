@@ -36,6 +36,22 @@ export class WorkOrdersService {
       dispatchNote: dto.dispatchNote?.trim() || '',
       fileUploads: this.normalizeTextArray(dto.fileUploads),
     });
+    if (dto.assignmentAddress !== undefined) {
+      entity.assignmentAddress = (dto.assignmentAddress ?? '').trim();
+    }
+    if (dto.assignmentCity !== undefined) {
+      entity.assignmentCity = (dto.assignmentCity ?? '').trim();
+    }
+    if (dto.assignmentState !== undefined) {
+      entity.assignmentState = (dto.assignmentState ?? '').trim();
+    }
+    if (dto.assignmentZipCode !== undefined) {
+      entity.assignmentZipCode = (dto.assignmentZipCode ?? '').trim();
+    }
+    if (dto.assignmentCountry !== undefined) {
+      entity.assignmentCountry =
+        (dto.assignmentCountry ?? '').trim() || 'USA';
+    }
     return this.workOrdersRepo.save(entity).then((saved) => {
       this.realtime.emitTableUpdated('work_orders');
       return saved;
@@ -53,6 +69,22 @@ export class WorkOrdersService {
     }
     if (dto.fileUploads !== undefined) {
       workOrder.fileUploads = this.normalizeTextArray(dto.fileUploads);
+    }
+    if (dto.assignmentAddress !== undefined) {
+      workOrder.assignmentAddress = (dto.assignmentAddress ?? '').trim();
+    }
+    if (dto.assignmentCity !== undefined) {
+      workOrder.assignmentCity = (dto.assignmentCity ?? '').trim();
+    }
+    if (dto.assignmentState !== undefined) {
+      workOrder.assignmentState = (dto.assignmentState ?? '').trim();
+    }
+    if (dto.assignmentZipCode !== undefined) {
+      workOrder.assignmentZipCode = (dto.assignmentZipCode ?? '').trim();
+    }
+    if (dto.assignmentCountry !== undefined) {
+      workOrder.assignmentCountry =
+        (dto.assignmentCountry ?? '').trim() || 'USA';
     }
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');

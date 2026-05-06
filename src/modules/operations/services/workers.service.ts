@@ -68,6 +68,10 @@ export class WorkersService {
     };
   }
 
+  private finalizeWorkerPostalFields(worker: Worker) {
+    worker.country = (worker.country ?? '').trim() || 'USA';
+  }
+
   private normalizeCertificationAssignments(
     dto: Pick<CreateWorkerDto, 'certificationIds' | 'certificationAssignments'>,
   ) {
@@ -168,6 +172,7 @@ export class WorkersService {
       hourlyRate:
         hourlyRate !== undefined ? String(hourlyRate) : undefined,
     });
+    this.finalizeWorkerPostalFields(entity);
     const saved = await this.workersRepo.save(entity);
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);
@@ -203,6 +208,7 @@ export class WorkersService {
       hourlyRate:
         hourlyRate !== undefined ? String(hourlyRate) : worker.hourlyRate,
     });
+    this.finalizeWorkerPostalFields(worker);
     const saved = await this.workersRepo.save(worker);
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);

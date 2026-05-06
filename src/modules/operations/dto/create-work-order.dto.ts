@@ -65,6 +65,22 @@ export class CreateWorkOrderDto {
 
   @IsOptional()
   @IsString()
+  assignmentCity?: string;
+
+  @IsOptional()
+  @IsString()
+  assignmentState?: string;
+
+  @IsOptional()
+  @IsString()
+  assignmentZipCode?: string;
+
+  @IsOptional()
+  @IsString()
+  assignmentCountry?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 
   @IsOptional()

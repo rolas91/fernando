@@ -68,6 +68,18 @@ export class WorkOrder {
   @Column({ type: 'double precision', nullable: true })
   longitude: number | null;
 
+  @Column({ name: 'assignment_city', type: 'varchar', length: 180, default: '' })
+  assignmentCity: string;
+
+  @Column({ name: 'assignment_state', type: 'varchar', length: 120, default: '' })
+  assignmentState: string;
+
+  @Column({ name: 'assignment_zip_code', type: 'varchar', length: 32, default: '' })
+  assignmentZipCode: string;
+
+  @Column({ name: 'assignment_country', type: 'varchar', length: 120, default: 'USA' })
+  assignmentCountry: string;
+
   @Column({ type: 'text', default: '' })
   notes: string;
 

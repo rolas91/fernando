@@ -43,6 +43,15 @@ export class Worker {
   @Column({ type: 'varchar', length: 64, default: '' })
   state: string;
 
+  @Column({ type: 'varchar', length: 120, default: 'USA' })
+  country: string;
+
+  @Column({ type: 'double precision', nullable: true })
+  latitude: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  longitude: number | null;
+
   @Column({ type: 'varchar', length: 100 })
   type: string;
 

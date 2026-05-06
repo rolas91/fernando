@@ -14,6 +14,14 @@ export class ClientsService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
+  private finalizeClientPostalFields(entity: Client) {
+    entity.address = (entity.address ?? '').trim();
+    entity.city = (entity.city ?? '').trim();
+    entity.state = (entity.state ?? '').trim();
+    entity.zipCode = (entity.zipCode ?? '').trim();
+    entity.country = (entity.country ?? '').trim() || 'USA';
+  }
+
   findAll() {
     return this.clientsRepo.find({ order: { name: 'ASC' } });
   }
@@ -25,7 +33,9 @@ export class ClientsService {
   }
 
   create(dto: CreateClientDto) {
-    return this.clientsRepo.save(this.clientsRepo.create(dto)).then((saved) => {
+    const entity = this.clientsRepo.create(dto);
+    this.finalizeClientPostalFields(entity);
+    return this.clientsRepo.save(entity).then((saved) => {
       this.realtime.emitTableUpdated('clients');
       return saved;
     });
@@ -34,6 +44,7 @@ export class ClientsService {
   async update(id: string, dto: UpdateClientDto) {
     const item = await this.findOne(id);
     Object.assign(item, dto);
+    this.finalizeClientPostalFields(item);
     const saved = await this.clientsRepo.save(item);
     this.realtime.emitTableUpdated('clients');
     return saved;

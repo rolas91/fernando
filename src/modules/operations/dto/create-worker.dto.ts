@@ -40,6 +40,11 @@ export class CreateWorkerDto {
   driverLicense?: string;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  driverLicenseExpiration?: string | null;
+
+  @IsOptional()
   @IsString()
   primaryAddress?: string;
 

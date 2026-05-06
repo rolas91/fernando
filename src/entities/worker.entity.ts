@@ -31,6 +31,9 @@ export class Worker {
   @Column({ name: 'driver_license', type: 'varchar', length: 120, default: '' })
   driverLicense: string;
 
+  @Column({ name: 'driver_license_expiration', type: 'date', nullable: true })
+  driverLicenseExpiration: string | null;
+
   @Column({ name: 'primary_address', type: 'text', default: '' })
   primaryAddress: string;
 

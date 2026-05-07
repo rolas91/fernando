@@ -42,4 +42,8 @@ export class CreateCompanySettingsDto {
   @IsOptional()
   @IsArray()
   jobStatuses?: string[];
+
+  @IsOptional()
+  @IsObject()
+  assignmentAutoStatus?: Record<string, unknown>;
 }

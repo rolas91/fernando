@@ -41,6 +41,10 @@ export class CompanySettings {
   @Column({ name: 'job_statuses', type: 'text', array: true, default: '{}' })
   jobStatuses: string[];
 
+  /** Optional JSON thresholds for automatic work order (assignment) status. */
+  @Column({ name: 'assignment_auto_status', type: 'jsonb', nullable: true })
+  assignmentAutoStatus: Record<string, unknown> | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

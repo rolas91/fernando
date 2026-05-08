@@ -12,6 +12,7 @@ type ShiftRoleLike = {
   id?: string;
   requiredCount?: unknown;
   startTime?: unknown;
+  requiredSkillIds?: unknown;
   assignedWorkers?: unknown;
   assignedEquipment?: unknown;
   assignedMaterials?: unknown;
@@ -142,6 +143,7 @@ export function normalizeWorkOrderShifts(
       );
       const assignedEquipment = asStringArray(roleRecord.assignedEquipment);
       const assignedMaterials = asStringArray(roleRecord.assignedMaterials);
+      const requiredSkillIds = asStringArray(roleRecord.requiredSkillIds);
       const previousRole = roleId ? previousRoleById.get(roleId) : undefined;
       const existingConfirmations = Array.isArray(previousRole?.workerConfirmations)
         ? previousRole?.workerConfirmations
@@ -165,6 +167,7 @@ export function normalizeWorkOrderShifts(
         ...roleRecord,
         requiredCount,
         startTime: asOptionalString(roleRecord.startTime),
+        requiredSkillIds,
         assignedWorkers,
         assignedEquipment,
         assignedMaterials,

@@ -1,6 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { Project } from '../../../entities/project.entity';
@@ -55,6 +60,7 @@ export class WorkOrdersService {
 
     const shifts = normalizeWorkOrderShifts(dto.shifts);
     assertShiftsWithinAssignmentDateRange(dto.startDate, dto.endDate, shifts);
+    await this.assertAssignedWorkersMeetRoleSkills(shifts);
     const { status: dtoStatusLane, ...dtoWithoutDeclaredStatus } = dto;
     const entity = this.workOrdersRepo.create({
       ...dtoWithoutDeclaredStatus,
@@ -99,6 +105,10 @@ export class WorkOrdersService {
     assertShiftsWithinAssignmentDateRange(
       workOrder.startDate,
       workOrder.endDate,
+      workOrder.shifts as Record<string, unknown>[],
+    );
+
+    await this.assertAssignedWorkersMeetRoleSkills(
       workOrder.shifts as Record<string, unknown>[],
     );
 
@@ -156,6 +166,91 @@ export class WorkOrdersService {
     await this.workOrdersRepo.remove(workOrder);
     this.realtime.emitTableUpdated('work_orders');
     return { success: true };
+  }
+
+  /**
+   * Ensures every assigned worker has all `requiredSkillIds` for their shift role
+   * (active skills on the worker_skills join).
+   */
+  private async assertAssignedWorkersMeetRoleSkills(
+    shifts: Record<string, unknown>[],
+  ): Promise<void> {
+    const workerIds = new Set<string>();
+    for (const shift of shifts) {
+      const roles = Array.isArray(shift.roles) ? shift.roles : [];
+      for (const raw of roles) {
+        const role = raw as Record<string, unknown>;
+        const assigned = Array.isArray(role.assignedWorkers)
+          ? role.assignedWorkers.filter(
+              (id): id is string => typeof id === 'string' && id.trim() !== '',
+            )
+          : [];
+        assigned.forEach((id) => workerIds.add(id.trim()));
+      }
+    }
+    if (workerIds.size === 0) return;
+
+    const ids = [...workerIds];
+    const workers = await this.workerRepo.find({
+      where: { id: In(ids) },
+      relations: { skills: true },
+    });
+    if (workers.length !== ids.length) {
+      throw new BadRequestException(
+        'One or more assigned workers do not exist or could not be loaded.',
+      );
+    }
+    const byId = new Map(workers.map((w) => [w.id, w]));
+
+    const activeSkillIdSetForWorker = (w: Worker): Set<string> =>
+      new Set(
+        (w.skills ?? []).filter((s) => {
+          const st = String(s.status ?? '').toLowerCase();
+          return st !== 'inactive';
+        }).map((s) => s.id),
+      );
+
+    for (const shift of shifts) {
+      const roles = Array.isArray(shift.roles) ? shift.roles : [];
+      for (const raw of roles) {
+        const role = raw as Record<string, unknown>;
+        const roleName =
+          typeof role.roleName === 'string' && role.roleName.trim()
+            ? role.roleName.trim()
+            : 'Role';
+
+        const required = Array.isArray(role.requiredSkillIds)
+          ? role.requiredSkillIds.filter(
+              (id): id is string => typeof id === 'string' && id.trim() !== '',
+            ).map((id) => id.trim())
+          : [];
+        if (required.length === 0) continue;
+
+        const requiredSet = new Set(required);
+
+        const assigned = Array.isArray(role.assignedWorkers)
+          ? role.assignedWorkers.filter(
+              (id): id is string => typeof id === 'string' && id.trim() !== '',
+            ).map((id) => id.trim())
+          : [];
+
+        for (const workerId of assigned) {
+          const w = byId.get(workerId);
+          if (!w) {
+            throw new BadRequestException(
+              `Assigned worker "${workerId}" was not found.`,
+            );
+          }
+          const have = activeSkillIdSetForWorker(w);
+          const missing = [...requiredSet].filter((sid) => !have.has(sid));
+          if (missing.length > 0) {
+            throw new BadRequestException(
+              `Worker "${w.firstName} ${w.lastName}" cannot be assigned to "${roleName}": missing one or more required skills.`,
+            );
+          }
+        }
+      }
+    }
   }
 
   private async applyProjectAssignmentDateBounds(

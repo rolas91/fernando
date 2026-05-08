@@ -651,6 +651,45 @@ export class IntegrationsService {
     );
   }
 
+  /** Twilio/WhatsApp: max length per Content variable (see Content API docs). */
+  private capContentVar(value: string): string {
+    const max = Number(process.env.TWILIO_WHATSAPP_CONTENT_VAR_MAX_LEN || 1600);
+    const n = Number.isFinite(max) && max > 0 ? Math.min(max, 4096) : 1600;
+    return value.slice(0, n);
+  }
+
+  /**
+   * Builds ContentVariables for an approved WhatsApp Content template (fixes error 63016 outside 24h session).
+   * TWILIO_WHATSAPP_TEMPLATE_VAR_MODE:
+   * - full (default): {"1": entire message} — template body must use a single variable for the text.
+   * - split: {"1": workerName, "2": message without link line, "3": confirmation URL} — match a 3-variable template.
+   */
+  private buildWhatsAppContentVariables(
+    body: NotificationBody & { confirmationUrl?: string },
+  ): Record<string, string> {
+    const mode = (process.env.TWILIO_WHATSAPP_TEMPLATE_VAR_MODE || 'full')
+      .trim()
+      .toLowerCase();
+    const msg = (body.message || 'Notification').trim();
+    const url = (body as { confirmationUrl?: string }).confirmationUrl?.trim() || '';
+    const name = (body.workerName || 'Worker').trim();
+
+    if (mode === 'split') {
+      let textWithoutLink = msg;
+      if (url && msg.includes(url)) {
+        textWithoutLink = msg.replace(url, '').trim();
+        textWithoutLink = textWithoutLink.replace(/\s*Confirm your shift here:\s*$/i, '').trim();
+      }
+      return {
+        '1': this.capContentVar(name),
+        '2': this.capContentVar(textWithoutLink || msg),
+        '3': this.capContentVar(url),
+      };
+    }
+
+    return { '1': this.capContentVar(msg) };
+  }
+
   private async twilioMessagesSend(opts: {
     body: NotificationBody & { confirmationUrl?: string; baseUrl?: string };
     sid: string;
@@ -667,7 +706,23 @@ export class IntegrationsService {
     const params = new URLSearchParams();
     params.set('To', to);
     params.set('From', from);
-    params.set('Body', body.message || 'Notification');
+
+    const whatsappTemplateSid =
+      channel === 'whatsapp'
+        ? (process.env.TWILIO_WHATSAPP_CONTENT_SID || '').trim()
+        : '';
+
+    if (whatsappTemplateSid) {
+      const vars = this.buildWhatsAppContentVariables(body);
+      params.set('ContentSid', whatsappTemplateSid);
+      params.set('ContentVariables', JSON.stringify(vars));
+      this.logger.log(
+        `Twilio WhatsApp using ContentSid template mode keys=${Object.keys(vars).join(',')} to=${to}`,
+      );
+    } else {
+      params.set('Body', body.message || 'Notification');
+    }
+
     if (statusCallbackUrl) {
       params.set('StatusCallback', statusCallbackUrl);
     }

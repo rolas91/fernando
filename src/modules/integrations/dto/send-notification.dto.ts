@@ -46,13 +46,13 @@ export class ShiftConfirmationPayloadDto {
 
 export class SendNotificationDto {
   @ApiProperty({
-    enum: ['send_sms', 'send_email', 'send_in_app'],
+    enum: ['send_sms', 'send_whatsapp', 'send_email', 'send_in_app'],
     example: 'send_sms',
   })
   @IsOptional()
   @IsString()
-  @IsIn(['send_sms', 'send_email', 'send_in_app'])
-  action?: 'send_sms' | 'send_email' | 'send_in_app';
+  @IsIn(['send_sms', 'send_whatsapp', 'send_email', 'send_in_app'])
+  action?: 'send_sms' | 'send_whatsapp' | 'send_email' | 'send_in_app';
 
   @ApiPropertyOptional({ example: '+15025550100' })
   @IsOptional()

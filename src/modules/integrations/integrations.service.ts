@@ -23,7 +23,7 @@ type GeocodeInput = {
 };
 
 type NotificationBody = {
-  action?: 'send_sms' | 'send_email' | 'send_in_app';
+  action?: 'send_sms' | 'send_whatsapp' | 'send_email' | 'send_in_app';
   phone?: string;
   message?: string;
   workerName?: string;
@@ -161,15 +161,17 @@ export class IntegrationsService {
     const result: NotificationResult =
       action === 'send_sms'
         ? await this.sendSms(prepared)
-        : action === 'send_email'
-          ? await this.sendEmail(prepared)
-          : {
-              success: true,
-              simulated: true,
-              channel: 'in_app',
-              note: 'In-app notification simulated',
-              confirmationUrl: prepared.confirmationUrl,
-            };
+        : action === 'send_whatsapp'
+          ? await this.sendWhatsApp(prepared)
+          : action === 'send_email'
+            ? await this.sendEmail(prepared)
+            : {
+                success: true,
+                simulated: true,
+                channel: 'in_app',
+                note: 'In-app notification simulated',
+                confirmationUrl: prepared.confirmationUrl,
+              };
 
     if (prepared.confirmationRequest && result?.success) {
       prepared.confirmationRequest.providerMessageSid =
@@ -398,7 +400,7 @@ export class IntegrationsService {
   private async prepareNotification(
     body: NotificationBody,
     baseUrl: string,
-    action: 'send_sms' | 'send_email' | 'send_in_app',
+    action: 'send_sms' | 'send_whatsapp' | 'send_email' | 'send_in_app',
   ) {
     let message = body.message || 'Notification';
     let confirmationUrl: string | undefined;
@@ -423,7 +425,7 @@ export class IntegrationsService {
   private async prepareConfirmationLink(
     body: NotificationBody,
     baseUrl: string,
-    action: 'send_sms' | 'send_email' | 'send_in_app',
+    action: 'send_sms' | 'send_whatsapp' | 'send_email' | 'send_in_app',
   ) {
     const confirmation = body.confirmation!;
     const workOrder = await this.workOrdersRepo.findOne({
@@ -450,7 +452,9 @@ export class IntegrationsService {
 
     const token = this.generateConfirmationToken();
     const recipient =
-      action === 'send_sms' ? body.phone || null : body.email || null;
+      action === 'send_sms' || action === 'send_whatsapp'
+        ? body.phone || null
+        : body.email || null;
     const confirmationUrl = `${baseUrl}/api/integrations/shift-confirmations/${token}`;
     const glue = body.message?.includes('\n') ? '\n\n' : ' ';
     const requestedAtIso = new Date().toISOString();
@@ -542,7 +546,13 @@ export class IntegrationsService {
         error: 'Worker phone number is missing.',
       };
     }
-    if (!sid || !token || !from || sid.includes('placeholder') || token.includes('placeholder')) {
+    if (
+      !sid ||
+      !token ||
+      !from ||
+      sid.includes('placeholder') ||
+      token.includes('placeholder')
+    ) {
       return {
         success: true,
         simulated: true,
@@ -552,12 +562,110 @@ export class IntegrationsService {
       };
     }
 
+    const to = body.phone || '';
+    return this.twilioMessagesSend({
+      body,
+      sid,
+      token,
+      to,
+      from,
+      channel: 'sms',
+    });
+  }
+
+  private async sendWhatsApp(body: NotificationBody) {
+    const sid = process.env.TWILIO_ACCOUNT_SID || '';
+    const token = process.env.TWILIO_AUTH_TOKEN || '';
+    if (!body.phone) {
+      return {
+        success: false,
+        simulated: false,
+        channel: 'whatsapp',
+        error: 'Worker phone number is missing.',
+      };
+    }
+    if (
+      !sid ||
+      !token ||
+      sid.includes('placeholder') ||
+      token.includes('placeholder')
+    ) {
+      return {
+        success: true,
+        simulated: true,
+        channel: 'whatsapp',
+        note: `WhatsApp simulated for ${body.phone || 'unknown phone'}`,
+        confirmationUrl: (body as any).confirmationUrl,
+      };
+    }
+
+    const toWa = this.formatTwilioWhatsappParticipant(body.phone);
+    const fromWa = this.resolveTwilioWhatsAppFromAddress();
+    if (!toWa || !fromWa) {
+      return {
+        success: false,
+        simulated: false,
+        channel: 'whatsapp',
+        error:
+          'Invalid WhatsApp number. Set TWILIO_WHATSAPP_FROM (recommended) or a valid TWILIO_FROM_NUMBER for WhatsApp.',
+      };
+    }
+
+    return this.twilioMessagesSend({
+      body,
+      sid,
+      token,
+      to: toWa,
+      from: fromWa,
+      channel: 'whatsapp',
+    });
+  }
+
+  private formatTwilioWhatsappParticipant(raw: string | undefined): string | null {
+    if (!raw?.trim()) return null;
+    let s = raw.trim();
+    const lowerPrefix = 'whatsapp:';
+    if (s.toLowerCase().startsWith(lowerPrefix)) {
+      s = s.slice(lowerPrefix.length).trim();
+    }
+    let e164 = s;
+    if (!s.startsWith('+')) {
+      const digits = s.replace(/\D/g, '');
+      if (!digits) return null;
+      e164 =
+        digits.length === 10
+          ? `+1${digits}`
+          : digits.startsWith('1') && digits.length === 11
+            ? `+${digits}`
+            : `+${digits}`;
+    }
+    return `${lowerPrefix}${e164}`;
+  }
+
+  /** WhatsApp-enabled sender from env, or SMS From prefixed with whatsapp:. */
+  private resolveTwilioWhatsAppFromAddress(): string {
+    const explicit = (process.env.TWILIO_WHATSAPP_FROM || '').trim();
+    const fallback = (process.env.TWILIO_FROM_NUMBER || '').trim();
+    return (
+      this.formatTwilioWhatsappParticipant(explicit || fallback) || ''
+    );
+  }
+
+  private async twilioMessagesSend(opts: {
+    body: NotificationBody & { confirmationUrl?: string; baseUrl?: string };
+    sid: string;
+    token: string;
+    to: string;
+    from: string;
+    channel: 'sms' | 'whatsapp';
+  }): Promise<NotificationResult> {
+    const { body, sid, token, to, from, channel } = opts;
     const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
     const statusCallbackUrl = this.resolveTwilioStatusCallbackUrl(
       (body as any).baseUrl,
     );
     const params = new URLSearchParams();
-    params.set('To', body.phone || '');
+    params.set('To', to);
     params.set('From', from);
     params.set('Body', body.message || 'Notification');
     if (statusCallbackUrl) {
@@ -575,12 +683,12 @@ export class IntegrationsService {
     if (!res.ok) {
       const failureBody = await res.text();
       this.logger.error(
-        `Twilio rejected sms to=${body.phone || 'unknown'} status=${res.status} body=${failureBody || 'empty'}`,
+        `Twilio rejected ${channel} to=${to} status=${res.status} body=${failureBody || 'empty'}`,
       );
       return {
         success: false,
         simulated: false,
-        channel: 'sms',
+        channel,
         error: failureBody || `Twilio error ${res.status}`,
       };
     }
@@ -591,12 +699,12 @@ export class IntegrationsService {
       error_message?: string | null;
     };
     this.logger.log(
-      `Twilio accepted sms sid=${responseBody.sid || 'unknown'} status=${responseBody.status || 'unknown'} to=${body.phone || 'unknown'} callback=${statusCallbackUrl || 'disabled'}`,
+      `Twilio accepted ${channel} sid=${responseBody.sid || 'unknown'} status=${responseBody.status || 'unknown'} to=${to} callback=${statusCallbackUrl || 'disabled'}`,
     );
     return {
       success: true,
       simulated: false,
-      channel: 'sms',
+      channel,
       messageSid: responseBody.sid,
       twilioStatus: responseBody.status,
       twilioErrorCode: responseBody.error_code,

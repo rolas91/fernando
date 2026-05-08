@@ -97,10 +97,22 @@ export class WorkOrdersService {
   async update(id: string, dto: UpdateWorkOrderDto) {
     const workOrder = await this.findOne(id);
     const previousStatus = workOrder.status;
+
+    /** Must be captured before Object.assign: dto replaces entity.shifts, and normalize needs true DB-merge baseline. */
+    const previousShiftsSnapshot: Record<string, unknown>[] =
+      dto.shifts !== undefined
+        ? (JSON.parse(
+            JSON.stringify(workOrder.shifts ?? []),
+          ) as Record<string, unknown>[])
+        : [];
+
     const { status: dtoStatusLane, ...dtoRest } = dto;
     Object.assign(workOrder, dtoRest);
     if (dto.shifts !== undefined) {
-      workOrder.shifts = normalizeWorkOrderShifts(dto.shifts, workOrder.shifts);
+      workOrder.shifts = normalizeWorkOrderShifts(
+        dto.shifts,
+        previousShiftsSnapshot,
+      );
     }
     assertShiftsWithinAssignmentDateRange(
       workOrder.startDate,

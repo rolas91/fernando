@@ -1,11 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import * as multer from 'multer';
 import {
-  ALLOWED_MIME_BY_UPLOAD_SCOPE,
+  normalizeUploadMimeForScope,
   parseSpacesUploadMaxBytes,
+  type SpacesUploadScope,
 } from '../constants/spaces-upload.constants';
 
-export type SpacesUploadScope = keyof typeof ALLOWED_MIME_BY_UPLOAD_SCOPE;
+export type { SpacesUploadScope };
 
 type MulterLikeFile = {
   mimetype?: string;
@@ -18,7 +19,6 @@ export function createSpacesUploadMulterOptions(
     process.env.SPACES_UPLOAD_MAX_BYTES,
   ),
 ) {
-  const allowedMimeTypes = ALLOWED_MIME_BY_UPLOAD_SCOPE[scope];
   return {
     storage: multer.memoryStorage(),
     limits: { fileSize: maxBytes },
@@ -27,16 +27,22 @@ export function createSpacesUploadMulterOptions(
       file: MulterLikeFile,
       cb: (error: Error | null, acceptFile: boolean) => void,
     ) => {
-      const mime = (file.mimetype || '').trim().toLowerCase();
-      if (!allowedMimeTypes.has(mime)) {
+      const raw = (file.mimetype || '').trim().toLowerCase();
+      const normalized = normalizeUploadMimeForScope(
+        file.mimetype,
+        file.originalname,
+        scope,
+      );
+      if (!normalized) {
         cb(
           new BadRequestException(
-            `Tipo de archivo no permitido (${mime}).`,
+            `Tipo de archivo no permitido (${raw || 'vacío'}).`,
           ),
           false,
         );
         return;
       }
+      file.mimetype = normalized;
       cb(null, true);
     },
   };

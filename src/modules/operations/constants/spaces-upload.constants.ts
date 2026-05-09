@@ -43,6 +43,67 @@ export const ALLOWED_MIME_BY_UPLOAD_SCOPE: Record<
   'work-orders': ALLOWED_WORK_ORDER_UPLOAD_MIME,
 };
 
+export type SpacesUploadScope = keyof typeof ALLOWED_MIME_BY_UPLOAD_SCOPE;
+
+/**
+ * Infer canonical MIME from filename extension for Spaces uploads.
+ * Scoped so workers do not inherit cert-only types (e.g. webp).
+ */
+function inferMimeFromOriginalName(
+  originalname: string | undefined | null,
+  scope: SpacesUploadScope,
+): string | null {
+  const base = (originalname || '').trim().toLowerCase();
+  const dot = base.lastIndexOf('.');
+  if (dot < 0 || dot >= base.length - 1) return null;
+  const ext = base.slice(dot + 1);
+
+  switch (ext) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return scope !== 'workers' ? 'image/webp' : null;
+    case 'doc':
+      return scope === 'work-orders' ? 'application/msword' : null;
+    case 'docx':
+      return scope === 'work-orders'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : null;
+    case 'xls':
+      return scope === 'work-orders' ? 'application/vnd.ms-excel' : null;
+    case 'xlsx':
+      return scope === 'work-orders'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Normalize client-reported MIME (often `application/octet-stream` or empty for PDFs)
+ * using filename when the reported type is missing or not in the scope allow-list.
+ */
+export function normalizeUploadMimeForScope(
+  reportedMime: string | undefined | null,
+  originalname: string | undefined | null,
+  scope: SpacesUploadScope,
+): string | null {
+  const allowed = ALLOWED_MIME_BY_UPLOAD_SCOPE[scope];
+  const raw = (reportedMime || '').trim().toLowerCase();
+  const reported = raw || 'application/octet-stream';
+
+  if (allowed.has(reported)) return reported;
+
+  const inferred = inferMimeFromOriginalName(originalname, scope);
+  return inferred && allowed.has(inferred) ? inferred : null;
+}
+
 /**
  * Max bytes per uploaded file. Optional env `SPACES_UPLOAD_MAX_BYTES` (integer bytes),
  * capped at {@link SPACES_SINGLE_PUT_MAX_BYTES}.

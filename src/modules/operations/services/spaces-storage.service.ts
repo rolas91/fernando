@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, randomUUID } from 'crypto';
 import {
   ALLOWED_MIME_BY_UPLOAD_SCOPE,
+  normalizeUploadMimeForScope,
   parseSpacesUploadMaxBytes,
 } from '../constants/spaces-upload.constants';
 
@@ -77,7 +78,11 @@ export class SpacesStorageService {
       contentType: string;
     }> = [];
     for (const file of files) {
-      this.assertUploadCandidate(file, allowedMime, maxBytes);
+      this.assertUploadCandidate(
+        file,
+        scopePrefix,
+        maxBytes,
+      );
       const body = file.buffer!;
       const key = this.buildObjectKey(
         scopePrefix,
@@ -143,7 +148,7 @@ export class SpacesStorageService {
 
   private assertUploadCandidate(
     file: UploadFileCandidate,
-    allowedMime: ReadonlySet<string>,
+    scope: 'workers' | 'work-orders' | 'certifications',
     maxBytes: number,
   ) {
     const buffer = file.buffer;
@@ -156,14 +161,19 @@ export class SpacesStorageService {
         'El archivo supera el tamaño máximo permitido.',
       );
     }
-    const mime =
-      (file.mimetype || '').trim().toLowerCase() ||
-      'application/octet-stream';
-    if (!allowedMime.has(mime)) {
+    const rawForMessage =
+      (file.mimetype || '').trim().toLowerCase() || 'vacío';
+    const normalized = normalizeUploadMimeForScope(
+      file.mimetype,
+      file.originalname,
+      scope,
+    );
+    if (!normalized) {
       throw new BadRequestException(
-        `Tipo de archivo no permitido (${mime}).`,
+        `Tipo de archivo no permitido (${rawForMessage}).`,
       );
     }
+    file.mimetype = normalized;
   }
 
   private async putObject(key: string, body: Buffer, contentType: string) {

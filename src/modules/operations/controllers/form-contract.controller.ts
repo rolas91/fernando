@@ -1,10 +1,27 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { FORM_DATA_BINDING_PATHS } from '../utils/form-data-binding.registry';
 import { FORM_CONTRACT_VERSION } from '../utils/form-contract.util';
 
 @ApiTags('operations')
 @Controller('form-contract')
 export class FormContractController {
+  /**
+   * Catálogo de rutas enlazables (editor + cliente móvil).
+   * `assignment.*` es alias de `workOrder.*` al guardar en dataBinding.path.
+   */
+  @Get('data-bindings')
+  getDataBindings() {
+    return {
+      contractVersion: FORM_CONTRACT_VERSION,
+      notes: [
+        'assignment.* normaliza a workOrder.* en servidor y cliente.',
+        'Rutas shift.* requieren shiftId al llamar GET /form-templates/:id/context-preview.',
+      ],
+      paths: FORM_DATA_BINDING_PATHS,
+    };
+  }
+
   @Get('version')
   getVersion() {
     return {
@@ -25,6 +42,7 @@ export class FormContractController {
         'checkbox',
         'signature',
         'photo',
+        'attachment',
         'date',
         'textarea',
         'time',
@@ -36,6 +54,7 @@ export class FormContractController {
         dropdown: ['allowMultiple', 'maxSelections'],
         date: ['minDate', 'maxDate'],
         photo: ['maxPhotos', 'maxFileSizeMb', 'acceptedMimeTypes'],
+        attachment: ['maxFiles', 'maxFileSizeMb', 'acceptedMimeTypes'],
       },
       uiHints: {
         keyboardType: ['default', 'numeric', 'email-address', 'phone-pad'],
@@ -48,6 +67,12 @@ export class FormContractController {
             contractVersion: FORM_CONTRACT_VERSION,
             normalizedAt: 'ISO_TIMESTAMP',
           },
+        },
+      },
+      fieldDataBinding: {
+        shape: {
+          path: 'Canonical path desde GET /form-contract/data-bindings',
+          optional: 'boolean (default true) — ausencia de dato no bloquea el campo',
         },
       },
     };

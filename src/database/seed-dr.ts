@@ -4,11 +4,13 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '../app.module';
 import { ensureRuntimeEnv } from '../config/ensure-env';
 import { CompanySettings } from '../entities/company-settings.entity';
+import { FormTemplate } from '../entities/form-template.entity';
 import { Shift } from '../entities/shift.entity';
 import { StatusCatalog } from '../entities/status-catalog.entity';
 import { User } from '../entities/user.entity';
 import { WorkOrderType } from '../entities/work-order-type.entity';
 import { AccessService } from '../modules/access/services/access.service';
+import { normalizeFormFields } from '../modules/operations/utils/form-contract.util';
 
 const SALT_ROUNDS = 10;
 
@@ -683,6 +685,233 @@ const DEFAULT_STATUS_CATALOG: Array<
   },
 ];
 
+const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
+  {
+    id: 'dr_traffic_job_number',
+    key: 'drTrafficJobNumber',
+    label: 'DR Traffic Job #',
+    type: 'text',
+    required: true,
+    dataBinding: { path: 'project.number', optional: true },
+    ui: {
+      section: 'Work Order Details',
+      sectionDescription: 'Fill out the job form for today',
+      layout: 'half',
+      defaultValue: '1916',
+    },
+  },
+  {
+    id: 'work_date',
+    key: 'workDate',
+    label: 'Date',
+    type: 'date',
+    required: true,
+    dataBinding: { path: 'shift.date', optional: true },
+    ui: { section: 'Work Order Details', layout: 'half', defaultValue: '2026-03-30' },
+  },
+  {
+    id: 'job_name',
+    key: 'jobName',
+    label: 'Job Name',
+    type: 'text',
+    required: true,
+    dataBinding: { path: 'project.name', optional: true },
+    ui: { section: 'Work Order Details', layout: 'half', defaultValue: 'Redwood Blvd' },
+  },
+  {
+    id: 'cost_code',
+    key: 'costCode',
+    label: 'Cost Code',
+    type: 'text',
+    required: false,
+    placeholder: 'Enter cost code',
+    ui: { section: 'Work Order Details', layout: 'half' },
+  },
+  {
+    id: 'description_of_work',
+    key: 'descriptionOfWork',
+    label: 'Description of Work',
+    type: 'textarea',
+    required: true,
+    placeholder: 'Describe the work completed today...',
+    rules: { minLength: 3, maxLength: 2000 },
+    ui: {
+      section: 'Work Order Details',
+      layout: 'full',
+      defaultValue: 'Shift lane.',
+      helperText: 'Tap tags to quickly add repeated work descriptions.',
+      quickTags: [
+        'Shift lane',
+        'Lane closure setup',
+        'Traffic control support',
+        'Set cones and signage',
+        'Pickup cones and material',
+        'Concrete watch',
+        'Flagging operations',
+      ],
+      tagTone: 'blue',
+    },
+  },
+  {
+    id: 'client',
+    key: 'client',
+    label: 'Client',
+    type: 'text',
+    required: true,
+    dataBinding: { path: 'client.name', optional: true },
+    ui: { section: 'Work Order Details', layout: 'half', defaultValue: 'Rosendin' },
+  },
+  {
+    id: 'contact',
+    key: 'contact',
+    label: 'Contact',
+    type: 'text',
+    required: false,
+    placeholder: 'Enter contact name',
+    dataBinding: { path: 'client.contactName', optional: true },
+    ui: { section: 'Work Order Details', layout: 'half' },
+  },
+  {
+    id: 'work_shift',
+    key: 'workShift',
+    label: 'Work Shift',
+    type: 'dropdown',
+    required: true,
+    options: ['Day', 'Swing', 'Night'],
+    ui: { section: 'Work Order Details', layout: 'full', defaultValue: 'Day' },
+  },
+  {
+    id: 'employee_name',
+    key: 'employeeName',
+    label: 'Employee Name',
+    type: 'text',
+    required: true,
+    dataBinding: { path: 'shift.workerNames', optional: true },
+    ui: {
+      section: 'Labor & Equipment',
+      sectionDescription: 'Hours and equipment used today',
+      layout: 'half',
+      defaultValue: 'Freddy Moran',
+    },
+  },
+  {
+    id: 'regular_hours',
+    key: 'regularHours',
+    label: 'Regular Hours',
+    type: 'number',
+    required: true,
+    rules: { min: 0, max: 24, step: 0.25 },
+    ui: { section: 'Labor & Equipment', layout: 'half', defaultValue: 8 },
+  },
+  {
+    id: 'overtime_hours',
+    key: 'overtimeHours',
+    label: 'OT',
+    type: 'number',
+    required: false,
+    placeholder: '0',
+    rules: { min: 0, max: 24, step: 0.25 },
+    ui: { section: 'Labor & Equipment', layout: 'half' },
+  },
+  {
+    id: 'double_time_hours',
+    key: 'doubleTimeHours',
+    label: 'DT',
+    type: 'number',
+    required: false,
+    placeholder: '0',
+    rules: { min: 0, max: 24, step: 0.25 },
+    ui: { section: 'Labor & Equipment', layout: 'half' },
+  },
+  {
+    id: 'equipment_id',
+    key: 'equipmentId',
+    label: 'Equip ID',
+    type: 'text',
+    required: false,
+    dataBinding: { path: 'shift.equipmentSummary', optional: true },
+    ui: { section: 'Labor & Equipment', layout: 'half', defaultValue: '01-07' },
+  },
+  {
+    id: 'equipment_hours',
+    key: 'equipmentHours',
+    label: 'Equipment Hours',
+    type: 'number',
+    required: false,
+    rules: { min: 0, max: 24, step: 0.25 },
+    ui: { section: 'Labor & Equipment', layout: 'half', defaultValue: 8 },
+  },
+  {
+    id: 'extra_work_details',
+    key: 'extraWorkDetails',
+    label: 'Extra Work Details',
+    type: 'textarea',
+    required: false,
+    placeholder: 'Add overtime details, no lunch note, or extra work performed...',
+    rules: { maxLength: 2000 },
+    ui: {
+      section: 'Extra Work / Overtime Details',
+      sectionDescription: 'Use quick entries for repeated extra work items',
+      layout: 'full',
+      defaultValue: '+1 no lunch no break',
+      quickTags: [
+        '+1 no lunch no break',
+        '+1 hour demob barricades',
+        '+1 hour demob arrowboard',
+        '+1 hour pick up cones or material',
+      ],
+      tagTone: 'amber',
+    },
+  },
+  {
+    id: 'notes',
+    key: 'notes',
+    label: 'Notes',
+    type: 'textarea',
+    required: false,
+    placeholder: 'Add any final notes for this work order...',
+    rules: { maxLength: 2000 },
+    ui: {
+      section: 'Notes & Signature',
+      sectionDescription: 'Final notes and confirmation',
+      layout: 'full',
+    },
+  },
+  {
+    id: 'worker_signature',
+    key: 'workerSignature',
+    label: 'Worker Signature',
+    type: 'signature',
+    required: true,
+    ui: { section: 'Notes & Signature', layout: 'full' },
+  },
+  {
+    id: 'completion_confirmation',
+    key: 'completionConfirmation',
+    label: 'I confirm this work order information is complete and accurate.',
+    type: 'checkbox',
+    required: true,
+    ui: { section: 'Notes & Signature', layout: 'full', defaultValue: true },
+  },
+];
+
+const DEFAULT_FORM_TEMPLATES: Array<
+  Pick<
+    FormTemplate,
+    'id' | 'name' | 'description' | 'category' | 'fields' | 'assignedProjects' | 'assignedRoles'
+  >
+> = [
+  {
+    id: 'work_order_daily_completion',
+    name: 'Work Order Form',
+    description: 'Daily work order completion form for field crews.',
+    category: 'Work Order',
+    fields: WORK_ORDER_FORM_FIELDS,
+    assignedProjects: [],
+    assignedRoles: ['worker', 'foreman', 'admin', 'manager'],
+  },
+];
+
 function asBoolean(input: string | undefined, fallback: boolean) {
   if (!input) return fallback;
   return ['1', 'true', 'yes', 'on'].includes(input.toLowerCase());
@@ -850,6 +1079,34 @@ async function seedStatusCatalog(dataSource: DataSource) {
   console.log(`Status catalog seed OK. created=${created}, updated=${updated}`);
 }
 
+async function seedFormTemplates(dataSource: DataSource) {
+  const repo = dataSource.getRepository(FormTemplate);
+  let created = 0;
+  let updated = 0;
+
+  for (const template of DEFAULT_FORM_TEMPLATES) {
+    const fields = normalizeFormFields(template.fields);
+    const existing = await repo.findOne({ where: { id: template.id } });
+
+    if (!existing) {
+      await repo.save(repo.create({ ...template, fields }));
+      created += 1;
+      continue;
+    }
+
+    existing.name = template.name;
+    existing.description = template.description;
+    existing.category = template.category;
+    existing.fields = fields;
+    existing.assignedProjects = template.assignedProjects;
+    existing.assignedRoles = template.assignedRoles;
+    await repo.save(existing);
+    updated += 1;
+  }
+
+  console.log(`Form templates seed OK. created=${created}, updated=${updated}`);
+}
+
 async function seedUsers(dataSource: DataSource, accessService: AccessService) {
   const resetPasswords = asBoolean(
     process.env.SEED_USERS_RESET_PASSWORDS,
@@ -916,6 +1173,7 @@ async function seedDr() {
     await seedShiftCatalog(dataSource);
     await seedWorkOrderTypeCatalog(dataSource);
     await seedStatusCatalog(dataSource);
+    await seedFormTemplates(dataSource);
     await seedUsers(dataSource, accessService);
     console.log('Seed DR OK.');
   } finally {

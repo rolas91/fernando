@@ -6,6 +6,8 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Req,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -19,6 +21,10 @@ import { UpdateWorkOrderDto } from '../dto/update-work-order.dto';
 import { WorkOrdersService } from '../services/work-orders.service';
 import { SpacesStorageService } from '../services/spaces-storage.service';
 import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options';
+import type { Request } from 'express';
+import type { UserAccessContext } from '../../access/ports/access.port';
+
+type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
 @ApiTags('operations')
 @Controller('work-orders')
@@ -32,6 +38,46 @@ export class WorkOrdersController {
   @Get()
   findAll() {
     return this.workOrdersService.findAll();
+  }
+
+  @Get('mobile/assignments')
+  findMobileAssignments(
+    @Req() req: ReqWithOpsUser,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.workOrdersService.findMobileAssignmentsForUser(req.user, {
+      search,
+      status,
+    });
+  }
+
+  @Patch('mobile/assignments/:id/shifts/:shiftId/confirmation')
+  updateMobileShiftConfirmation(
+    @Req() req: ReqWithOpsUser,
+    @Param('id') id: string,
+    @Param('shiftId') shiftId: string,
+    @Body('status') status: 'confirmed' | 'declined',
+  ) {
+    return this.workOrdersService.updateMobileShiftConfirmation(
+      req.user,
+      id,
+      shiftId,
+      status,
+    );
+  }
+
+  @Patch('mobile/assignments/:id/confirmation')
+  updateMobileAssignmentConfirmation(
+    @Req() req: ReqWithOpsUser,
+    @Param('id') id: string,
+    @Body('status') status: 'confirmed' | 'declined',
+  ) {
+    return this.workOrdersService.updateMobileAssignmentConfirmation(
+      req.user,
+      id,
+      status,
+    );
   }
 
   @Post('uploads')

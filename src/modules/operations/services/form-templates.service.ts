@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FormTemplate } from '../../../entities/form-template.entity';
+import { WorkOrder } from '../../../entities/work-order.entity';
 import { CreateFormTemplateDto } from '../dto/create-form-template.dto';
 import { UpdateFormTemplateDto } from '../dto/update-form-template.dto';
 import { normalizeFormFields } from '../utils/form-contract.util';
@@ -11,18 +12,34 @@ export class FormTemplatesService {
   constructor(
     @InjectRepository(FormTemplate)
     private readonly repo: Repository<FormTemplate>,
+    @InjectRepository(WorkOrder)
+    private readonly workOrdersRepo: Repository<WorkOrder>,
   ) {}
 
   findAll() {
     return this.repo.find({ order: { name: 'ASC' } });
   }
 
-  async findAssigned(filters: { projectId?: string; role?: string }) {
+  async findAssigned(filters: {
+    projectId?: string;
+    role?: string;
+    workOrderId?: string;
+  }) {
     const projectId = filters.projectId?.trim();
     const role = filters.role?.trim();
+    const workOrderId = filters.workOrderId?.trim();
     const templates = await this.findAll();
 
+    let pickupIds: Set<string> | null = null;
+    if (workOrderId) {
+      const wo = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+      const ids = wo?.formTemplateIds?.filter((x) => x.trim().length > 0) ?? [];
+      if (ids.length > 0) pickupIds = new Set(ids);
+    }
+
     return templates.filter((template) => {
+      if (pickupIds && !pickupIds.has(template.id)) return false;
+
       const projectMatches =
         !projectId ||
         !template.assignedProjects ||

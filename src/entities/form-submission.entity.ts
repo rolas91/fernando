@@ -17,6 +17,12 @@ export class FormSubmission {
   @Column({ name: 'project_id', type: 'varchar', length: 64, default: '' })
   projectId: string;
 
+  @Column({ name: 'work_order_id', type: 'varchar', length: 64, default: '' })
+  workOrderId: string;
+
+  @Column({ name: 'shift_id', type: 'varchar', length: 64, default: '' })
+  shiftId: string;
+
   @Column({ name: 'worker_id', type: 'varchar', length: 64, default: '' })
   workerId: string;
 
@@ -28,6 +34,9 @@ export class FormSubmission {
 
   @Column({ type: 'varchar', length: 32 })
   status: string;
+
+  @Column({ name: 'pdf_url', type: 'text', default: '' })
+  pdfUrl: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

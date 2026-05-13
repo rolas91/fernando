@@ -1,10 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Certification } from '../../../entities/certification.entity';
 import { Skill } from '../../../entities/skill.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkerCertification } from '../../../entities/worker-certification.entity';
+import { AccessService } from '../../access/services/access.service';
+import { PasswordHasherService } from '../../auth/services/password-hasher.service';
+import { UsersService } from '../../users/services/users.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import {
   CreateWorkerDto,
@@ -12,6 +19,9 @@ import {
 } from '../dto/create-worker.dto';
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { SpacesStorageService } from './spaces-storage.service';
+import type { UserAccessContext } from '../../access/ports/access.port';
+
+type LinkedAppRole = 'admin' | 'manager' | 'scheduler' | 'viewer';
 
 @Injectable()
 export class WorkersService {
@@ -26,6 +36,9 @@ export class WorkersService {
     private readonly workerCertificationsRepo: Repository<WorkerCertification>,
     private readonly realtime: RealtimeGateway,
     private readonly spacesStorage: SpacesStorageService,
+    private readonly usersService: UsersService,
+    private readonly accessService: AccessService,
+    private readonly passwordHasher: PasswordHasherService,
   ) {}
 
   async findAll() {
@@ -123,6 +136,40 @@ export class WorkersService {
     return this.skillsRepo.findBy(skillIds.map((id) => ({ id })));
   }
 
+  private ensureUsersWrite(actor: UserAccessContext | undefined) {
+    if (actor?.permissions.includes('users.write')) return;
+    throw new ForbiddenException(
+      'Only administrators can link workers to platform users (requires users.write).',
+    );
+  }
+
+  /** Create auth user matching worker contact fields; callers must rollback worker on thrown errors. */
+  private async provisionLinkedAppUser(payload: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    password: string;
+    role: LinkedAppRole;
+  }): Promise<void> {
+    const passwordHash = await this.passwordHasher.hash(payload.password);
+    const user = await this.usersService.create({
+      email: payload.email.trim().toLowerCase(),
+      passwordHash,
+      firstName: payload.firstName.trim(),
+      lastName: payload.lastName.trim(),
+      phone: (payload.phone || '').trim(),
+      status: 'active',
+      lastLogin: null,
+    });
+    try {
+      await this.accessService.replaceAppRoleForUser(user.id, payload.role);
+    } catch (roleErr) {
+      await this.usersService.delete(user.id);
+      throw roleErr;
+    }
+  }
+
   private async replaceWorkerCertifications(
     workerId: string,
     assignments: WorkerCertificationAssignmentDto[],
@@ -153,7 +200,14 @@ export class WorkersService {
     }
   }
 
-  async create(dto: CreateWorkerDto) {
+  async create(
+    dto: CreateWorkerDto,
+    actor: UserAccessContext | undefined,
+  ) {
+    if (dto.createAppUser === true) {
+      this.ensureUsersWrite(actor);
+    }
+
     const certificationAssignments = this.normalizeCertificationAssignments(dto);
     const skillIds = this.normalizeSkillIds(dto);
     const {
@@ -161,6 +215,9 @@ export class WorkersService {
       certificationAssignments: _certificationAssignments,
       skillIds: _skillIds,
       skills: _skills,
+      createAppUser,
+      appUserPassword,
+      appUserRole,
       hourlyRate,
       ...rest
     } = dto;
@@ -177,16 +234,45 @@ export class WorkersService {
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);
     }
+
+    if (
+      createAppUser === true &&
+      appUserPassword &&
+      appUserRole
+    ) {
+      try {
+        await this.provisionLinkedAppUser({
+          email: dto.email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          phone: dto.phone,
+          password: appUserPassword,
+          role: appUserRole,
+        });
+      } catch (err) {
+        await this.workersRepo.delete(saved.id);
+        throw err;
+      }
+    }
+
     this.realtime.emitTableUpdated('workers');
     return this.findOne(saved.id);
   }
 
-  async update(id: string, dto: UpdateWorkerDto) {
+  async update(
+    id: string,
+    dto: UpdateWorkerDto,
+    actor: UserAccessContext | undefined,
+  ) {
     const worker = await this.workersRepo.findOne({
       where: { id },
       relations: { skills: true },
     });
     if (!worker) throw new NotFoundException(`Worker ${id} not found`);
+
+    if (dto.createAppUser === true) {
+      this.ensureUsersWrite(actor);
+    }
 
     const certificationAssignments = this.normalizeCertificationAssignments(dto);
     const skillIds = this.normalizeSkillIds(dto);
@@ -195,6 +281,9 @@ export class WorkersService {
       certificationAssignments: _certificationAssignments,
       skillIds: _skillIds,
       skills: _skills,
+      createAppUser,
+      appUserPassword,
+      appUserRole,
       hourlyRate,
       ...rest
     } = dto;
@@ -213,6 +302,22 @@ export class WorkersService {
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);
     }
+
+    if (
+      createAppUser === true &&
+      appUserPassword &&
+      appUserRole
+    ) {
+      await this.provisionLinkedAppUser({
+        email: saved.email || '',
+        firstName: saved.firstName || '',
+        lastName: saved.lastName || '',
+        phone: saved.phone || '',
+        password: appUserPassword,
+        role: appUserRole,
+      });
+    }
+
     this.realtime.emitTableUpdated('workers');
     return this.findOne(saved.id);
   }

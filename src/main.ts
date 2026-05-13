@@ -50,6 +50,11 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new MulterExceptionFilter());
 
+  const backendPublicPath = resolve(process.cwd(), 'public');
+  if (existsSync(backendPublicPath)) {
+    app.useStaticAssets(backendPublicPath, { prefix: '/files/' });
+  }
+
   const configuredDistPath = process.env.FRONTEND_DIST_PATH?.trim();
   const candidateDistPaths = [
     configuredDistPath,

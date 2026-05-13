@@ -9,9 +9,12 @@ type Verified = {
 describe('OperationsAuthGuard', () => {
   const verifyAccessToken = jest.fn<Verified | null, [string]>();
 
-  const guard = new OperationsAuthGuard({
-    verifyAccessToken,
-  } as never);
+  const guard = new OperationsAuthGuard(
+    {
+      verifyAccessToken,
+    } as never,
+    {} as never,
+  );
 
   const makeContext = (req: {
     method: string;

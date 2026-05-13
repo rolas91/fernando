@@ -1,7 +1,10 @@
 import { Type, Transform } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  IsBoolean,
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -189,4 +192,24 @@ export class CreateWorkerDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Also create a platform user with the same email (web app login).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  createAppUser?: boolean;
+
+  @ApiPropertyOptional({ minLength: 6 })
+  @ValidateIf((o: CreateWorkerDto) => o.createAppUser === true)
+  @IsString()
+  @MinLength(6, { message: 'Password must be at least 6 characters' })
+  appUserPassword?: string;
+
+  @ApiPropertyOptional({ enum: ['admin', 'manager', 'scheduler', 'viewer'] })
+  @ValidateIf((o: CreateWorkerDto) => o.createAppUser === true)
+  @IsIn(['admin', 'manager', 'scheduler', 'viewer'])
+  appUserRole?: 'admin' | 'manager' | 'scheduler' | 'viewer';
 }

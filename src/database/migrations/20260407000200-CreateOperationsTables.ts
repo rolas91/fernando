@@ -952,6 +952,12 @@ export class CreateOperationsTables20260407000200
             isNullable: false,
           },
           {
+            name: 'pdf_url',
+            type: 'text',
+            isNullable: false,
+            default: "''",
+          },
+          {
             name: 'created_at',
             type: 'timestamp',
             isNullable: false,

@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -23,8 +24,26 @@ import {
   assertAssignmentWithinProjectDates,
   assertShiftsWithinAssignmentDateRange,
 } from '../utils/work-order-shift-date-range.util';
-import { normalizeWorkOrderShifts } from '../utils/work-order-shifts.util';
+import {
+  normalizeWorkOrderShifts,
+  updateShiftWorkerConfirmation,
+  type ShiftConfirmationStatus,
+} from '../utils/work-order-shifts.util';
 import { SpacesStorageService } from './spaces-storage.service';
+import type { UserAccessContext } from '../../access/ports/access.port';
+
+type MobileAssignmentStatusFilter =
+  | 'all'
+  | 'active'
+  | 'pending'
+  | 'at_risk'
+  | 'critical'
+  | 'completed';
+
+type MobileAssignmentQuery = {
+  search?: string;
+  status?: MobileAssignmentStatusFilter | string;
+};
 
 @Injectable()
 export class WorkOrdersService {
@@ -49,10 +68,320 @@ export class WorkOrdersService {
     return this.workOrdersRepo.find({ order: { startDate: 'ASC' } });
   }
 
+  async findMobileAssignmentsForUser(
+    actor: UserAccessContext | undefined,
+    query: MobileAssignmentQuery,
+  ) {
+    const worker = await this.resolveWorkerForMobileUser(actor);
+    const search = (query.search || '').trim().toLowerCase();
+    const status = (query.status || 'active').trim().toLowerCase();
+    const assignments = await this.workOrdersRepo.find({
+      order: { startDate: 'ASC' },
+    });
+    const assigned = assignments.filter((wo) =>
+      this.workOrderHasAssignedWorker(wo, worker.id),
+    );
+    const projectIds = [...new Set(assigned.map((wo) => wo.projectId).filter(Boolean))];
+    const projects =
+      projectIds.length > 0
+        ? await this.projectsRepo.find({ where: { id: In(projectIds) } })
+        : [];
+    const projectById = new Map(projects.map((project) => [project.id, project]));
+
+    return assigned
+      .filter((wo) => this.mobileStatusMatches(wo.status, status))
+      .filter((wo) => {
+        if (!search) return true;
+        const project = projectById.get(wo.projectId);
+        const haystack = [
+          wo.title,
+          wo.orderNumber,
+          wo.assignmentAddress,
+          wo.assignmentCity,
+          wo.assignmentState,
+          project?.name,
+          project?.number,
+          project?.location,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(search);
+      })
+      .map((wo) => this.serializeMobileAssignment(wo, worker.id, projectById.get(wo.projectId)));
+  }
+
+  async updateMobileShiftConfirmation(
+    actor: UserAccessContext | undefined,
+    workOrderId: string,
+    shiftId: string,
+    status: ShiftConfirmationStatus,
+  ) {
+    if (status !== 'confirmed' && status !== 'declined') {
+      throw new BadRequestException('Confirmation status must be confirmed or declined.');
+    }
+
+    const worker = await this.resolveWorkerForMobileUser(actor);
+    const workOrder = await this.findOne(workOrderId);
+    const shifts = normalizeWorkOrderShifts(workOrder.shifts);
+    this.logger.log(
+      `[mobile-confirmation] shift request workOrder=${workOrderId} shift=${shiftId} worker=${worker.id} email=${worker.email} status=${status}`,
+    );
+    const shift = shifts.find((item) => item.id === shiftId);
+    if (!shift || !Array.isArray(shift.roles)) {
+      throw new NotFoundException(`Shift ${shiftId} not found`);
+    }
+    const role = shift.roles
+      .map((item) => item as Record<string, unknown>)
+      .find((item) => {
+        const assignedWorkers = Array.isArray(item.assignedWorkers)
+          ? item.assignedWorkers
+          : [];
+        return assignedWorkers.includes(worker.id);
+      });
+    const roleId = typeof role?.id === 'string' ? role.id : '';
+    if (!role || !roleId) {
+      this.logger.warn(
+        `[mobile-confirmation] shift denied workOrder=${workOrderId} shift=${shiftId} worker=${worker.id}: worker not assigned`,
+      );
+      throw new ForbiddenException('Worker is not assigned to this shift.');
+    }
+    this.logger.log(
+      `[mobile-confirmation] updating shift workOrder=${workOrderId} shift=${shiftId} role=${roleId} worker=${worker.id} status=${status}`,
+    );
+
+    workOrder.shifts = updateShiftWorkerConfirmation(
+      shifts,
+      {
+        shiftId,
+        roleId,
+        workerId: worker.id,
+      },
+      {
+        status,
+        respondedAt: new Date().toISOString(),
+      },
+    );
+    const saved = await this.workOrdersRepo.save(workOrder);
+    this.realtime.emitTableUpdated('work_orders');
+    this.logger.log(
+      `[mobile-confirmation] shift saved workOrder=${workOrderId} shift=${shiftId} worker=${worker.id} status=${status}`,
+    );
+    return this.serializeMobileAssignment(saved, worker.id);
+  }
+
+  async updateMobileAssignmentConfirmation(
+    actor: UserAccessContext | undefined,
+    workOrderId: string,
+    status: ShiftConfirmationStatus,
+  ) {
+    if (status !== 'confirmed' && status !== 'declined') {
+      throw new BadRequestException('Confirmation status must be confirmed or declined.');
+    }
+
+    const worker = await this.resolveWorkerForMobileUser(actor);
+    const workOrder = await this.findOne(workOrderId);
+    const shifts = normalizeWorkOrderShifts(workOrder.shifts);
+    let updatedCount = 0;
+    const touchedShifts: string[] = [];
+    const respondedAt = new Date().toISOString();
+
+    this.logger.log(
+      `[mobile-confirmation] assignment request workOrder=${workOrderId} worker=${worker.id} email=${worker.email} status=${status}`,
+    );
+
+    const nextShifts = shifts.map((shift) => {
+      const shiftId = typeof shift.id === 'string' ? shift.id : '';
+      if (!shiftId) return shift;
+      const shiftRoles = Array.isArray(shift.roles) ? shift.roles : [];
+      let shiftUpdated = false;
+
+      const nextRoles = shiftRoles.map((item) => {
+        const role = item as Record<string, unknown>;
+        const assignedWorkers = Array.isArray(role.assignedWorkers)
+          ? role.assignedWorkers
+          : [];
+        if (!assignedWorkers.includes(worker.id)) return role;
+
+        const roleId = typeof role.id === 'string' ? role.id : '';
+        const confirmations = Array.isArray(role.workerConfirmations)
+          ? (role.workerConfirmations as Record<string, unknown>[])
+          : [];
+        const hasConfirmation = confirmations.some(
+          (confirmation) => confirmation?.workerId === worker.id,
+        );
+        const current = confirmations.find(
+          (confirmation) => confirmation?.workerId === worker.id,
+        );
+        if (current?.status === status) return role;
+
+        this.logger.log(
+          `[mobile-confirmation] updating assignment shift workOrder=${workOrderId} shift=${shiftId} role=${roleId || 'unknown'} worker=${worker.id} from=${String(current?.status || 'pending')} to=${status}`,
+        );
+
+        const nextConfirmations = hasConfirmation
+          ? confirmations.map((confirmation) => {
+              if (confirmation?.workerId !== worker.id) return confirmation;
+              return {
+                ...confirmation,
+                workerId: worker.id,
+                status,
+                respondedAt,
+              };
+            })
+          : [
+              ...confirmations,
+              {
+                workerId: worker.id,
+                status,
+                respondedAt,
+              },
+            ];
+
+        shiftUpdated = true;
+        updatedCount += 1;
+        return {
+          ...role,
+          workerConfirmations: nextConfirmations,
+        };
+      });
+
+      if (!shiftUpdated) return shift;
+      touchedShifts.push(shiftId);
+      return {
+        ...shift,
+        roles: nextRoles,
+      };
+    });
+
+    if (updatedCount === 0) {
+      this.logger.log(
+        `[mobile-confirmation] assignment no-op workOrder=${workOrderId} worker=${worker.id} status=${status}`,
+      );
+      return this.serializeMobileAssignment(workOrder, worker.id);
+    }
+
+    workOrder.shifts = nextShifts;
+    const saved = await this.workOrdersRepo.save(workOrder);
+    this.realtime.emitTableUpdated('work_orders');
+    this.logger.log(
+      `[mobile-confirmation] assignment saved workOrder=${workOrderId} worker=${worker.id} status=${status} updatedCount=${updatedCount} shifts=${touchedShifts.join(',')}`,
+    );
+    return this.serializeMobileAssignment(saved, worker.id);
+  }
+
   async findOne(id: string) {
     const workOrder = await this.workOrdersRepo.findOne({ where: { id } });
     if (!workOrder) throw new NotFoundException(`Assignment ${id} not found`);
     return workOrder;
+  }
+
+  private async resolveWorkerForMobileUser(actor: UserAccessContext | undefined) {
+    const email = actor?.email?.trim().toLowerCase();
+    if (!email) throw new ForbiddenException('Authenticated user email is required.');
+
+    const worker = await this.workerRepo.findOne({ where: { email } });
+    if (!worker) {
+      throw new ForbiddenException(
+        'No worker profile is linked to this user email.',
+      );
+    }
+    return worker;
+  }
+
+  private workOrderHasAssignedWorker(workOrder: WorkOrder, workerId: string) {
+    const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
+    return shifts.some((shift) => {
+      const roles = Array.isArray((shift as Record<string, unknown>).roles)
+        ? ((shift as Record<string, unknown>).roles as Record<string, unknown>[])
+        : [];
+      return roles.some((role) => {
+        const assignedWorkers = Array.isArray(role.assignedWorkers)
+          ? role.assignedWorkers
+          : [];
+        return assignedWorkers.includes(workerId);
+      });
+    });
+  }
+
+  private mobileStatusMatches(rawStatus: string, filter: string) {
+    const status = (rawStatus || '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (!filter || filter === 'all') return !['cancelled', 'closed'].includes(status);
+    if (!filter || filter === 'active') {
+      return !['completed', 'cancelled', 'closed'].includes(status);
+    }
+    if (filter === 'completed') {
+      return status === 'completed' || status === 'closed' || status === 'approved';
+    }
+    return status === filter;
+  }
+
+  private serializeMobileAssignment(
+    workOrder: WorkOrder,
+    workerId: string,
+    project?: Project,
+  ) {
+    const workerShifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
+      .map((shift) => {
+        const record = shift as Record<string, unknown>;
+        const roles = Array.isArray(record.roles)
+          ? (record.roles as Record<string, unknown>[])
+          : [];
+        const role = roles.find((item) => {
+          const assignedWorkers = Array.isArray(item.assignedWorkers)
+            ? item.assignedWorkers
+            : [];
+          return assignedWorkers.includes(workerId);
+        });
+        if (!role) return null;
+        const confirmations = Array.isArray(role.workerConfirmations)
+          ? (role.workerConfirmations as Record<string, unknown>[])
+          : [];
+        const confirmation = confirmations.find((item) => item.workerId === workerId);
+        return {
+          id: typeof record.id === 'string' ? record.id : '',
+          date: typeof record.date === 'string' ? record.date : '',
+          startTime: typeof record.startTime === 'string' ? record.startTime : '',
+          endTime: typeof record.endTime === 'string' ? record.endTime : '',
+          roleId: typeof role.id === 'string' ? role.id : '',
+          roleName: typeof role.roleName === 'string' ? role.roleName : '',
+          confirmationStatus:
+            confirmation?.status === 'confirmed' || confirmation?.status === 'declined'
+              ? confirmation.status
+              : 'pending',
+        };
+      })
+      .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+
+    return {
+      id: workOrder.id,
+      orderNumber: workOrder.orderNumber || workOrder.id,
+      title: workOrder.title,
+      status: workOrder.status,
+      startDate: workOrder.startDate,
+      endDate: workOrder.endDate,
+      projectId: workOrder.projectId,
+      projectName: project?.name || '',
+      location: this.formatMobileLocation(workOrder, project),
+      shifts: workerShifts,
+    };
+  }
+
+  private formatMobileLocation(workOrder: WorkOrder, project?: Project) {
+    const assignmentParts = [
+      workOrder.assignmentAddress,
+      workOrder.assignmentCity,
+      workOrder.assignmentState,
+    ]
+      .map((item) => (item || '').trim())
+      .filter(Boolean);
+    if (assignmentParts.length > 0) return assignmentParts.join(', ');
+
+    const projectParts = [project?.location, project?.city, project?.state]
+      .map((item) => (item || '').trim())
+      .filter(Boolean);
+    return projectParts.join(', ');
   }
 
   async create(dto: CreateWorkOrderDto) {
@@ -68,6 +397,7 @@ export class WorkOrdersService {
       shifts,
       dispatchNote: dto.dispatchNote?.trim() || '',
       fileUploads: this.normalizeTextArray(dto.fileUploads),
+      formTemplateIds: this.normalizeTextArray(dto.formTemplateIds),
     });
     if (dto.assignmentAddress !== undefined) {
       entity.assignmentAddress = (dto.assignmentAddress ?? '').trim();
@@ -135,6 +465,9 @@ export class WorkOrdersService {
     }
     if (dto.fileUploads !== undefined) {
       workOrder.fileUploads = this.normalizeTextArray(dto.fileUploads);
+    }
+    if (dto.formTemplateIds !== undefined) {
+      workOrder.formTemplateIds = this.normalizeTextArray(dto.formTemplateIds);
     }
     if (dto.assignmentAddress !== undefined) {
       workOrder.assignmentAddress = (dto.assignmentAddress ?? '').trim();

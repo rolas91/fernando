@@ -92,6 +92,10 @@ export class WorkOrder {
   @Column({ type: 'text', array: true, default: '{}' })
   attachments: string[];
 
+  /** Form templates selectable for this assignment (mobile/forms); vacío = no filtra por lista */
+  @Column({ name: 'form_template_ids', type: 'text', array: true, default: '{}' })
+  formTemplateIds: string[];
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

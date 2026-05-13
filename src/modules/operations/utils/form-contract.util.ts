@@ -1,4 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
+import {
+  canonicalDataBindingPath,
+  type FormFieldDataBinding,
+} from './form-data-binding.registry';
+
+export type { FormFieldDataBinding };
 
 export const FORM_CONTRACT_VERSION = '1.0.0';
 
@@ -9,6 +15,7 @@ type FieldType =
   | 'checkbox'
   | 'signature'
   | 'photo'
+  | 'attachment'
   | 'date'
   | 'textarea'
   | 'time';
@@ -26,6 +33,7 @@ type FieldRules = {
   minDate?: string;
   maxDate?: string;
   maxPhotos?: number;
+  maxFiles?: number;
   maxFileSizeMb?: number;
   acceptedMimeTypes?: string[];
 };
@@ -33,6 +41,16 @@ type FieldRules = {
 type FieldUi = {
   keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad';
   inputMode?: 'text' | 'decimal' | 'numeric' | 'email' | 'tel';
+  section?: string;
+  sectionDescription?: string;
+  helperText?: string;
+  layout?: 'full' | 'half';
+  defaultValue?: string | number | boolean;
+  quickTags?: string[];
+  tagTone?: 'blue' | 'amber' | 'slate';
+  containerClassName?: string;
+  labelClassName?: string;
+  inputClassName?: string;
 };
 
 export type DynamicFormField = {
@@ -46,6 +64,7 @@ export type DynamicFormField = {
   rules?: FieldRules;
   ui?: FieldUi;
   version?: string;
+  dataBinding?: FormFieldDataBinding;
 };
 
 const SUPPORTED_TYPES: FieldType[] = [
@@ -55,6 +74,7 @@ const SUPPORTED_TYPES: FieldType[] = [
   'checkbox',
   'signature',
   'photo',
+  'attachment',
   'date',
   'textarea',
   'time',
@@ -103,6 +123,7 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
   const minDate = asString(input.minDate).trim();
   const maxDate = asString(input.maxDate).trim();
   const maxPhotos = asNumber(input.maxPhotos);
+  const maxFiles = asNumber(input.maxFiles);
   const maxFileSizeMb = asNumber(input.maxFileSizeMb);
   const acceptedMimeTypes = asStringArray(input.acceptedMimeTypes);
 
@@ -135,23 +156,51 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
     if (acceptedMimeTypes) rules.acceptedMimeTypes = acceptedMimeTypes;
   }
 
+  if (type === 'attachment') {
+    if (maxFiles !== undefined) rules.maxFiles = maxFiles;
+    if (maxFileSizeMb !== undefined) rules.maxFileSizeMb = maxFileSizeMb;
+    if (acceptedMimeTypes) rules.acceptedMimeTypes = acceptedMimeTypes;
+  }
+
   return Object.keys(rules).length > 0 ? rules : undefined;
 }
 
 function normalizeUi(type: FieldType, input: unknown): FieldUi | undefined {
+  const ui: FieldUi = {};
   if (!isRecord(input)) {
     if (type === 'number') {
-      return { keyboardType: 'numeric', inputMode: 'decimal' };
+      ui.keyboardType = 'numeric';
+      ui.inputMode = 'decimal';
     }
-    return undefined;
+    return Object.keys(ui).length > 0 ? ui : undefined;
   }
 
-  const ui: FieldUi = {};
   const keyboardType = asString(input.keyboardType).trim() as FieldUi['keyboardType'];
   const inputMode = asString(input.inputMode).trim() as FieldUi['inputMode'];
+  const section = asString(input.section).trim();
+  const sectionDescription = asString(input.sectionDescription).trim();
+  const helperText = asString(input.helperText).trim();
+  const layout = asString(input.layout).trim() as FieldUi['layout'];
+  const quickTags = asStringArray(input.quickTags);
+  const tagTone = asString(input.tagTone).trim() as FieldUi['tagTone'];
+  const containerClassName = asString(input.containerClassName).trim();
+  const labelClassName = asString(input.labelClassName).trim();
+  const inputClassName = asString(input.inputClassName).trim();
 
   if (keyboardType) ui.keyboardType = keyboardType;
   if (inputMode) ui.inputMode = inputMode;
+  if (section) ui.section = section;
+  if (sectionDescription) ui.sectionDescription = sectionDescription;
+  if (helperText) ui.helperText = helperText;
+  if (layout === 'full' || layout === 'half') ui.layout = layout;
+  if (typeof input.defaultValue === 'string' || typeof input.defaultValue === 'number' || typeof input.defaultValue === 'boolean') {
+    ui.defaultValue = input.defaultValue;
+  }
+  if (quickTags) ui.quickTags = quickTags;
+  if (tagTone === 'blue' || tagTone === 'amber' || tagTone === 'slate') ui.tagTone = tagTone;
+  if (containerClassName) ui.containerClassName = containerClassName;
+  if (labelClassName) ui.labelClassName = labelClassName;
+  if (inputClassName) ui.inputClassName = inputClassName;
 
   if (Object.keys(ui).length === 0 && type === 'number') {
     ui.keyboardType = 'numeric';
@@ -159,6 +208,16 @@ function normalizeUi(type: FieldType, input: unknown): FieldUi | undefined {
   }
 
   return Object.keys(ui).length > 0 ? ui : undefined;
+}
+
+function normalizeDataBinding(raw: unknown): FormFieldDataBinding | undefined {
+  if (!isRecord(raw)) return undefined;
+  const path = canonicalDataBindingPath(asString(raw.path));
+  if (!path) return undefined;
+  return {
+    path,
+    optional: asBoolean(raw.optional, true),
+  };
 }
 
 export function normalizeFormFields(rawFields: unknown): DynamicFormField[] {
@@ -186,6 +245,7 @@ export function normalizeFormFields(rawFields: unknown): DynamicFormField[] {
       rules: normalizeRules(type, raw.rules),
       ui: normalizeUi(type, raw.ui),
       version: FORM_CONTRACT_VERSION,
+      dataBinding: normalizeDataBinding(raw.dataBinding),
     };
   });
 }
@@ -329,6 +389,17 @@ export function validateSubmissionAgainstFields(
         assert(
           value.length <= field.rules.maxPhotos,
           `Field "${field.label}" allows max ${field.rules.maxPhotos} photos`,
+        );
+      }
+    }
+
+    if (field.type === 'attachment') {
+      const valid = typeof value === 'string' || Array.isArray(value) || isRecord(value);
+      assert(valid, `Field "${field.label}" requires attachment payload`);
+      if (Array.isArray(value) && field.rules?.maxFiles !== undefined) {
+        assert(
+          value.length <= field.rules.maxFiles,
+          `Field "${field.label}" allows max ${field.rules.maxFiles} files`,
         );
       }
     }

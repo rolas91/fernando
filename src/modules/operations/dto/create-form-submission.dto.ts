@@ -14,6 +14,14 @@ export class CreateFormSubmissionDto {
 
   @IsOptional()
   @IsString()
+  workOrderId?: string;
+
+  @IsOptional()
+  @IsString()
+  shiftId?: string;
+
+  @IsOptional()
+  @IsString()
   workerId?: string;
 
   @IsOptional()
@@ -26,4 +34,8 @@ export class CreateFormSubmissionDto {
 
   @IsString()
   status: string;
+
+  @IsOptional()
+  @IsString()
+  pdfUrl?: string;
 }

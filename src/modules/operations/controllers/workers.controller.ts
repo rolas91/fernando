@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -19,6 +20,10 @@ import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { SpacesStorageService } from '../services/spaces-storage.service';
 import { WorkersService } from '../services/workers.service';
 import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options';
+import type { Request } from 'express';
+import type { UserAccessContext } from '../../access/ports/access.port';
+
+type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
 @ApiTags('operations')
 @Controller('workers')
@@ -78,14 +83,18 @@ export class WorkersController {
 
   @Post()
   @ApiBody({ type: CreateWorkerDto })
-  create(@Body() dto: CreateWorkerDto) {
-    return this.workersService.create(dto);
+  create(@Body() dto: CreateWorkerDto, @Req() req: ReqWithOpsUser) {
+    return this.workersService.create(dto, req.user);
   }
 
   @Patch(':id')
   @ApiBody({ type: UpdateWorkerDto })
-  update(@Param('id') id: string, @Body() dto: UpdateWorkerDto) {
-    return this.workersService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateWorkerDto,
+    @Req() req: ReqWithOpsUser,
+  ) {
+    return this.workersService.update(id, dto, req.user);
   }
 
   @Delete(':id')

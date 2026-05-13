@@ -24,6 +24,7 @@ import { Worker } from '../../entities/worker.entity';
 import { WorkerCertification } from '../../entities/worker-certification.entity';
 import { AccessModule } from '../access/access.module';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { ActivityFeedController } from './controllers/activity-feed.controller';
 import { AvailabilityRequestsController } from './controllers/availability-requests.controller';
@@ -52,6 +53,7 @@ import { CertificationsService } from './services/certifications.service';
 import { ClientsService } from './services/clients.service';
 import { CompanySettingsService } from './services/company-settings.service';
 import { EquipmentService } from './services/equipment.service';
+import { FormContextResolutionService } from './services/form-context-resolution.service';
 import { FormSubmissionsService } from './services/form-submissions.service';
 import { FormTemplatesService } from './services/form-templates.service';
 import { IncidentsService } from './services/incidents.service';
@@ -73,6 +75,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
   imports: [
     AccessModule,
     AuthModule,
+    UsersModule,
     RealtimeModule,
     TypeOrmModule.forFeature([
       Worker,
@@ -138,6 +141,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     TimesheetsService,
     FormTemplatesService,
     FormSubmissionsService,
+    FormContextResolutionService,
     IncidentsService,
     NotificationsService,
     ActivityFeedService,

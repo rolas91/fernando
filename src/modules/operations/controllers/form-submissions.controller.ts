@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
@@ -21,7 +22,14 @@ export class FormSubmissionsController {
   constructor(private readonly service: FormSubmissionsService) {}
 
   @Get()
-  findAll() {
+  findAll(
+    @Query('projectId') projectId?: string,
+    @Query('workOrderId') workOrderId?: string,
+    @Query('templateId') templateId?: string,
+  ) {
+    if (projectId || workOrderId || templateId) {
+      return this.service.findAll({ projectId, workOrderId, templateId });
+    }
     return this.service.findAll();
   }
 

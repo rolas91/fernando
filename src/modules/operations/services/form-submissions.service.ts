@@ -132,8 +132,14 @@ function pdfFillRect(
 
 function fitText(value: unknown, max = 34): string {
   const text = stringifyFieldValue(value).replace(/\s+/g, ' ').trim();
+  if (text === '-') return '';
   if (text.length <= max) return text;
   return `${text.slice(0, Math.max(0, max - 3))}...`;
+}
+
+function compactId(value: unknown, max = 18): string {
+  const text = fitText(value, max).replace(/^fs_mobile_?/i, '');
+  return text || '-';
 }
 
 function fieldValue(data: Record<string, unknown>, keys: string[]) {
@@ -159,6 +165,11 @@ function findTimesheetRows(data: Record<string, unknown>) {
   return [];
 }
 
+function firstString(value: unknown): string {
+  if (Array.isArray(value)) return fitText(value[0], 14);
+  return fitText(value, 14);
+}
+
 function buildWorkOrderPdf(
   submission: FormSubmission,
   template: FormTemplate | null,
@@ -180,16 +191,19 @@ function buildWorkOrderPdf(
   const equipmentId = fieldValue(data, ['equipment_id', 'equipmentId']);
   const equipmentHours = fieldValue(data, ['equipment_hours', 'equipmentHours']);
   const notes = fieldValue(data, ['notes', 'extra_work_details', 'extraWorkDetails']);
+  const displayNumber = jobNumber || submission.workOrderId || compactId(submission.id, 16);
 
   const ops: string[] = [
     '0.18 w',
     '0 0 0 RG',
-    pdfFillRect(45, 714, 46, 46, [0.82, 0, 0]),
-    pdfText('DR', 98, 730, 38, 'F2'),
-    pdfText('TRAFFIC CONTROL', 100, 718, 9, 'F2'),
+    pdfFillRect(45, 716, 44, 44, [0.82, 0, 0]),
+    pdfFillRect(52, 724, 30, 7, [1, 1, 1]),
+    pdfFillRect(52, 738, 30, 7, [1, 1, 1]),
+    pdfText('DR', 101, 731, 36, 'F2'),
+    pdfText('TRAFFIC CONTROL', 102, 719, 9, 'F2'),
     pdfText('WORK ORDER', 350, 736, 16, 'F2'),
     '0.82 0 0 rg',
-    pdfText(`No. ${fitText(submission.id, 12)}`, 480, 736, 14, 'F2'),
+    pdfText(`No. ${compactId(displayNumber, 18)}`, 472, 736, 12, 'F2'),
     '0 0 0 rg',
     '0.82 0 0 rg',
     pdfText('DR Traffic Control, LLC', 228, 690, 15, 'F2'),
@@ -201,7 +215,7 @@ function buildWorkOrderPdf(
 
   const left = 24;
   const width = 564;
-  let top = 630;
+  let top = 626;
   const cell = (
     label: string,
     value: unknown,
@@ -212,22 +226,22 @@ function buildWorkOrderPdf(
     max = 42,
   ) => {
     ops.push(pdfRect(x, y - h, w, h));
-    ops.push(pdfText(label, x + 3, y - 9, 6, 'F2'));
-    ops.push(pdfText(fitText(value, max), x + 3, y - 20, 8));
+    ops.push(pdfText(label, x + 3, y - 7, 5.5, 'F2'));
+    ops.push(pdfText(fitText(value, max) || '-', x + 3, y - h + 5, 7));
   };
 
-  cell('DR TRAFFIC JOB#', jobNumber || submission.projectId || '-', left, top, 198, 18, 24);
-  cell('JOB NAME:', jobName || submission.workOrderId || '-', left + 198, top, 198, 18, 30);
-  cell('DATE:', dateValue, left + 396, top, 168, 18, 20);
-  top -= 18;
-  cell('DESCRIPTION OF WORK:', description, left, top, width, 24, 92);
-  top -= 24;
-  cell('CLIENT:', client, left, top, 337, 18, 42);
-  cell('CUSTOMER ORDER #:', submission.workOrderId || '-', left + 337, top, 227, 18, 30);
-  top -= 18;
-  cell('CONTACT:', contact || submission.workerId || '-', left, top, 337, 18, 42);
-  cell('WORK SHIFT:', shift || '-', left + 337, top, 227, 18, 28);
-  top -= 18;
+  cell('DR TRAFFIC JOB#', jobNumber || submission.projectId || '-', left, top, 198, 21, 24);
+  cell('JOB NAME:', jobName || submission.workOrderId || '-', left + 198, top, 198, 21, 38);
+  cell('DATE:', dateValue, left + 396, top, 168, 21, 20);
+  top -= 21;
+  cell('DESCRIPTION OF WORK:', description, left, top, width, 26, 104);
+  top -= 26;
+  cell('CLIENT:', client, left, top, 337, 21, 48);
+  cell('CUSTOMER ORDER #:', compactId(submission.workOrderId, 26), left + 337, top, 227, 21, 32);
+  top -= 21;
+  cell('CONTACT:', contact || submission.workerId || '-', left, top, 337, 21, 48);
+  cell('WORK SHIFT:', shift || '-', left + 337, top, 227, 21, 28);
+  top -= 21;
 
   ops.push(pdfRect(left, top - 20, width, 20));
   ops.push(pdfText('FIELD SERVICE  [ ]', left + 55, top - 13, 8, 'F2'));
@@ -264,30 +278,30 @@ function buildWorkOrderPdf(
   ops.push(pdfText('HRS', equipX + 190, top - 10, 6, 'F2'));
   top -= 15;
 
-  const laborRows = [...rows].slice(0, 7);
+  const laborRows = [...rows].slice(0, 6);
   while (laborRows.length < 7) laborRows.push({});
   laborRows.forEach((row, index) => {
     const rowH = 22;
     const values = [
-      fitText(row.workerName || row.name || '', 24),
-      fitText(row.roleNames || row.employeeLabel || shift || '', 10),
+      fitText(row.workerName || row.name || '', 26) || '',
+      firstString(row.roleNames || row.employeeLabel || shift || ''),
       fitText(row.startTime || '', 6),
       fitText(row.endTime || '', 6),
-      fitText(row.st ?? '', 5),
-      fitText(row.ot ?? '', 5),
-      fitText(row.dt ?? '', 5),
+      row.workerId ? fitText(row.st ?? 0, 5) : '',
+      row.workerId ? fitText(row.ot ?? 0, 5) : '',
+      row.workerId ? fitText(row.dt ?? 0, 5) : '',
     ];
     let colX = laborX;
     laborCols.forEach((colW, colIndex) => {
       ops.push(pdfRect(colX, top - rowH, colW, rowH));
       ops.push(pdfText(values[colIndex], colX + 3, top - 9, 7));
       if (colIndex === 0) {
-        ops.push(pdfText(`Sign: ${row.signature ? 'Captured' : ''}`, colX + 3, top - 18, 6));
+        ops.push(pdfText(row.workerId ? `Sign: ${row.signature ? 'Captured' : ''}` : '', colX + 3, top - 18, 6));
       }
       colX += colW;
     });
     ops.push(pdfRect(equipX, top - rowH, 62, rowH));
-    ops.push(pdfText(index === 0 ? fitText(equipmentId, 10) : '', equipX + 4, top - 12, 7));
+    ops.push(pdfText(index === 0 ? fitText(equipmentId, 14) : '', equipX + 4, top - 12, 7));
     ops.push(pdfRect(equipX + 62, top - rowH, 122, rowH));
     ops.push(pdfText(index === 0 ? 'Assigned equipment' : '', equipX + 66, top - 12, 7));
     ops.push(pdfRect(equipX + 184, top - rowH, 35, rowH));

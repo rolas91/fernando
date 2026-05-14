@@ -7,16 +7,16 @@ import { FORM_CONTRACT_VERSION } from '../utils/form-contract.util';
 @Controller('form-contract')
 export class FormContractController {
   /**
-   * Catálogo de rutas enlazables (editor + cliente móvil).
-   * `assignment.*` es alias de `workOrder.*` al guardar en dataBinding.path.
+   * Bindable path catalog (editor + mobile client).
+   * `assignment.*` is an alias for `workOrder.*` when saved in dataBinding.path.
    */
   @Get('data-bindings')
   getDataBindings() {
     return {
       contractVersion: FORM_CONTRACT_VERSION,
       notes: [
-        'assignment.* normaliza a workOrder.* en servidor y cliente.',
-        'Rutas shift.* requieren shiftId al llamar GET /form-templates/:id/context-preview.',
+        'assignment.* normalizes to workOrder.* on the server and client.',
+        'shift.* paths require shiftId when calling GET /form-templates/:id/context-preview.',
       ],
       paths: FORM_DATA_BINDING_PATHS,
     };
@@ -46,6 +46,7 @@ export class FormContractController {
         'date',
         'textarea',
         'time',
+        'timesheet',
       ],
       rulesByType: {
         text: ['minLength', 'maxLength', 'pattern'],
@@ -71,8 +72,8 @@ export class FormContractController {
       },
       fieldDataBinding: {
         shape: {
-          path: 'Canonical path desde GET /form-contract/data-bindings',
-          optional: 'boolean (default true) — ausencia de dato no bloquea el campo',
+          path: 'Canonical path from GET /form-contract/data-bindings',
+          optional: 'boolean (default true) - missing data does not block the field',
         },
       },
     };

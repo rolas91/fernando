@@ -26,9 +26,10 @@ export class FormSubmissionsController {
     @Query('projectId') projectId?: string,
     @Query('workOrderId') workOrderId?: string,
     @Query('templateId') templateId?: string,
+    @Query('shiftId') shiftId?: string,
   ) {
-    if (projectId || workOrderId || templateId) {
-      return this.service.findAll({ projectId, workOrderId, templateId });
+    if (projectId || workOrderId || templateId || shiftId) {
+      return this.service.findAll({ projectId, workOrderId, templateId, shiftId });
     }
     return this.service.findAll();
   }

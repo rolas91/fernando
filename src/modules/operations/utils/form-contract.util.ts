@@ -18,7 +18,8 @@ type FieldType =
   | 'attachment'
   | 'date'
   | 'textarea'
-  | 'time';
+  | 'time'
+  | 'timesheet';
 
 type FieldRules = {
   minLength?: number;
@@ -78,6 +79,7 @@ const SUPPORTED_TYPES: FieldType[] = [
   'date',
   'textarea',
   'time',
+  'timesheet',
 ];
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -400,6 +402,18 @@ export function validateSubmissionAgainstFields(
         assert(
           value.length <= field.rules.maxFiles,
           `Field "${field.label}" allows max ${field.rules.maxFiles} files`,
+        );
+      }
+    }
+
+    if (field.type === 'timesheet') {
+      assert(Array.isArray(value), `Field "${field.label}" must be an array`);
+      for (const entry of value as unknown[]) {
+        assert(isRecord(entry), `Field "${field.label}" contains an invalid timesheet entry`);
+        const record = entry as Record<string, unknown>;
+        assert(
+          typeof record.workerId === 'string' && record.workerId.trim().length > 0,
+          `Field "${field.label}" timesheet entries require workerId`,
         );
       }
     }

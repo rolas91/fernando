@@ -116,6 +116,25 @@ function rolesSummary(shift: ShiftLike): string {
   return parts.join(', ');
 }
 
+function workerRoleNames(shift: ShiftLike, workerId: string): string[] {
+  const roles = shift.roles;
+  if (!Array.isArray(roles)) return [];
+  const names = new Set<string>();
+  for (const r of roles) {
+    if (!isRecord(r)) continue;
+    const assignedWorkers = Array.isArray(r.assignedWorkers) ? r.assignedWorkers : [];
+    if (!assignedWorkers.includes(workerId)) continue;
+    const roleName = typeof r.roleName === 'string' ? r.roleName.trim() : '';
+    if (roleName) names.add(roleName);
+  }
+  return [...names];
+}
+
+function shiftString(shift: ShiftLike, key: string): string {
+  const value = shift[key];
+  return typeof value === 'string' ? value : '';
+}
+
 @Injectable()
 export class FormContextResolutionService {
   constructor(
@@ -230,6 +249,7 @@ export class FormContextResolutionService {
       workerLabelById,
       equipmentLabelById,
       materialLabelById,
+      workerTimesheetByShiftId: shift ? await this.loadWorkerTimesheetRows(workOrder, shift) : [],
     };
 
     const fieldPreviews = fields.map((field) => {
@@ -327,6 +347,7 @@ export class FormContextResolutionService {
       workerLabelById: Map<string, string>;
       equipmentLabelById: Map<string, string>;
       materialLabelById: Map<string, string>;
+      workerTimesheetByShiftId: Record<string, unknown>[];
     },
     path: string,
   ): unknown {
@@ -429,6 +450,8 @@ export class FormContextResolutionService {
           const ids = collectRoleIds(s, 'assignedWorkers');
           return joinLabels(ids, ctx.workerLabelById, '');
         }
+        case 'timesheetWorkers':
+          return ctx.workerTimesheetByShiftId;
         case 'equipmentSummary': {
           const ids = collectRoleIds(s, 'assignedEquipment');
           return joinLabels(ids, ctx.equipmentLabelById, '');
@@ -445,5 +468,42 @@ export class FormContextResolutionService {
     }
 
     return null;
+  }
+
+  private async loadWorkerTimesheetRows(
+    workOrder: WorkOrder,
+    shift: ShiftLike,
+  ): Promise<Record<string, unknown>[]> {
+    const workerIds = collectRoleIds(shift, 'assignedWorkers');
+    if (workerIds.length === 0) return [];
+    const rows = await this.workerRepo.find({ where: { id: In(workerIds) } });
+    const workerById = new Map(rows.map((worker) => [worker.id, worker]));
+    return workerIds.map((workerId, index) => {
+      const worker = workerById.get(workerId);
+      const workerName = worker
+        ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
+        : workerId;
+      return {
+        workerId,
+        workerName,
+        employeeLabel: `Employee #${index + 1}`,
+        roleNames: workerRoleNames(shift, workerId),
+        workOrderId: workOrder.id,
+        workOrderNumber: workOrder.orderNumber ?? '',
+        workOrderTitle: workOrder.title ?? '',
+        shiftId: shiftString(shift, 'id'),
+        shiftDate: shiftString(shift, 'date'),
+        startTime: shiftString(shift, 'startTime'),
+        endTime: shiftString(shift, 'endTime'),
+        st: 0,
+        ot: 0,
+        dt: 0,
+        total: 0,
+        lunchTaken: false,
+        employeeNote: '',
+        signature: '',
+        status: 'pending',
+      };
+    });
   }
 }

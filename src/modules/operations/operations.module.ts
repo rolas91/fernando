@@ -22,6 +22,7 @@ import { WorkOrder } from '../../entities/work-order.entity';
 import { WorkOrderType } from '../../entities/work-order-type.entity';
 import { Worker } from '../../entities/worker.entity';
 import { WorkerCertification } from '../../entities/worker-certification.entity';
+import { WorkerRole } from '../../entities/worker-role.entity';
 import { AccessModule } from '../access/access.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
@@ -47,6 +48,7 @@ import { TimesheetsController } from './controllers/timesheets.controller';
 import { WorkOrderTypesController } from './controllers/work-order-types.controller';
 import { WorkOrdersController } from './controllers/work-orders.controller';
 import { WorkersController } from './controllers/workers.controller';
+import { WorkerRolesController } from './controllers/worker-roles.controller';
 import { ActivityFeedService } from './services/activity-feed.service';
 import { AvailabilityRequestsService } from './services/availability-requests.service';
 import { CertificationsService } from './services/certifications.service';
@@ -68,6 +70,7 @@ import { TimesheetsService } from './services/timesheets.service';
 import { WorkOrderTypesService } from './services/work-order-types.service';
 import { WorkOrdersService } from './services/work-orders.service';
 import { WorkersService } from './services/workers.service';
+import { WorkerRolesService } from './services/worker-roles.service';
 import { OperationsAuthGuard } from './operations-auth.guard';
 import { SpacesStorageService } from './services/spaces-storage.service';
 
@@ -79,6 +82,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     RealtimeModule,
     TypeOrmModule.forFeature([
       Worker,
+      WorkerRole,
       Skill,
       WorkerCertification,
       Certification,
@@ -104,6 +108,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
   ],
   controllers: [
     WorkersController,
+    WorkerRolesController,
     ShiftsController,
     SkillsController,
     StatusCatalogController,
@@ -127,6 +132,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
   ],
   providers: [
     WorkersService,
+    WorkerRolesService,
     CertificationsService,
     ShiftsService,
     SkillsService,
@@ -152,6 +158,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
   ],
   exports: [
     WorkersService,
+    WorkerRolesService,
     CertificationsService,
     ShiftsService,
     SkillsService,

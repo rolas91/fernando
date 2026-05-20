@@ -64,8 +64,9 @@ export class WorkOrdersService {
     private readonly spacesStorage: SpacesStorageService,
   ) {}
 
-  findAll() {
-    return this.workOrdersRepo.find({ order: { startDate: 'ASC' } });
+  async findAll() {
+    const rows = await this.workOrdersRepo.find({ order: { startDate: 'ASC' } });
+    return this.refreshAutoAssignmentStatuses(rows);
   }
 
   async findMobileAssignmentsForUser(
@@ -75,9 +76,9 @@ export class WorkOrdersService {
     const worker = await this.resolveWorkerForMobileUser(actor);
     const search = (query.search || '').trim().toLowerCase();
     const status = (query.status || 'active').trim().toLowerCase();
-    const assignments = await this.workOrdersRepo.find({
+    const assignments = await this.refreshAutoAssignmentStatuses(await this.workOrdersRepo.find({
       order: { startDate: 'ASC' },
-    });
+    }));
     const assigned = assignments.filter((wo) =>
       this.workOrderHasAssignedWorker(wo, worker.id),
     );
@@ -389,7 +390,7 @@ export class WorkOrdersService {
 
     const shifts = normalizeWorkOrderShifts(dto.shifts);
     assertShiftsWithinAssignmentDateRange(dto.startDate, dto.endDate, shifts);
-    await this.assertAssignedWorkersMeetRoleSkills(shifts);
+    await this.assertAssignedWorkersMeetRoleCertifications(shifts);
     const { status: dtoStatusLane, ...dtoWithoutDeclaredStatus } = dto;
     const entity = this.workOrdersRepo.create({
       ...dtoWithoutDeclaredStatus,
@@ -450,7 +451,7 @@ export class WorkOrdersService {
       workOrder.shifts as Record<string, unknown>[],
     );
 
-    await this.assertAssignedWorkersMeetRoleSkills(
+    await this.assertAssignedWorkersMeetRoleCertifications(
       workOrder.shifts as Record<string, unknown>[],
     );
 
@@ -514,10 +515,10 @@ export class WorkOrdersService {
   }
 
   /**
-   * Ensures every assigned worker has all `requiredSkillIds` for their shift role
-   * (active skills on the worker_skills join).
+   * Ensures every assigned worker has all required certifications for their shift role.
+   * Falls back to legacy requiredSkillIds for older assignments.
    */
-  private async assertAssignedWorkersMeetRoleSkills(
+  private async assertAssignedWorkersMeetRoleCertifications(
     shifts: Record<string, unknown>[],
   ): Promise<void> {
     const workerIds = new Set<string>();
@@ -538,7 +539,10 @@ export class WorkOrdersService {
     const ids = [...workerIds];
     const workers = await this.workerRepo.find({
       where: { id: In(ids) },
-      relations: { skills: true },
+      relations: {
+        workerCertifications: { certification: true },
+        workerRoles: true,
+      },
     });
     if (workers.length !== ids.length) {
       throw new BadRequestException(
@@ -547,13 +551,21 @@ export class WorkOrdersService {
     }
     const byId = new Map(workers.map((w) => [w.id, w]));
 
-    const activeSkillIdSetForWorker = (w: Worker): Set<string> =>
+    const activeCertificationIdSetForWorker = (w: Worker): Set<string> =>
       new Set(
-        (w.skills ?? []).filter((s) => {
-          const st = String(s.status ?? '').toLowerCase();
+        (w.workerCertifications ?? []).filter((wc) => {
+          const st = String(wc.certification?.status ?? '').toLowerCase();
           return st !== 'inactive';
-        }).map((s) => s.id),
+        }).map((wc) => wc.certificationId),
       );
+    const workerHasRequiredRole = (w: Worker, roleName: string): boolean => {
+      const target = roleName.trim().toLowerCase();
+      if (!target) return true;
+      return (w.workerRoles ?? []).some((role) => {
+        const status = String(role.status ?? '').toLowerCase();
+        return status !== 'inactive' && role.name.trim().toLowerCase() === target;
+      });
+    };
 
     for (const shift of shifts) {
       const roles = Array.isArray(shift.roles) ? shift.roles : [];
@@ -564,11 +576,15 @@ export class WorkOrdersService {
             ? role.roleName.trim()
             : 'Role';
 
-        const required = Array.isArray(role.requiredSkillIds)
-          ? role.requiredSkillIds.filter(
+        const rawRequired = Array.isArray(role.requiredCertificationIds)
+          ? role.requiredCertificationIds
+          : Array.isArray(role.requiredSkillIds)
+            ? role.requiredSkillIds
+            : [];
+        const required = rawRequired
+          .filter(
               (id): id is string => typeof id === 'string' && id.trim() !== '',
-            ).map((id) => id.trim())
-          : [];
+            ).map((id) => id.trim());
         if (required.length === 0) continue;
 
         const requiredSet = new Set(required);
@@ -586,11 +602,16 @@ export class WorkOrdersService {
               `Assigned worker "${workerId}" was not found.`,
             );
           }
-          const have = activeSkillIdSetForWorker(w);
+          if (!workerHasRequiredRole(w, roleName)) {
+            throw new BadRequestException(
+              `Worker "${w.firstName} ${w.lastName}" cannot be assigned to "${roleName}": missing required worker role.`,
+            );
+          }
+          const have = activeCertificationIdSetForWorker(w);
           const missing = [...requiredSet].filter((sid) => !have.has(sid));
           if (missing.length > 0) {
             throw new BadRequestException(
-              `Worker "${w.firstName} ${w.lastName}" cannot be assigned to "${roleName}": missing one or more required skills.`,
+              `Worker "${w.firstName} ${w.lastName}" cannot be assigned to "${roleName}": missing one or more required certifications.`,
             );
           }
         }
@@ -698,6 +719,79 @@ export class WorkOrdersService {
       );
       entity.status = 'pending';
     }
+  }
+
+  private async refreshAutoAssignmentStatuses(rows: WorkOrder[]) {
+    if (rows.length === 0) return rows;
+
+    try {
+      const [equipmentRows, workerRows, settingsRow] = await Promise.all([
+        this.equipmentRepo.find(),
+        this.workerRepo.find({
+          relations: { workerCertifications: true },
+        }),
+        this.companySettingsRepo.find({
+          order: { updatedAt: 'DESC' },
+          take: 1,
+        }),
+      ]);
+
+      const rules = parseAssignmentAutoStatusRules(
+        settingsRow[0]?.assignmentAutoStatus ?? null,
+      );
+      const equipmentStatusById = new Map(
+        equipmentRows.map((e) => [e.id, e.status]),
+      );
+      const workerCertExpiryDates = new Map<
+        string,
+        (string | null | undefined)[]
+      >();
+      for (const w of workerRows) {
+        workerCertExpiryDates.set(
+          w.id,
+          (w.workerCertifications ?? []).map((wc) => wc.expirationDate),
+        );
+      }
+
+      const changed: WorkOrder[] = [];
+      for (const row of rows) {
+        const previousStatus = row.status;
+        const { status } = computeAssignmentStatus({
+          workOrderId: row.id,
+          previousStatus,
+          dtoStatus: undefined,
+          startDate: row.startDate,
+          endDate: row.endDate,
+          shifts: row.shifts as Record<string, unknown>[],
+          allWorkOrdersForScheduling: this.buildSchedulingSnapshot(row, rows),
+          equipmentStatusById,
+          workerCertExpiryDates,
+          rules,
+          now: new Date(),
+        });
+
+        if (status !== previousStatus) {
+          row.status = status;
+          changed.push(row);
+        }
+      }
+
+      if (changed.length > 0) {
+        await this.workOrdersRepo.save(changed);
+        this.realtime.emitTableUpdated('work_orders');
+        this.logger.log(
+          `Auto assignment statuses refreshed. updated=${changed.length}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Auto assignment status refresh failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
+    return rows;
   }
 
   private normalizeTextArray(value: string[] | undefined) {

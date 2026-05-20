@@ -160,6 +160,14 @@ export class CreateWorkerDto {
 
   @IsOptional()
   @IsArray()
+  workerRoleIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  workerRoles?: string[];
+
+  @IsOptional()
+  @IsArray()
   fileUploads?: string[];
 
   @IsOptional()

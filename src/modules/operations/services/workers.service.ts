@@ -9,6 +9,7 @@ import { Certification } from '../../../entities/certification.entity';
 import { Skill } from '../../../entities/skill.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkerCertification } from '../../../entities/worker-certification.entity';
+import { WorkerRole } from '../../../entities/worker-role.entity';
 import { AccessService } from '../../access/services/access.service';
 import { PasswordHasherService } from '../../auth/services/password-hasher.service';
 import { UsersService } from '../../users/services/users.service';
@@ -32,6 +33,8 @@ export class WorkersService {
     private readonly certificationsRepo: Repository<Certification>,
     @InjectRepository(Skill)
     private readonly skillsRepo: Repository<Skill>,
+    @InjectRepository(WorkerRole)
+    private readonly workerRolesRepo: Repository<WorkerRole>,
     @InjectRepository(WorkerCertification)
     private readonly workerCertificationsRepo: Repository<WorkerCertification>,
     private readonly realtime: RealtimeGateway,
@@ -43,7 +46,11 @@ export class WorkersService {
 
   async findAll() {
     const workers = await this.workersRepo.find({
-      relations: { workerCertifications: { certification: true }, skills: true },
+      relations: {
+        workerCertifications: { certification: true },
+        skills: true,
+        workerRoles: true,
+      },
       order: { firstName: 'ASC' },
     });
     return workers.map((worker) => this.serializeWorker(worker));
@@ -52,7 +59,11 @@ export class WorkersService {
   async findOne(id: string) {
     const worker = await this.workersRepo.findOne({
       where: { id },
-      relations: { workerCertifications: { certification: true }, skills: true },
+      relations: {
+        workerCertifications: { certification: true },
+        skills: true,
+        workerRoles: true,
+      },
     });
     if (!worker) throw new NotFoundException(`Worker ${id} not found`);
     return this.serializeWorker(worker);
@@ -78,6 +89,7 @@ export class WorkersService {
       })),
       certificationAssignments: assignments,
       skillIds: (worker.skills || []).map((skill) => skill.id),
+      workerRoleIds: (worker.workerRoles || []).map((role) => role.id),
     };
   }
 
@@ -131,9 +143,26 @@ export class WorkersService {
     }, []);
   }
 
+  private normalizeWorkerRoleIds(
+    dto: Pick<CreateWorkerDto, 'workerRoleIds' | 'workerRoles'>,
+  ) {
+    const rawIds = dto.workerRoleIds || dto.workerRoles;
+    if (rawIds === undefined) return undefined;
+    return rawIds.reduce<string[]>((acc, roleId) => {
+      if (!roleId || acc.includes(roleId)) return acc;
+      acc.push(roleId);
+      return acc;
+    }, []);
+  }
+
   private async resolveSkills(skillIds: string[]) {
     if (skillIds.length === 0) return [];
     return this.skillsRepo.findBy(skillIds.map((id) => ({ id })));
+  }
+
+  private async resolveWorkerRoles(workerRoleIds: string[]) {
+    if (workerRoleIds.length === 0) return [];
+    return this.workerRolesRepo.findBy(workerRoleIds.map((id) => ({ id })));
   }
 
   private ensureUsersWrite(actor: UserAccessContext | undefined) {
@@ -210,11 +239,14 @@ export class WorkersService {
 
     const certificationAssignments = this.normalizeCertificationAssignments(dto);
     const skillIds = this.normalizeSkillIds(dto);
+    const workerRoleIds = this.normalizeWorkerRoleIds(dto);
     const {
       certificationIds: _certificationIds,
       certificationAssignments: _certificationAssignments,
       skillIds: _skillIds,
       skills: _skills,
+      workerRoleIds: _workerRoleIds,
+      workerRoles: _workerRoles,
       createAppUser,
       appUserPassword,
       appUserRole,
@@ -223,9 +255,14 @@ export class WorkersService {
     } = dto;
     const skills =
       skillIds !== undefined ? await this.resolveSkills(skillIds) : [];
+    const workerRoles =
+      workerRoleIds !== undefined
+        ? await this.resolveWorkerRoles(workerRoleIds)
+        : [];
     const entity = this.workersRepo.create({
       ...rest,
       skills,
+      workerRoles,
       hourlyRate:
         hourlyRate !== undefined ? String(hourlyRate) : undefined,
     });
@@ -266,7 +303,7 @@ export class WorkersService {
   ) {
     const worker = await this.workersRepo.findOne({
       where: { id },
-      relations: { skills: true },
+      relations: { skills: true, workerRoles: true },
     });
     if (!worker) throw new NotFoundException(`Worker ${id} not found`);
 
@@ -276,11 +313,14 @@ export class WorkersService {
 
     const certificationAssignments = this.normalizeCertificationAssignments(dto);
     const skillIds = this.normalizeSkillIds(dto);
+    const workerRoleIds = this.normalizeWorkerRoleIds(dto);
     const {
       certificationIds: _certificationIds,
       certificationAssignments: _certificationAssignments,
       skillIds: _skillIds,
       skills: _skills,
+      workerRoleIds: _workerRoleIds,
+      workerRoles: _workerRoles,
       createAppUser,
       appUserPassword,
       appUserRole,
@@ -291,9 +331,14 @@ export class WorkersService {
       skillIds !== undefined
         ? await this.resolveSkills(skillIds)
         : worker.skills || [];
+    const workerRoles =
+      workerRoleIds !== undefined
+        ? await this.resolveWorkerRoles(workerRoleIds)
+        : worker.workerRoles || [];
     Object.assign(worker, {
       ...rest,
       skills,
+      workerRoles,
       hourlyRate:
         hourlyRate !== undefined ? String(hourlyRate) : worker.hourlyRate,
     });

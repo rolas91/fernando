@@ -8,6 +8,7 @@ import { FormTemplate } from '../entities/form-template.entity';
 import { Shift } from '../entities/shift.entity';
 import { StatusCatalog } from '../entities/status-catalog.entity';
 import { User } from '../entities/user.entity';
+import { WorkerRole } from '../entities/worker-role.entity';
 import { WorkOrderType } from '../entities/work-order-type.entity';
 import { AccessService } from '../modules/access/services/access.service';
 import { normalizeFormFields } from '../modules/operations/utils/form-contract.util';
@@ -54,12 +55,10 @@ const DEFAULT_SETTINGS: Pick<
     doubleTimeMultiplier: 2.0,
   },
   workerTypes: [
-    'Foreman',
-    'Flagger',
-    'Traffic Controller',
-    'Machine Operator',
-    'General Laborer',
-    'Truck Driver',
+    'Full-Time Employee',
+    'Part-Time Employee',
+    'Temporary / Seasonal',
+    'Subcontractor',
   ],
   equipmentTypes: [
     'Arrow Board',
@@ -685,6 +684,17 @@ const DEFAULT_STATUS_CATALOG: Array<
   },
 ];
 
+const DEFAULT_WORKER_ROLES: Array<
+  Pick<WorkerRole, 'id' | 'name' | 'description' | 'status'>
+> = [
+  { id: 'worker_role_flagger', name: 'Flagger', description: '', status: 'active' },
+  { id: 'worker_role_lead', name: 'Lead', description: '', status: 'active' },
+  { id: 'worker_role_striper', name: 'Striper', description: '', status: 'active' },
+  { id: 'worker_role_tma_driver', name: 'TMA Driver', description: '', status: 'active' },
+  { id: 'worker_role_freeway_cone_setter', name: 'Freeway Cone Setter', description: '', status: 'active' },
+  { id: 'worker_role_pole_depole', name: 'Pole/Depole', description: '', status: 'active' },
+];
+
 const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
   {
     id: 'dr_traffic_job_number',
@@ -1188,10 +1198,7 @@ async function seedCatalogs(dataSource: DataSource) {
     return;
   }
 
-  existing.workerTypes = mergeUnique(
-    existing.workerTypes,
-    DEFAULT_SETTINGS.workerTypes,
-  );
+  existing.workerTypes = DEFAULT_SETTINGS.workerTypes;
   existing.equipmentTypes = mergeUnique(
     existing.equipmentTypes,
     DEFAULT_SETTINGS.equipmentTypes,
@@ -1297,6 +1304,29 @@ async function seedStatusCatalog(dataSource: DataSource) {
   console.log(`Status catalog seed OK. created=${created}, updated=${updated}`);
 }
 
+async function seedWorkerRoleCatalog(dataSource: DataSource) {
+  const repo = dataSource.getRepository(WorkerRole);
+  let created = 0;
+  let updated = 0;
+
+  for (const template of DEFAULT_WORKER_ROLES) {
+    const existing = await repo.findOne({ where: { id: template.id } });
+    if (!existing) {
+      await repo.save(repo.create(template));
+      created += 1;
+      continue;
+    }
+
+    existing.name = template.name;
+    existing.description = template.description;
+    existing.status = template.status;
+    await repo.save(existing);
+    updated += 1;
+  }
+
+  console.log(`Worker roles seed OK. created=${created}, updated=${updated}`);
+}
+
 async function seedFormTemplates(dataSource: DataSource) {
   const repo = dataSource.getRepository(FormTemplate);
   let created = 0;
@@ -1388,6 +1418,7 @@ async function seedDr() {
     const dataSource = app.get(DataSource);
     const accessService = app.get(AccessService);
     await seedCatalogs(dataSource);
+    await seedWorkerRoleCatalog(dataSource);
     await seedShiftCatalog(dataSource);
     await seedWorkOrderTypeCatalog(dataSource);
     await seedStatusCatalog(dataSource);

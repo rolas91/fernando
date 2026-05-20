@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Skill } from './skill.entity';
+import { WorkerRole } from './worker-role.entity';
 import { WorkerCertification } from './worker-certification.entity';
 
 @Entity('workers')
@@ -88,6 +89,22 @@ export class Worker {
     },
   })
   skills: Skill[];
+
+  @ManyToMany(() => WorkerRole, (workerRole) => workerRole.workers, {
+    eager: false,
+  })
+  @JoinTable({
+    name: 'worker_worker_roles',
+    joinColumn: {
+      name: 'worker_id',
+      referencedColumnName: 'id',
+    },
+    inverseJoinColumn: {
+      name: 'worker_role_id',
+      referencedColumnName: 'id',
+    },
+  })
+  workerRoles: WorkerRole[];
 
   @Column({ name: 'file_uploads', type: 'text', array: true, default: '{}' })
   fileUploads: string[];

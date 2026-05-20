@@ -8,14 +8,19 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
+import type { UserAccessContext } from '../../access/ports/access.port';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateFormTemplateDto } from '../dto/create-form-template.dto';
 import { UpdateFormTemplateDto } from '../dto/update-form-template.dto';
 import { FormContextResolutionService } from '../services/form-context-resolution.service';
 import { FormTemplatesService } from '../services/form-templates.service';
+
+type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
 @ApiTags('operations')
 @Controller('form-templates')
@@ -31,11 +36,16 @@ export class FormTemplatesController {
     @Query('projectId') projectId?: string,
     @Query('role') role?: string,
     @Query('workOrderId') workOrderId?: string,
+    @Req() req?: ReqWithOpsUser,
   ) {
+    const filterForActor = (templates: Awaited<ReturnType<FormTemplatesService['findAll']>>) =>
+      this.filterTemplatesForActor(templates, req?.user);
     if (projectId || role || workOrderId) {
-      return this.service.findAssigned({ projectId, role, workOrderId });
+      return this.service
+        .findAssigned({ projectId, role, workOrderId })
+        .then(filterForActor);
     }
-    return this.service.findAll();
+    return this.service.findAll().then(filterForActor);
   }
 
   /**
@@ -47,12 +57,13 @@ export class FormTemplatesController {
     @Param('id') id: string,
     @Query('workOrderId') workOrderId?: string,
     @Query('shiftId') shiftId?: string,
+    @Req() req?: ReqWithOpsUser,
   ) {
     const w = workOrderId?.trim();
     if (!w) {
       throw new BadRequestException('workOrderId query parameter is required');
     }
-    return this.contextResolution.previewTemplateForWorkOrder(id, w, shiftId);
+    return this.contextResolution.previewTemplateForWorkOrder(id, w, shiftId, req?.user);
   }
 
   @Get(':id')
@@ -75,5 +86,17 @@ export class FormTemplatesController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  private filterTemplatesForActor(
+    templates: Awaited<ReturnType<FormTemplatesService['findAll']>>,
+    actor?: UserAccessContext,
+  ) {
+    if (!actor) return templates;
+    if (actor.permissions.includes('form-submissions.write')) return templates;
+    if (!actor.permissions.includes('mobile.timesheets.submit')) return templates;
+    return templates.filter((template) =>
+      (template.category || '').toLowerCase().includes('timesheet'),
+    );
   }
 }

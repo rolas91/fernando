@@ -2,13 +2,16 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { mkdir, writeFile } from 'fs/promises';
 import { basename, resolve } from 'path';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
+import { Worker } from '../../../entities/worker.entity';
+import type { UserAccessContext } from '../../access/ports/access.port';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
 import { UpdateFormSubmissionDto } from '../dto/update-form-submission.dto';
 import { SpacesStorageService } from './spaces-storage.service';
+import { TimesheetsService } from './timesheets.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -163,6 +166,14 @@ function findTimesheetRows(data: Record<string, unknown>) {
     if (rows.length) return rows;
   }
   return [];
+}
+
+function isTimesheetRowLike(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Record<string, unknown>).workerId === 'string'
+  );
 }
 
 function firstString(value: unknown): string {
@@ -368,8 +379,11 @@ export class FormSubmissionsService {
     private readonly repo: Repository<FormSubmission>,
     @InjectRepository(FormTemplate)
     private readonly templatesRepo: Repository<FormTemplate>,
+    @InjectRepository(Worker)
+    private readonly workersRepo: Repository<Worker>,
     private readonly realtime: RealtimeGateway,
     private readonly spacesStorage: SpacesStorageService,
+    private readonly timesheetsService: TimesheetsService,
   ) {}
 
   findAll(filters?: {
@@ -377,24 +391,30 @@ export class FormSubmissionsService {
     workOrderId?: string;
     templateId?: string;
     shiftId?: string;
-  }) {
+  }, actor?: UserAccessContext) {
     const projectId = filters?.projectId?.trim();
     const workOrderId = filters?.workOrderId?.trim();
     const templateId = filters?.templateId?.trim();
     const shiftId = filters?.shiftId?.trim();
     const hasFilters = Boolean(projectId || workOrderId || templateId || shiftId);
+    const filterForActor = async (rows: FormSubmission[]) =>
+      this.filterSubmissionsForActor(rows, actor);
     if (!hasFilters) {
-      return this.repo.find({ order: { submittedAt: 'DESC' } });
+      return this.repo
+        .find({ order: { submittedAt: 'DESC' } })
+        .then(filterForActor);
     }
-    return this.repo.find({
-      where: {
-        ...(projectId ? { projectId } : {}),
-        ...(workOrderId ? { workOrderId } : {}),
-        ...(templateId ? { templateId } : {}),
-        ...(shiftId ? { shiftId } : {}),
-      },
-      order: { submittedAt: 'DESC' },
-    });
+    return this.repo
+      .find({
+        where: {
+          ...(projectId ? { projectId } : {}),
+          ...(workOrderId ? { workOrderId } : {}),
+          ...(templateId ? { templateId } : {}),
+          ...(shiftId ? { shiftId } : {}),
+        },
+        order: { submittedAt: 'DESC' },
+      })
+      .then(filterForActor);
   }
 
   async findOne(id: string) {
@@ -403,59 +423,159 @@ export class FormSubmissionsService {
     return item;
   }
 
-  async create(dto: CreateFormSubmissionDto) {
+  async create(dto: CreateFormSubmissionDto, actor?: UserAccessContext) {
     const template = dto.templateId
       ? await this.templatesRepo.findOne({ where: { id: dto.templateId } })
       : null;
+    const data = await this.prepareTimesheetData(
+      normalizeSubmissionData(dto.data),
+      template,
+      actor,
+    );
 
     if (template) {
       validateSubmissionAgainstFields(
         normalizeFormFields(template.fields),
-        dto.data,
+        data,
       );
     }
 
     const saved = await this.repo.save(
       this.repo.create({
         ...dto,
-        data: normalizeSubmissionData(dto.data),
+        workerId:
+          this.isMobileTimesheetSubmission(template, actor) && actor
+            ? await this.resolveWorkerIdForActor(actor)
+            : dto.workerId,
+        data,
         submittedAt: dto.submittedAt ? new Date(dto.submittedAt) : undefined,
       }),
     );
+    await this.syncTimesheetsFromSubmission(saved);
     saved.pdfUrl = await this.generatePdf(saved, template);
     await this.repo.save(saved);
     this.realtime.emitTableUpdated('form_submissions');
     return saved;
   }
 
-  async update(id: string, dto: UpdateFormSubmissionDto) {
+  async update(id: string, dto: UpdateFormSubmissionDto, actor?: UserAccessContext) {
     const item = await this.findOne(id);
     const templateId = dto.templateId || item.templateId;
     const template = templateId
       ? await this.templatesRepo.findOne({ where: { id: templateId } })
       : null;
+    const data =
+      dto.data !== undefined
+        ? await this.prepareTimesheetData(
+            normalizeSubmissionData(dto.data as Record<string, unknown>),
+            template,
+            actor,
+          )
+        : item.data;
 
     if (template) {
       validateSubmissionAgainstFields(
         normalizeFormFields(template.fields),
-        (dto.data as Record<string, unknown> | undefined) || item.data,
+        data,
       );
     }
 
     Object.assign(item, {
       ...dto,
-      data:
-        dto.data !== undefined
-          ? normalizeSubmissionData(dto.data as Record<string, unknown>)
-          : item.data,
+      workerId:
+        this.isMobileTimesheetSubmission(template, actor) && actor
+          ? await this.resolveWorkerIdForActor(actor)
+          : dto.workerId ?? item.workerId,
+      data,
       submittedAt:
         dto.submittedAt !== undefined ? new Date(dto.submittedAt) : undefined,
     });
     const saved = await this.repo.save(item);
+    await this.syncTimesheetsFromSubmission(saved);
     saved.pdfUrl = await this.generatePdf(saved, template);
     await this.repo.save(saved);
     this.realtime.emitTableUpdated('form_submissions');
     return saved;
+  }
+
+  private async prepareTimesheetData(
+    data: Record<string, unknown> | undefined,
+    template: FormTemplate | null,
+    actor?: UserAccessContext,
+  ) {
+    const normalized = normalizeSubmissionData(data);
+    if (!this.isMobileTimesheetSubmission(template, actor)) return normalized;
+
+    const workerId = await this.resolveWorkerIdForActor(actor);
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(normalized)) {
+      if (Array.isArray(value) && value.some(isTimesheetRowLike)) {
+        next[key] = value.filter(
+          (row) => isTimesheetRowLike(row) && row.workerId === workerId,
+        );
+      } else {
+        next[key] = value;
+      }
+    }
+    return next;
+  }
+
+  private isMobileTimesheetSubmission(
+    template: FormTemplate | null,
+    actor?: UserAccessContext,
+  ) {
+    const category = (template?.category || '').toLowerCase();
+    return (
+      Boolean(actor) &&
+      category.includes('timesheet') &&
+      actor?.permissions.includes('mobile.timesheets.submit') &&
+      !actor?.permissions.includes('form-submissions.write')
+    );
+  }
+
+  private async resolveWorkerIdForActor(actor?: UserAccessContext) {
+    const email = actor?.email?.trim().toLowerCase();
+    if (!email) return '';
+    const worker = await this.workersRepo.findOne({ where: { email } });
+    return worker?.id || actor?.id || '';
+  }
+
+  private async syncTimesheetsFromSubmission(submission: FormSubmission) {
+    const data = submission.data ?? {};
+    const rows = findTimesheetRows(data);
+    if (rows.length === 0) return;
+    await this.timesheetsService.upsertShiftRows(rows, {
+      workOrderId: submission.workOrderId,
+      shiftId: submission.shiftId,
+      projectId: submission.projectId,
+    });
+  }
+
+  private async filterSubmissionsForActor(
+    rows: FormSubmission[],
+    actor?: UserAccessContext,
+  ) {
+    if (!actor) return rows;
+    if (actor.permissions.includes('form-submissions.write')) return rows;
+    if (!actor.permissions.includes('mobile.timesheets.submit')) return rows;
+
+    const workerId = await this.resolveWorkerIdForActor(actor);
+    const templateIds = [...new Set(rows.map((row) => row.templateId).filter(Boolean))];
+    const templates =
+      templateIds.length > 0
+        ? await this.templatesRepo.find({ where: { id: In(templateIds) } })
+        : [];
+    const timesheetTemplateIds = new Set(
+      templates
+        .filter((template) => (template.category || '').toLowerCase().includes('timesheet'))
+        .map((template) => template.id),
+    );
+
+    return rows.filter(
+      (row) =>
+        timesheetTemplateIds.has(row.templateId) &&
+        (!workerId || !row.workerId || row.workerId === workerId),
+    );
   }
 
   async remove(id: string) {

@@ -16,6 +16,10 @@ export class CreateTimesheetDto {
   @IsString()
   workOrderId?: string;
 
+  @IsOptional()
+  @IsString()
+  shiftId?: string;
+
   @IsString()
   date: string;
 
@@ -53,6 +57,17 @@ export class CreateTimesheetDto {
   @IsOptional()
   @IsString()
   rejectedReason?: string;
+
+  @IsOptional()
+  lunchTaken?: boolean;
+
+  @IsOptional()
+  @IsString()
+  employeeNote?: string;
+
+  @IsOptional()
+  @IsString()
+  signature?: string;
 
   @IsOptional()
   @IsString()

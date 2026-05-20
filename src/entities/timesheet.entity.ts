@@ -20,6 +20,9 @@ export class Timesheet {
   @Column({ name: 'work_order_id', type: 'varchar', length: 64, default: '' })
   workOrderId: string;
 
+  @Column({ name: 'shift_id', type: 'varchar', length: 64, default: '' })
+  shiftId: string;
+
   @Column({ type: 'date' })
   date: string;
 
@@ -67,6 +70,15 @@ export class Timesheet {
 
   @Column({ name: 'rejected_reason', type: 'text', default: '' })
   rejectedReason: string;
+
+  @Column({ name: 'lunch_taken', type: 'boolean', default: false })
+  lunchTaken: boolean;
+
+  @Column({ name: 'employee_note', type: 'text', default: '' })
+  employeeNote: string;
+
+  @Column({ type: 'text', default: '' })
+  signature: string;
 
   @Column({ type: 'text', default: '' })
   notes: string;

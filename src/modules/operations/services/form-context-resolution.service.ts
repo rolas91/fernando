@@ -6,9 +6,11 @@ import { FormTemplate } from '../../../entities/form-template.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { Material } from '../../../entities/material.entity';
 import { Project } from '../../../entities/project.entity';
+import { Timesheet } from '../../../entities/timesheet.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { FORM_DATA_BINDING_PATHS } from '../utils/form-data-binding.registry';
+import type { UserAccessContext } from '../../access/ports/access.port';
 import {
   DynamicFormField,
   FORM_CONTRACT_VERSION,
@@ -150,6 +152,8 @@ export class FormContextResolutionService {
     private readonly equipmentRepo: Repository<Equipment>,
     @InjectRepository(Material)
     private readonly materialRepo: Repository<Material>,
+    @InjectRepository(Timesheet)
+    private readonly timesheetRepo: Repository<Timesheet>,
   ) {}
 
   /**
@@ -160,6 +164,7 @@ export class FormContextResolutionService {
     templateId: string,
     workOrderId: string,
     shiftId?: string,
+    actor?: UserAccessContext,
   ) {
     const template = await this.formTemplates.findOne(templateId);
     const fields = normalizeFormFields(template.fields) as DynamicFormField[];
@@ -249,7 +254,7 @@ export class FormContextResolutionService {
       workerLabelById,
       equipmentLabelById,
       materialLabelById,
-      workerTimesheetByShiftId: shift ? await this.loadWorkerTimesheetRows(workOrder, shift) : [],
+      workerTimesheetByShiftId: shift ? await this.loadWorkerTimesheetRows(workOrder, shift, template, actor) : [],
     };
 
     const fieldPreviews = fields.map((field) => {
@@ -473,13 +478,34 @@ export class FormContextResolutionService {
   private async loadWorkerTimesheetRows(
     workOrder: WorkOrder,
     shift: ShiftLike,
+    template: FormTemplate,
+    actor?: UserAccessContext,
   ): Promise<Record<string, unknown>[]> {
-    const workerIds = collectRoleIds(shift, 'assignedWorkers');
+    let workerIds = collectRoleIds(shift, 'assignedWorkers');
+    const workerIdForActor = await this.resolveWorkerIdForActor(actor);
+    const category = (template.category || '').toLowerCase();
+    const isMobileSelfTimesheet =
+      category.includes('timesheet') &&
+      actor?.permissions.includes('mobile.timesheets.submit') &&
+      !actor?.permissions.includes('form-submissions.write');
+    if (isMobileSelfTimesheet && workerIdForActor) {
+      workerIds = workerIds.filter((workerId) => workerId === workerIdForActor);
+    }
     if (workerIds.length === 0) return [];
     const rows = await this.workerRepo.find({ where: { id: In(workerIds) } });
     const workerById = new Map(rows.map((worker) => [worker.id, worker]));
+    const shiftId = shiftString(shift, 'id');
+    const existingTimesheets = shiftId
+      ? await this.timesheetRepo.find({
+          where: { workOrderId: workOrder.id, shiftId },
+        })
+      : [];
+    const timesheetByWorkerId = new Map(
+      existingTimesheets.map((timesheet) => [timesheet.workerId, timesheet]),
+    );
     return workerIds.map((workerId, index) => {
       const worker = workerById.get(workerId);
+      const timesheet = timesheetByWorkerId.get(workerId);
       const workerName = worker
         ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
         : workerId;
@@ -489,21 +515,32 @@ export class FormContextResolutionService {
         employeeLabel: `Employee #${index + 1}`,
         roleNames: workerRoleNames(shift, workerId),
         workOrderId: workOrder.id,
+        projectId: workOrder.projectId ?? '',
         workOrderNumber: workOrder.orderNumber ?? '',
         workOrderTitle: workOrder.title ?? '',
-        shiftId: shiftString(shift, 'id'),
-        shiftDate: shiftString(shift, 'date'),
-        startTime: shiftString(shift, 'startTime'),
-        endTime: shiftString(shift, 'endTime'),
-        st: 0,
-        ot: 0,
-        dt: 0,
-        total: 0,
-        lunchTaken: false,
-        employeeNote: '',
-        signature: '',
-        status: 'pending',
+        shiftId,
+        shiftDate: timesheet?.date || shiftString(shift, 'date'),
+        startTime: timesheet?.clockIn || shiftString(shift, 'startTime'),
+        endTime: timesheet?.clockOut || shiftString(shift, 'endTime'),
+        st: Number(timesheet?.regularHours ?? 0),
+        ot: Number(timesheet?.overtimeHours ?? 0),
+        dt: Number(timesheet?.doubleTimeHours ?? 0),
+        total:
+          Number(timesheet?.regularHours ?? 0) +
+          Number(timesheet?.overtimeHours ?? 0) +
+          Number(timesheet?.doubleTimeHours ?? 0),
+        lunchTaken: timesheet?.lunchTaken ?? false,
+        employeeNote: timesheet?.employeeNote ?? '',
+        signature: timesheet?.signature ?? '',
+        status: timesheet?.status || 'pending',
       };
     });
+  }
+
+  private async resolveWorkerIdForActor(actor?: UserAccessContext) {
+    const email = actor?.email?.trim().toLowerCase();
+    if (!email) return '';
+    const worker = await this.workerRepo.findOne({ where: { email } });
+    return worker?.id || '';
   }
 }

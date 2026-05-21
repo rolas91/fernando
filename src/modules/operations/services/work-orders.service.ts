@@ -73,29 +73,23 @@ export class WorkOrdersService {
     actor: UserAccessContext | undefined,
     query: MobileAssignmentQuery,
   ) {
-    const canViewAllMobileAssignments = this.canViewAllMobileAssignments(actor);
-    const worker = canViewAllMobileAssignments
-      ? await this.resolveWorkerForMobileUser(actor, { required: false })
-      : await this.resolveWorkerForMobileUser(actor);
+    const worker = await this.resolveWorkerForMobileUser(actor);
     const search = (query.search || '').trim().toLowerCase();
     const status = (query.status || 'active').trim().toLowerCase();
     const assignments = await this.refreshAutoAssignmentStatuses(await this.workOrdersRepo.find({
       order: { startDate: 'ASC' },
     }));
-    const visibleAssignments =
-      canViewAllMobileAssignments
-        ? assignments
-        : assignments.filter((wo) =>
-            worker ? this.workOrderHasAssignedWorker(wo, worker.id) : false,
-          );
-    const projectIds = [...new Set(visibleAssignments.map((wo) => wo.projectId).filter(Boolean))];
+    const assigned = assignments.filter((wo) =>
+      this.workOrderHasAssignedWorker(wo, worker.id),
+    );
+    const projectIds = [...new Set(assigned.map((wo) => wo.projectId).filter(Boolean))];
     const projects =
       projectIds.length > 0
         ? await this.projectsRepo.find({ where: { id: In(projectIds) } })
         : [];
     const projectById = new Map(projects.map((project) => [project.id, project]));
 
-    return visibleAssignments
+    return assigned
       .filter((wo) => this.mobileStatusMatches(wo.status, status))
       .filter((wo) => {
         if (!search) return true;
@@ -115,11 +109,7 @@ export class WorkOrdersService {
           .toLowerCase();
         return haystack.includes(search);
       })
-      .map((wo) =>
-        canViewAllMobileAssignments
-          ? this.serializeMobileSupervisorAssignment(wo, worker?.id || '', projectById.get(wo.projectId))
-          : this.serializeMobileAssignment(wo, worker?.id || '', projectById.get(wo.projectId)),
-      );
+      .map((wo) => this.serializeMobileAssignment(wo, worker.id, projectById.get(wo.projectId)));
   }
 
   async updateMobileShiftConfirmation(
@@ -287,34 +277,12 @@ export class WorkOrdersService {
     return workOrder;
   }
 
-  private canViewAllMobileAssignments(actor: UserAccessContext | undefined) {
-    if (!actor) return false;
-    if (actor.role === 'admin' || actor.role === 'manager' || actor.role === 'scheduler') {
-      return actor.permissions.includes('mobile.work-orders.submit') ||
-        actor.permissions.includes('form-submissions.write') ||
-        actor.permissions.includes('work-orders.write');
-    }
-    return false;
-  }
-
-  private async resolveWorkerForMobileUser(
-    actor: UserAccessContext | undefined,
-    options?: { required?: true },
-  ): Promise<Worker>;
-  private async resolveWorkerForMobileUser(
-    actor: UserAccessContext | undefined,
-    options: { required: false },
-  ): Promise<Worker | null>;
-  private async resolveWorkerForMobileUser(
-    actor: UserAccessContext | undefined,
-    options: { required?: boolean } = { required: true },
-  ): Promise<Worker | null> {
+  private async resolveWorkerForMobileUser(actor: UserAccessContext | undefined) {
     const email = actor?.email?.trim().toLowerCase();
     if (!email) throw new ForbiddenException('Authenticated user email is required.');
 
     const worker = await this.workerRepo.findOne({ where: { email } });
     if (!worker) {
-      if (options.required === false) return null;
       throw new ForbiddenException(
         'No worker profile is linked to this user email.',
       );
@@ -378,7 +346,6 @@ export class WorkOrdersService {
           endTime: typeof record.endTime === 'string' ? record.endTime : '',
           roleId: typeof role.id === 'string' ? role.id : '',
           roleName: typeof role.roleName === 'string' ? role.roleName : '',
-          isAssignedToCurrentWorker: true,
           confirmationStatus:
             confirmation?.status === 'confirmed' || confirmation?.status === 'declined'
               ? confirmation.status
@@ -400,93 +367,6 @@ export class WorkOrdersService {
       location: this.formatMobileLocation(workOrder, project),
       shifts: workerShifts,
     };
-  }
-
-  private serializeMobileSupervisorAssignment(
-    workOrder: WorkOrder,
-    workerId: string,
-    project?: Project,
-  ) {
-    const shifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
-      .map((shift) => {
-        const record = shift as Record<string, unknown>;
-        const roles = Array.isArray(record.roles)
-          ? (record.roles as Record<string, unknown>[])
-          : [];
-        const assignedRole = workerId
-          ? roles.find((role) => {
-              const assignedWorkers = Array.isArray(role.assignedWorkers)
-                ? role.assignedWorkers
-                : [];
-              return assignedWorkers.includes(workerId);
-            })
-          : undefined;
-        const roleNames = [
-          ...new Set(
-            roles
-              .map((role) => (typeof role.roleName === 'string' ? role.roleName.trim() : ''))
-              .filter(Boolean),
-          ),
-        ];
-        const roleForDisplay = assignedRole || roles[0] || {};
-        const confirmations = Array.isArray(assignedRole?.workerConfirmations)
-          ? (assignedRole.workerConfirmations as Record<string, unknown>[])
-          : [];
-        const workerConfirmation = confirmations.find((item) => item.workerId === workerId);
-
-        return {
-          id: typeof record.id === 'string' ? record.id : '',
-          date: typeof record.date === 'string' ? record.date : '',
-          startTime: typeof record.startTime === 'string' ? record.startTime : '',
-          endTime: typeof record.endTime === 'string' ? record.endTime : '',
-          roleId: typeof roleForDisplay.id === 'string' ? roleForDisplay.id : '',
-          roleName: roleNames.join(', '),
-          isAssignedToCurrentWorker: Boolean(assignedRole),
-          confirmationStatus:
-            workerConfirmation?.status === 'confirmed' || workerConfirmation?.status === 'declined'
-              ? workerConfirmation.status
-              : this.aggregateShiftConfirmationStatus(roles),
-        };
-      })
-      .filter((shift) => shift.id)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
-
-    return {
-      id: workOrder.id,
-      orderNumber: workOrder.orderNumber || workOrder.id,
-      title: workOrder.title,
-      status: workOrder.status,
-      startDate: workOrder.startDate,
-      endDate: workOrder.endDate,
-      projectId: workOrder.projectId,
-      projectName: project?.name || '',
-      location: this.formatMobileLocation(workOrder, project),
-      shifts,
-    };
-  }
-
-  private aggregateShiftConfirmationStatus(
-    roles: Record<string, unknown>[],
-  ): ShiftConfirmationStatus {
-    const workerStatuses = roles.flatMap((role) => {
-      const assignedWorkers = Array.isArray(role.assignedWorkers)
-        ? role.assignedWorkers
-        : [];
-      const confirmations = Array.isArray(role.workerConfirmations)
-        ? (role.workerConfirmations as Record<string, unknown>[])
-        : [];
-      return assignedWorkers.map((workerId) => {
-        const confirmation = confirmations.find((item) => item.workerId === workerId);
-        return confirmation?.status === 'confirmed' || confirmation?.status === 'declined'
-          ? confirmation.status
-          : 'pending';
-      });
-    });
-
-    if (workerStatuses.length === 0) return 'pending';
-    if (workerStatuses.some((status) => status === 'declined')) return 'declined';
-    if (workerStatuses.every((status) => status === 'confirmed')) return 'confirmed';
-    return 'pending';
   }
 
   private formatMobileLocation(workOrder: WorkOrder, project?: Project) {

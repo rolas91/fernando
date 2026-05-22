@@ -3,7 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { existsSync } from 'fs';
-import type { NextFunction, Request, Response } from 'express';
+import { json, urlencoded, type NextFunction, type Request, type Response } from 'express';
 import { join, resolve } from 'path';
 import { AppModule } from './app.module';
 import { MulterExceptionFilter } from './common/filters/multer-exception.filter';
@@ -31,6 +31,8 @@ async function bootstrap() {
   ensureRuntimeEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const expressApp = app.getHttpAdapter().getInstance();
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
   app.setGlobalPrefix('api');
   expressApp.get('/healthz', (_req: Request, res: Response) => {
     return res.status(200).json({ status: 'ok' });

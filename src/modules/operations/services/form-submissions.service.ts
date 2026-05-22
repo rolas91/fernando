@@ -579,10 +579,10 @@ function buildTimesheetPdf(
   ops.push(pdfLine(left + 270, y - 14, left + 520, y - 14));
   ops.push(pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'));
   if (employeeForemanSignature) {
-    drawSignature(ops, images, employeeForemanSignature, left + 2, y - 8, 186, 30);
+    drawSignature(ops, images, employeeForemanSignature, left + 2, y - 13, 186, 38);
   }
   if (customerApprovalSignature) {
-    drawSignature(ops, images, customerApprovalSignature, left + 272, y - 8, 246, 30);
+    drawSignature(ops, images, customerApprovalSignature, left + 272, y - 13, 246, 38);
   }
   ops.push(pdfText(`Submission ${compactId(submission.id, 24)}`, left, 28, 6));
 

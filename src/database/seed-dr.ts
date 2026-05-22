@@ -861,9 +861,17 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
   {
     id: 'worker_signature',
     key: 'workerSignature',
-    label: 'Worker Signature',
+    label: 'Employee / Foreman Signature',
     type: 'signature',
     required: true,
+    ui: { section: 'Notes & Signature', layout: 'full' },
+  },
+  {
+    id: 'customer_approval_signature',
+    key: 'customerApprovalSignature',
+    label: 'Customer Contract / Approval',
+    type: 'signature',
+    required: false,
     ui: { section: 'Notes & Signature', layout: 'full' },
   },
   {

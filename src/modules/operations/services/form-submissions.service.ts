@@ -512,11 +512,37 @@ function buildTimesheetPdf(
     });
   y -= 62;
 
+  const employeeForemanSignature = findSignatureValue(data, template, [
+    /employee[_\s-]*foreman/,
+    /employee.*foreman/,
+    /foreman.*signature/,
+    /employee.*signature/,
+    /worker.*signature/,
+    /dr.?traffic/,
+    /rep/,
+  ]);
+  const customerApprovalSignature = findSignatureValue(data, template, [
+    /customer[_\s-]*approval/,
+    /customer.*approval/,
+    /customer.*signature/,
+    /contract.*signature/,
+    /contractor.*signature/,
+    /owner.*signature/,
+    /general.*contractor/,
+    /approval/,
+  ]);
+
   ops.push(pdfText('I certify the above hours are accurate.', left, y, 7));
   ops.push(pdfLine(left, y - 14, left + 190, y - 14));
   ops.push(pdfText('Employee / Foreman Signature', left, y - 24, 6, 'F2'));
   ops.push(pdfLine(left + 270, y - 14, left + 520, y - 14));
   ops.push(pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'));
+  if (employeeForemanSignature) {
+    drawSignature(ops, images, employeeForemanSignature, left + 2, y - 11, 186, 24);
+  }
+  if (customerApprovalSignature) {
+    drawSignature(ops, images, customerApprovalSignature, left + 272, y - 11, 246, 24);
+  }
   ops.push(pdfText(`Submission ${compactId(submission.id, 24)}`, left, 28, 6));
 
   return buildPdfContentPdf(ops.join('\n'), images);

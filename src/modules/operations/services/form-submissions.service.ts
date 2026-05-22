@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, unlink, writeFile } from 'fs/promises';
 import { basename, resolve } from 'path';
 import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
@@ -374,6 +374,8 @@ function buildWorkOrderPdf(
 
 @Injectable()
 export class FormSubmissionsService {
+  private readonly logger = new Logger(FormSubmissionsService.name);
+
   constructor(
     @InjectRepository(FormSubmission)
     private readonly repo: Repository<FormSubmission>,
@@ -460,6 +462,7 @@ export class FormSubmissionsService {
 
   async update(id: string, dto: UpdateFormSubmissionDto, actor?: UserAccessContext) {
     const item = await this.findOne(id);
+    const previousPdfUrl = item.pdfUrl;
     const templateId = dto.templateId || item.templateId;
     const template = templateId
       ? await this.templatesRepo.findOne({ where: { id: templateId } })
@@ -492,6 +495,7 @@ export class FormSubmissionsService {
     });
     const saved = await this.repo.save(item);
     await this.syncTimesheetsFromSubmission(saved);
+    await this.deleteGeneratedPdf(previousPdfUrl);
     saved.pdfUrl = await this.generatePdf(saved, template);
     await this.repo.save(saved);
     this.realtime.emitTableUpdated('form_submissions');
@@ -580,9 +584,130 @@ export class FormSubmissionsService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
+    const removedTimesheetRows = findTimesheetRows(item.data ?? {});
     await this.repo.remove(item);
+    await this.reconcileTimesheetsAfterSubmissionRemoval(
+      item,
+      removedTimesheetRows,
+    );
+    await this.deleteGeneratedPdf(item.pdfUrl);
     this.realtime.emitTableUpdated('form_submissions');
     return { success: true };
+  }
+
+  private async reconcileTimesheetsAfterSubmissionRemoval(
+    removedSubmission: FormSubmission,
+    removedRows: Array<Record<string, unknown>>,
+  ) {
+    if (removedRows.length === 0) return;
+
+    const affectedKeys = new Set(
+      removedRows
+        .map((row) => this.timesheetRowKey(row, removedSubmission))
+        .filter(Boolean),
+    );
+    if (affectedKeys.size === 0) return;
+
+    const remainingSubmissions = await this.repo.find({
+      where: {
+        workOrderId: removedSubmission.workOrderId,
+        shiftId: removedSubmission.shiftId,
+      },
+      order: { submittedAt: 'DESC' },
+    });
+    const replacementRowsByKey = new Map<string, Record<string, unknown>>();
+    for (const submission of remainingSubmissions) {
+      for (const row of findTimesheetRows(submission.data ?? {})) {
+        const key = this.timesheetRowKey(row, submission);
+        if (key && affectedKeys.has(key) && !replacementRowsByKey.has(key)) {
+          replacementRowsByKey.set(key, row);
+        }
+      }
+    }
+
+    const rowsToDelete: Array<Record<string, unknown>> = [];
+    const rowsToRestore: Array<Record<string, unknown>> = [];
+    for (const row of removedRows) {
+      const key = this.timesheetRowKey(row, removedSubmission);
+      if (!key || !affectedKeys.has(key)) continue;
+      const replacement = replacementRowsByKey.get(key);
+      if (replacement) {
+        rowsToRestore.push(replacement);
+      } else {
+        rowsToDelete.push(row);
+      }
+    }
+
+    if (rowsToDelete.length > 0) {
+      await this.timesheetsService.removeShiftWorkerRows(rowsToDelete, {
+        workOrderId: removedSubmission.workOrderId,
+        shiftId: removedSubmission.shiftId,
+      });
+    }
+    if (rowsToRestore.length > 0) {
+      await this.timesheetsService.upsertShiftRows(rowsToRestore, {
+        workOrderId: removedSubmission.workOrderId,
+        shiftId: removedSubmission.shiftId,
+        projectId: removedSubmission.projectId,
+      });
+    }
+  }
+
+  private timesheetRowKey(
+    row: Record<string, unknown>,
+    submission: FormSubmission,
+  ) {
+    const workerId =
+      typeof row.workerId === 'string' ? row.workerId.trim() : '';
+    const workOrderId =
+      typeof row.workOrderId === 'string' && row.workOrderId.trim()
+        ? row.workOrderId.trim()
+        : submission.workOrderId;
+    const shiftId =
+      typeof row.shiftId === 'string' && row.shiftId.trim()
+        ? row.shiftId.trim()
+        : submission.shiftId;
+    return workerId && workOrderId && shiftId
+      ? `${workOrderId}\u0000${shiftId}\u0000${workerId}`
+      : '';
+  }
+
+  private async deleteGeneratedPdf(pdfUrl?: string | null) {
+    const url = pdfUrl?.trim();
+    if (!url) return;
+
+    if (/^https?:\/\//i.test(url)) {
+      if (!this.spacesStorage.isConfigured()) return;
+      try {
+        await this.spacesStorage.deletePublicFileByUrl(url);
+      } catch (error) {
+        this.logger.warn(
+          `Could not delete generated submission PDF ${url}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      return;
+    }
+
+    const prefix = '/files/generated-form-pdfs/';
+    if (!url.startsWith(prefix)) return;
+    const fileName = basename(url.slice(prefix.length));
+    if (!fileName || fileName !== url.slice(prefix.length)) return;
+
+    const publicDir = resolve(process.cwd(), 'public', 'generated-form-pdfs');
+    try {
+      await unlink(resolve(publicDir, fileName));
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') {
+        this.logger.warn(
+          `Could not delete generated submission PDF ${url}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   private async generatePdf(

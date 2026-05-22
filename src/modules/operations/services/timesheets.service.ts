@@ -106,6 +106,30 @@ export class TimesheetsService {
     return saved;
   }
 
+  async removeShiftWorkerRows(
+    rows: Array<Record<string, unknown>>,
+    opts?: { workOrderId?: string; shiftId?: string },
+  ) {
+    let removed = 0;
+
+    for (const row of rows) {
+      const workerId = stringValue(row.workerId);
+      const workOrderId = stringValue(row.workOrderId) || opts?.workOrderId || '';
+      const shiftId = stringValue(row.shiftId) || opts?.shiftId || '';
+      if (!workerId || !workOrderId || !shiftId) continue;
+
+      const result = await this.timesheetsRepo.delete({
+        workerId,
+        workOrderId,
+        shiftId,
+      });
+      removed += result.affected ?? 0;
+    }
+
+    if (removed > 0) this.realtime.emitTableUpdated('timesheets');
+    return { removed };
+  }
+
   async update(id: string, dto: UpdateTimesheetDto) {
     const item = await this.findOne(id);
     Object.assign(item, {

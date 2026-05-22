@@ -254,6 +254,36 @@ function jpegFromSignature(value: unknown) {
   return Buffer.from(match[1], 'base64');
 }
 
+function jpegDimensions(data: Buffer): { width: number; height: number } | null {
+  let offset = 2;
+  if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
+
+  while (offset + 9 < data.length) {
+    if (data[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = data[offset + 1];
+    const length = data.readUInt16BE(offset + 2);
+    if (length < 2) return null;
+
+    const isStartOfFrame =
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf);
+    if (isStartOfFrame) {
+      return {
+        height: data.readUInt16BE(offset + 5),
+        width: data.readUInt16BE(offset + 7),
+      };
+    }
+    offset += 2 + length;
+  }
+
+  return null;
+}
+
 function pdfSignature(
   value: unknown,
   x: number,
@@ -265,8 +295,13 @@ function pdfSignature(
   const sourceWidth = Number(value.width) || 1;
   const sourceHeight = Number(value.height) || 1;
   const pad = 4;
-  const scaleX = (width - pad * 2) / sourceWidth;
-  const scaleY = (height - pad * 2) / sourceHeight;
+  const availableWidth = Math.max(1, width - pad * 2);
+  const availableHeight = Math.max(1, height - pad * 2);
+  const scale = Math.min(availableWidth / sourceWidth, availableHeight / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const offsetX = x + pad + (availableWidth - drawWidth) / 2;
+  const offsetY = y + pad + (availableHeight - drawHeight) / 2;
   const ops: string[] = ['q', '0 0 0 RG', '0.55 w'];
   for (const stroke of value.strokes) {
     const points = stroke.filter(
@@ -274,9 +309,9 @@ function pdfSignature(
     );
     if (points.length < 2) continue;
     const first = points[0];
-    ops.push(`${x + pad + first.x * scaleX} ${y + height - pad - first.y * scaleY} m`);
+    ops.push(`${offsetX + first.x * scale} ${offsetY + drawHeight - first.y * scale} m`);
     for (const point of points.slice(1)) {
-      ops.push(`${x + pad + point.x * scaleX} ${y + height - pad - point.y * scaleY} l`);
+      ops.push(`${offsetX + point.x * scale} ${offsetY + drawHeight - point.y * scale} l`);
     }
     ops.push('S');
   }
@@ -285,31 +320,37 @@ function pdfSignature(
 }
 
 function pdfSignatureImage(
-  value: unknown,
-  imageName: string,
+  image: PdfImage,
   x: number,
   y: number,
   width: number,
   height: number,
 ) {
-  if (!isSignatureImage(value)) return '';
-  return `q ${width} 0 0 ${height} ${x} ${y} cm /${imageName} Do Q`;
+  const imageRatio = image.width / image.height;
+  const boxRatio = width / height;
+  const drawWidth = imageRatio > boxRatio ? width : height * imageRatio;
+  const drawHeight = imageRatio > boxRatio ? width / imageRatio : height;
+  const drawX = x + (width - drawWidth) / 2;
+  const drawY = y + (height - drawHeight) / 2;
+  return `q ${drawWidth} 0 0 ${drawHeight} ${drawX} ${drawY} cm /${image.name} Do Q`;
 }
 
 function addSignatureImage(
   images: PdfImage[],
   value: unknown,
-): string | null {
+): PdfImage | null {
   const signatureImage = jpegFromSignature(value);
   if (!signatureImage) return null;
   const imageName = `Sig${images.length + 1}`;
-  images.push({
+  const dimensions = jpegDimensions(signatureImage);
+  const image = {
     name: imageName,
-    width: 800,
-    height: 320,
+    width: dimensions?.width ?? 900,
+    height: dimensions?.height ?? 360,
     data: signatureImage,
-  });
-  return imageName;
+  };
+  images.push(image);
+  return image;
 }
 
 function drawSignature(
@@ -321,9 +362,9 @@ function drawSignature(
   width: number,
   height: number,
 ) {
-  const imageName = addSignatureImage(images, value);
-  if (imageName) {
-    ops.push(pdfSignatureImage(value, imageName, x, y, width, height));
+  const image = addSignatureImage(images, value);
+  if (image) {
+    ops.push(pdfSignatureImage(image, x, y, width, height));
   } else {
     ops.push(pdfSignature(value, x, y, width, height));
   }
@@ -538,10 +579,10 @@ function buildTimesheetPdf(
   ops.push(pdfLine(left + 270, y - 14, left + 520, y - 14));
   ops.push(pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'));
   if (employeeForemanSignature) {
-    drawSignature(ops, images, employeeForemanSignature, left + 2, y - 11, 186, 24);
+    drawSignature(ops, images, employeeForemanSignature, left + 2, y - 8, 186, 30);
   }
   if (customerApprovalSignature) {
-    drawSignature(ops, images, customerApprovalSignature, left + 272, y - 11, 246, 24);
+    drawSignature(ops, images, customerApprovalSignature, left + 272, y - 8, 246, 30);
   }
   ops.push(pdfText(`Submission ${compactId(submission.id, 24)}`, left, 28, 6));
 

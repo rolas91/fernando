@@ -181,6 +181,183 @@ function firstString(value: unknown): string {
   return fitText(value, 14);
 }
 
+function numberField(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function yesNo(value: unknown): string {
+  return value === true || value === 'true' || value === 'yes' ? 'Y' : 'N';
+}
+
+function buildTimesheetPdf(
+  submission: FormSubmission,
+  template: FormTemplate | null,
+): Buffer {
+  const data = submission.data ?? {};
+  const rows = findTimesheetRows(data);
+  const submittedAt = submission.submittedAt
+    ? new Date(submission.submittedAt)
+    : new Date();
+  const firstRow = rows[0] ?? {};
+  const dateValue =
+    fieldValue(data, ['work_date', 'workDate', 'date']) ||
+    firstRow.shiftDate ||
+    submittedAt.toISOString().slice(0, 10);
+  const jobNumber =
+    fieldValue(data, ['job_number', 'jobNumber', 'dr_traffic_job_number', 'drTrafficJobNumber']) ||
+    firstRow.workOrderNumber ||
+    submission.workOrderId;
+  const jobName =
+    fieldValue(data, ['job_name', 'jobName']) ||
+    firstRow.workOrderTitle ||
+    submission.workOrderId;
+  const address = fieldValue(data, ['address', 'job_address', 'jobAddress']);
+  const city = fieldValue(data, ['city']);
+  const circleOne = fieldValue(data, ['circle_one', 'circleOne']);
+  const notes = fieldValue(data, ['notes', 'employeeNote', 'description']);
+  const yellow: [number, number, number] = [0.9, 0.82, 0.2];
+  const lightYellow: [number, number, number] = [0.96, 0.91, 0.45];
+
+  const ops: string[] = ['0.18 w', '0 0 0 RG'];
+  const left = 30;
+  const pageW = 552;
+  const top = 750;
+
+  ops.push(pdfText('DR Traffic Control LLC', left, top, 13, 'F2'));
+  ops.push(pdfText(template?.name || 'Timesheet', 470, top, 9, 'F2'));
+
+  const cell = (
+    label: string,
+    value: unknown,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    max = 28,
+    fill?: [number, number, number],
+  ) => {
+    if (fill) ops.push(pdfFillRect(x, y - h, w, h, fill));
+    ops.push(pdfRect(x, y - h, w, h));
+    ops.push(pdfText(label, x + 3, y - 7, 5.8, 'F2'));
+    ops.push(pdfText(fitText(value, max) || '-', x + 3, y - h + 5, 7.2));
+  };
+
+  let y = 728;
+  cell('Date:', dateValue, left, y, 92, 24, 18, yellow);
+  cell('Circle One:', circleOne || '', left + 92, y, 116, 24, 18, yellow);
+  cell('Shift:', `${fitText(firstRow.startTime || '', 8)} - ${fitText(firstRow.endTime || '', 8)}`, left + 208, y, 105, 24, 24, yellow);
+  cell('Lunch?', rows.some((row) => row.lunchTaken) ? 'Yes' : 'No', left + 313, y, 60, 24, 8, yellow);
+  cell('Job Number:', jobNumber, left + 373, y, 92, 24, 18, yellow);
+  cell('1st Job #', jobNumber, left + 465, y, 87, 24, 18, yellow);
+
+  y -= 24;
+  cell('Job Name', jobName, left, y, 240, 34, 42, yellow);
+  cell('Description', fieldValue(data, ['description', 'description_of_work', 'descriptionOfWork']) || jobName, left + 240, y, 225, 34, 42, yellow);
+  cell('Address / Weather / City', [address, city].filter(Boolean).join(' - '), left + 465, y, 87, 34, 18, yellow);
+
+  y -= 42;
+  ops.push(pdfFillRect(left, y - 16, pageW, 16, yellow));
+  ops.push(pdfRect(left, y - 16, pageW, 16));
+  ops.push(pdfText('Employees Name (Signature all boxes were filled & checked is accurate)', left + 92, y - 11, 7, 'F2'));
+  y -= 16;
+
+  const employeeRows = [...rows].slice(0, 10);
+  while (employeeRows.length < 8) employeeRows.push({});
+  const tableX = left;
+  const cols = [
+    { label: 'Employee', w: 116 },
+    { label: 'Signature', w: 102 },
+    { label: 'ST', w: 34 },
+    { label: 'OT', w: 34 },
+    { label: 'DT', w: 34 },
+    { label: 'Total', w: 38 },
+    { label: 'Lunch Y/N', w: 45 },
+    { label: 'Notes', w: 149 },
+  ];
+  let x = tableX;
+  cols.forEach((col) => {
+    ops.push(pdfFillRect(x, y - 15, col.w, 15, lightYellow));
+    ops.push(pdfRect(x, y - 15, col.w, 15));
+    ops.push(pdfText(col.label, x + 3, y - 10, 6.5, 'F2'));
+    x += col.w;
+  });
+  y -= 15;
+
+  let grandSt = 0;
+  let grandOt = 0;
+  let grandDt = 0;
+  employeeRows.forEach((row, index) => {
+    const st = row.workerId ? numberField(row.st ?? row.regularHours) : 0;
+    const ot = row.workerId ? numberField(row.ot ?? row.overtimeHours) : 0;
+    const dt = row.workerId ? numberField(row.dt ?? row.doubleTimeHours) : 0;
+    const total = st + ot + dt;
+    grandSt += st;
+    grandOt += ot;
+    grandDt += dt;
+    const values = [
+      fitText(row.workerName || row.name || row.workerId || '', 24),
+      row.signature ? 'Captured' : '',
+      row.workerId ? fitText(st, 5) : '',
+      row.workerId ? fitText(ot, 5) : '',
+      row.workerId ? fitText(dt, 5) : '',
+      row.workerId ? fitText(total, 5) : '',
+      row.workerId ? yesNo(row.lunchTaken) : '',
+      fitText(row.employeeNote || row.notes || notes || '', 28),
+    ];
+    const rowH = 38;
+    let colX = tableX;
+    cols.forEach((col, colIndex) => {
+      if (colIndex === 0 && index % 2 === 1) {
+        ops.push(pdfFillRect(colX, y - rowH, col.w, rowH, [0.98, 0.96, 0.78]));
+      }
+      ops.push(pdfRect(colX, y - rowH, col.w, rowH));
+      ops.push(pdfText(values[colIndex], colX + 3, y - 13, colIndex < 2 ? 8 : 7));
+      if (colIndex === 0 && row.workerId) {
+        ops.push(pdfText(firstString(row.roleNames || row.employeeLabel || ''), colX + 3, y - 25, 6));
+      }
+      colX += col.w;
+    });
+    y -= rowH;
+  });
+
+  const grandTotal = grandSt + grandOt + grandDt;
+  ops.push(pdfFillRect(tableX, y - 18, 218, 18, yellow));
+  ops.push(pdfRect(tableX, y - 18, 218, 18));
+  ops.push(pdfText('Hours Worked', tableX + 84, y - 12, 7, 'F2'));
+  let totalX = tableX + 218;
+  [grandSt, grandOt, grandDt, grandTotal].forEach((value, index) => {
+    const w = index === 3 ? 38 : 34;
+    ops.push(pdfFillRect(totalX, y - 18, w, 18, yellow));
+    ops.push(pdfRect(totalX, y - 18, w, 18));
+    ops.push(pdfText(fitText(value, 6), totalX + 7, y - 12, 8, 'F2'));
+    totalX += w;
+  });
+  ops.push(pdfFillRect(totalX, y - 18, 45, 18, yellow));
+  ops.push(pdfRect(totalX, y - 18, 45, 18));
+  ops.push(pdfText('TOTAL', totalX + 8, y - 12, 7, 'F2'));
+  ops.push(pdfRect(totalX + 45, y - 18, 149, 18));
+  y -= 34;
+
+  ops.push(pdfRect(left, y - 48, pageW, 48));
+  ops.push(pdfText('Comments / Materials / Notes', left + 4, y - 10, 7, 'F2'));
+  wrapText(stringifyFieldValue(notes), 95)
+    .slice(0, 3)
+    .forEach((line, lineIndex) => {
+      ops.push(pdfText(line, left + 4, y - 23 - lineIndex * 10, 8));
+    });
+  y -= 62;
+
+  ops.push(pdfText('I certify the above hours are accurate.', left, y, 7));
+  ops.push(pdfLine(left, y - 14, left + 190, y - 14));
+  ops.push(pdfText('Employee / Foreman Signature', left, y - 24, 6, 'F2'));
+  ops.push(pdfLine(left + 270, y - 14, left + 520, y - 14));
+  ops.push(pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'));
+  ops.push(pdfText(`Submission ${compactId(submission.id, 24)}`, left, 28, 6));
+
+  return buildPdfContentPdf(ops.join('\n'));
+}
+
 function buildWorkOrderPdf(
   submission: FormSubmission,
   template: FormTemplate | null,
@@ -757,7 +934,9 @@ export class FormSubmissionsService {
     const safeId = basename(submission.id).replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `${safeId}.pdf`;
     const pdf =
-      category.includes('work order') || templateName.includes('work order')
+      category.includes('timesheet') || templateName.includes('timesheet')
+        ? buildTimesheetPdf(submission, template)
+        : category.includes('work order') || templateName.includes('work order')
         ? buildWorkOrderPdf(submission, template)
         : buildSimplePdf(lines.slice(0, 48));
 

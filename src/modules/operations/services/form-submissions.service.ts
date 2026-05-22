@@ -519,7 +519,7 @@ function buildTimesheetPdf(
         ops.push(pdfText(firstString(row.roleNames || row.employeeLabel || ''), colX + 3, y - 25, 6));
       }
       if (colIndex === 1 && row.signature) {
-        drawSignature(ops, images, row.signature, colX + 2, y - rowH + 3, col.w - 4, rowH - 6);
+        drawSignature(ops, images, row.signature, colX + 2, y - rowH + 1, col.w - 4, rowH - 2);
       }
       colX += col.w;
     });
@@ -579,10 +579,10 @@ function buildTimesheetPdf(
   ops.push(pdfLine(left + 270, y - 14, left + 520, y - 14));
   ops.push(pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'));
   if (employeeForemanSignature) {
-    drawSignature(ops, images, employeeForemanSignature, left + 2, y - 13, 186, 38);
+    drawSignature(ops, images, employeeForemanSignature, left + 4, y - 12, 178, 25);
   }
   if (customerApprovalSignature) {
-    drawSignature(ops, images, customerApprovalSignature, left + 272, y - 13, 246, 38);
+    drawSignature(ops, images, customerApprovalSignature, left + 274, y - 12, 238, 25);
   }
   ops.push(pdfText(`Submission ${compactId(submission.id, 24)}`, left, 28, 6));
 

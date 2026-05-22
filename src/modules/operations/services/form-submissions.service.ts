@@ -190,6 +190,50 @@ function yesNo(value: unknown): string {
   return value === true || value === 'true' || value === 'yes' ? 'Y' : 'N';
 }
 
+function isSignaturePath(value: unknown): value is {
+  type: 'signature-path';
+  width: number;
+  height: number;
+  strokes: Array<Array<{ x: number; y: number }>>;
+} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'signature-path' &&
+    Array.isArray((value as { strokes?: unknown }).strokes)
+  );
+}
+
+function pdfSignature(
+  value: unknown,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  if (!isSignaturePath(value)) return '';
+  const sourceWidth = Number(value.width) || 1;
+  const sourceHeight = Number(value.height) || 1;
+  const pad = 4;
+  const scaleX = (width - pad * 2) / sourceWidth;
+  const scaleY = (height - pad * 2) / sourceHeight;
+  const ops: string[] = ['q', '0 0 0 RG', '0.55 w'];
+  for (const stroke of value.strokes) {
+    const points = stroke.filter(
+      (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+    );
+    if (points.length < 2) continue;
+    const first = points[0];
+    ops.push(`${x + pad + first.x * scaleX} ${y + height - pad - first.y * scaleY} m`);
+    for (const point of points.slice(1)) {
+      ops.push(`${x + pad + point.x * scaleX} ${y + height - pad - point.y * scaleY} l`);
+    }
+    ops.push('S');
+  }
+  ops.push('Q');
+  return ops.join('\n');
+}
+
 function buildTimesheetPdf(
   submission: FormSubmission,
   template: FormTemplate | null,
@@ -297,7 +341,7 @@ function buildTimesheetPdf(
     grandDt += dt;
     const values = [
       fitText(row.workerName || row.name || row.workerId || '', 24),
-      row.signature ? 'Captured' : '',
+      isSignaturePath(row.signature) ? '' : row.signature ? 'Captured' : '',
       row.workerId ? fitText(st, 5) : '',
       row.workerId ? fitText(ot, 5) : '',
       row.workerId ? fitText(dt, 5) : '',
@@ -315,6 +359,9 @@ function buildTimesheetPdf(
       ops.push(pdfText(values[colIndex], colX + 3, y - 13, colIndex < 2 ? 8 : 7));
       if (colIndex === 0 && row.workerId) {
         ops.push(pdfText(firstString(row.roleNames || row.employeeLabel || ''), colX + 3, y - 25, 6));
+      }
+      if (colIndex === 1 && row.signature) {
+        ops.push(pdfSignature(row.signature, colX + 2, y - rowH + 3, col.w - 4, rowH - 6));
       }
       colX += col.w;
     });

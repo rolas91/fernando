@@ -59,34 +59,65 @@ function wrapText(value: string, maxLength = 88): string[] {
   return lines.length ? lines : ['-'];
 }
 
-function buildPdfContentPdf(content: string): Buffer {
-  const objects: string[] = [];
+type PdfImage = {
+  name: string;
+  width: number;
+  height: number;
+  data: Buffer;
+};
+
+function buildPdfContentPdf(content: string, images: PdfImage[] = []): Buffer {
+  const objects: Array<string | Buffer> = [];
   const pageHeight = 792;
+  const xObjectResources = images.length
+    ? `/XObject << ${images.map((image, index) => `/${image.name} ${7 + index} 0 R`).join(' ')} >>`
+    : '';
 
   objects.push('<< /Type /Catalog /Pages 2 0 R >>');
   objects.push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
   objects.push(
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${pageHeight}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>`,
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${pageHeight}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> ${xObjectResources} >> /Contents 6 0 R >>`,
   );
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
   objects.push(`<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}\nendstream`);
+  images.forEach((image) => {
+    objects.push(
+      Buffer.concat([
+        Buffer.from(
+          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.data.length} >>\nstream\n`,
+          'utf8',
+        ),
+        image.data,
+        Buffer.from('\nendstream', 'utf8'),
+      ]),
+    );
+  });
 
-  let body = '%PDF-1.4\n';
+  const parts: Buffer[] = [Buffer.from('%PDF-1.4\n', 'utf8')];
+  let length = parts[0].length;
   const offsets = [0];
   for (let index = 0; index < objects.length; index += 1) {
-    offsets.push(Buffer.byteLength(body, 'utf8'));
-    body += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+    offsets.push(length);
+    const header = Buffer.from(`${index + 1} 0 obj\n`, 'utf8');
+    const objectBody =
+      typeof objects[index] === 'string'
+        ? Buffer.from(objects[index] as string, 'utf8')
+        : (objects[index] as Buffer);
+    const footer = Buffer.from('\nendobj\n', 'utf8');
+    parts.push(header, objectBody, footer);
+    length += header.length + objectBody.length + footer.length;
   }
 
-  const xrefOffset = Buffer.byteLength(body, 'utf8');
-  body += `xref\n0 ${objects.length + 1}\n`;
-  body += '0000000000 65535 f \n';
+  const xrefOffset = length;
+  let tail = `xref\n0 ${objects.length + 1}\n`;
+  tail += '0000000000 65535 f \n';
   for (let index = 1; index < offsets.length; index += 1) {
-    body += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
+    tail += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
   }
-  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-  return Buffer.from(body, 'utf8');
+  tail += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  parts.push(Buffer.from(tail, 'utf8'));
+  return Buffer.concat(parts);
 }
 
 function buildSimplePdf(lines: string[]): Buffer {
@@ -204,6 +235,25 @@ function isSignaturePath(value: unknown): value is {
   );
 }
 
+function isSignatureImage(value: unknown): value is {
+  type: 'signature-image';
+  dataUrl: string;
+} {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'signature-image' &&
+    typeof (value as { dataUrl?: unknown }).dataUrl === 'string'
+  );
+}
+
+function jpegFromSignature(value: unknown) {
+  if (!isSignatureImage(value)) return null;
+  const match = /^data:image\/jpe?g;base64,(.+)$/i.exec(value.dataUrl);
+  if (!match) return null;
+  return Buffer.from(match[1], 'base64');
+}
+
 function pdfSignature(
   value: unknown,
   x: number,
@@ -232,6 +282,72 @@ function pdfSignature(
   }
   ops.push('Q');
   return ops.join('\n');
+}
+
+function pdfSignatureImage(
+  value: unknown,
+  imageName: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  if (!isSignatureImage(value)) return '';
+  return `q ${width} 0 0 ${height} ${x} ${y} cm /${imageName} Do Q`;
+}
+
+function addSignatureImage(
+  images: PdfImage[],
+  value: unknown,
+): string | null {
+  const signatureImage = jpegFromSignature(value);
+  if (!signatureImage) return null;
+  const imageName = `Sig${images.length + 1}`;
+  images.push({
+    name: imageName,
+    width: 800,
+    height: 320,
+    data: signatureImage,
+  });
+  return imageName;
+}
+
+function drawSignature(
+  ops: string[],
+  images: PdfImage[],
+  value: unknown,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  const imageName = addSignatureImage(images, value);
+  if (imageName) {
+    ops.push(pdfSignatureImage(value, imageName, x, y, width, height));
+  } else {
+    ops.push(pdfSignature(value, x, y, width, height));
+  }
+}
+
+function findSignatureValue(
+  data: Record<string, unknown>,
+  template: FormTemplate | null,
+  patterns: RegExp[],
+) {
+  const fields = template ? normalizeFormFields(template.fields) : [];
+  for (const field of fields) {
+    if (field.type !== 'signature') continue;
+    const haystack = `${field.id} ${field.key ?? ''} ${field.label}`.toLowerCase();
+    if (patterns.some((pattern) => pattern.test(haystack))) {
+      const value = data[field.id] ?? (field.key ? data[field.key] : undefined);
+      if (value) return value;
+    }
+  }
+  for (const [key, value] of Object.entries(data)) {
+    const haystack = key.toLowerCase();
+    if (patterns.some((pattern) => pattern.test(haystack)) && value) return value;
+  }
+  return null;
 }
 
 function buildTimesheetPdf(
@@ -264,6 +380,7 @@ function buildTimesheetPdf(
   const lightYellow: [number, number, number] = [0.96, 0.91, 0.45];
 
   const ops: string[] = ['0.18 w', '0 0 0 RG'];
+  const images: PdfImage[] = [];
   const left = 30;
   const pageW = 552;
   const top = 750;
@@ -341,7 +458,7 @@ function buildTimesheetPdf(
     grandDt += dt;
     const values = [
       fitText(row.workerName || row.name || row.workerId || '', 24),
-      isSignaturePath(row.signature) ? '' : row.signature ? 'Captured' : '',
+      isSignaturePath(row.signature) || isSignatureImage(row.signature) ? '' : row.signature ? 'Captured' : '',
       row.workerId ? fitText(st, 5) : '',
       row.workerId ? fitText(ot, 5) : '',
       row.workerId ? fitText(dt, 5) : '',
@@ -361,7 +478,7 @@ function buildTimesheetPdf(
         ops.push(pdfText(firstString(row.roleNames || row.employeeLabel || ''), colX + 3, y - 25, 6));
       }
       if (colIndex === 1 && row.signature) {
-        ops.push(pdfSignature(row.signature, colX + 2, y - rowH + 3, col.w - 4, rowH - 6));
+        drawSignature(ops, images, row.signature, colX + 2, y - rowH + 3, col.w - 4, rowH - 6);
       }
       colX += col.w;
     });
@@ -402,7 +519,7 @@ function buildTimesheetPdf(
   ops.push(pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'));
   ops.push(pdfText(`Submission ${compactId(submission.id, 24)}`, left, 28, 6));
 
-  return buildPdfContentPdf(ops.join('\n'));
+  return buildPdfContentPdf(ops.join('\n'), images);
 }
 
 function buildWorkOrderPdf(
@@ -411,6 +528,7 @@ function buildWorkOrderPdf(
 ): Buffer {
   const data = submission.data ?? {};
   const rows = findTimesheetRows(data);
+  const images: PdfImage[] = [];
   const submittedAt = submission.submittedAt
     ? new Date(submission.submittedAt)
     : new Date();
@@ -531,7 +649,15 @@ function buildWorkOrderPdf(
       ops.push(pdfRect(colX, top - rowH, colW, rowH));
       ops.push(pdfText(values[colIndex], colX + 3, top - 9, 7));
       if (colIndex === 0) {
-        ops.push(pdfText(row.workerId ? `Sign: ${row.signature ? 'Captured' : ''}` : '', colX + 3, top - 18, 6));
+        if (row.workerId && row.signature) {
+          if (isSignaturePath(row.signature) || isSignatureImage(row.signature)) {
+            drawSignature(ops, images, row.signature, colX + 58, top - rowH + 3, colW - 62, rowH - 6);
+          } else {
+            ops.push(pdfText('Sign: Captured', colX + 3, top - 18, 6));
+          }
+        } else {
+          ops.push(pdfText(row.workerId ? 'Sign:' : '', colX + 3, top - 18, 6));
+        }
       }
       colX += colW;
     });
@@ -579,10 +705,30 @@ function buildWorkOrderPdf(
     top -= 18;
   });
 
+  const foremanSignature = findSignatureValue(data, template, [
+    /foreman/,
+    /employee/,
+    /dr.?traffic/,
+    /rep/,
+  ]);
+  const customerSignature = findSignatureValue(data, template, [
+    /customer/,
+    /contract/,
+    /owner/,
+    /general/,
+    /approval/,
+  ]);
+
   ops.push(pdfText('DR TRAFFIC REP. (NAME)', left, 62, 7, 'F2'));
   ops.push(pdfLine(left + 105, 60, left + 245, 60));
   ops.push(pdfText('OWNER / GENERAL CONTRACTOR REP. (NAME)', left + 282, 62, 7, 'F2'));
   ops.push(pdfLine(left + 448, 60, left + 564, 60));
+  if (foremanSignature) {
+    drawSignature(ops, images, foremanSignature, left + 107, 62, 136, 30);
+  }
+  if (customerSignature) {
+    drawSignature(ops, images, customerSignature, left + 450, 62, 112, 30);
+  }
   ops.push(
     pdfText(
       'I hereby acknowledge the satisfactory completion of the above described work.',
@@ -593,7 +739,7 @@ function buildWorkOrderPdf(
   );
   ops.push(pdfText(template?.name || 'Work Order Form', left, 36, 6));
 
-  return buildPdfContentPdf(ops.join('\n'));
+  return buildPdfContentPdf(ops.join('\n'), images);
 }
 
 @Injectable()

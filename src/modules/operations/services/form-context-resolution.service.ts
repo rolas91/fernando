@@ -137,6 +137,15 @@ function shiftString(shift: ShiftLike, key: string): string {
   return typeof value === 'string' ? value : '';
 }
 
+function parseJsonValue(value: string): unknown {
+  if (!value.trim().startsWith('{')) return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 @Injectable()
 export class FormContextResolutionService {
   constructor(
@@ -531,7 +540,7 @@ export class FormContextResolutionService {
           Number(timesheet?.doubleTimeHours ?? 0),
         lunchTaken: timesheet?.lunchTaken ?? false,
         employeeNote: timesheet?.employeeNote ?? '',
-        signature: timesheet?.signature ?? '',
+        signature: timesheet?.signature ? parseJsonValue(timesheet.signature) : '',
         status: timesheet?.status || 'pending',
       };
     });

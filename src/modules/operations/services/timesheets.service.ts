@@ -90,7 +90,7 @@ export class TimesheetsService {
         doubleTimeHours: String(numberValue(row.dt ?? row.doubleTimeHours, Number(existing?.doubleTimeHours ?? 0))),
         lunchTaken: booleanValue(row.lunchTaken, existing?.lunchTaken ?? false),
         employeeNote: stringValue(row.employeeNote) || existing?.employeeNote || '',
-        signature: stringValue(row.signature) || existing?.signature || '',
+        signature: signatureValue(row.signature) || existing?.signature || '',
         status:
           existing?.status === 'completed' && status === 'pending'
             ? 'completed'
@@ -158,6 +158,18 @@ export class TimesheetsService {
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function signatureValue(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown }).type === 'signature-image'
+  ) {
+    return JSON.stringify(value);
+  }
+  return '';
 }
 
 function numberValue(value: unknown, fallback = 0): number {

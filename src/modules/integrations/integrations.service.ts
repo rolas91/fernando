@@ -5,6 +5,7 @@ import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { createSign, randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
 import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-confirmation.entity';
+import { Notification } from '../../entities/notification.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
 import { Worker } from '../../entities/worker.entity';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -108,6 +109,8 @@ export class IntegrationsService {
     private readonly workOrdersRepo: Repository<WorkOrder>,
     @InjectRepository(Worker)
     private readonly workersRepo: Repository<Worker>,
+    @InjectRepository(Notification)
+    private readonly notificationsRepo: Repository<Notification>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -172,6 +175,10 @@ export class IntegrationsService {
           : action === 'send_email'
             ? await this.sendEmail(prepared)
             : await this.sendFirebaseCloudMessage(prepared);
+
+    if (action === 'send_in_app') {
+      await this.persistFcmNotification(prepared, result);
+    }
 
     if (prepared.confirmationRequest && result?.success) {
       prepared.confirmationRequest.providerMessageSid =
@@ -532,6 +539,49 @@ export class IntegrationsService {
     );
     await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
+  }
+
+  private async persistFcmNotification(
+    body: NotificationBody & { confirmationUrl?: string },
+    result: NotificationResult,
+  ) {
+    const workerId = await this.resolveNotificationWorkerId(body);
+    if (!workerId) return;
+
+    const status = result.success
+      ? result.simulated
+        ? 'simulated'
+        : 'sent'
+      : 'failed';
+
+    await this.notificationsRepo.save(
+      this.notificationsRepo.create({
+        id: `notif_${randomBytes(12).toString('hex')}`,
+        type: 'shift_assignment',
+        channel: 'in_app',
+        title: 'Shift assignment notification',
+        message: body.message || 'Notification',
+        timestamp: new Date(),
+        read: false,
+        link: body.confirmation?.workOrderId || null,
+        workerId,
+        workOrderId: body.confirmation?.workOrderId || null,
+        shiftId: body.confirmation?.shiftId || null,
+        roleId: body.confirmation?.roleId || null,
+        deliveryStatus: status,
+        providerMessageId: result.messageId || null,
+      }),
+    );
+    this.realtime.emitTableUpdated('notifications');
+  }
+
+  private async resolveNotificationWorkerId(body: NotificationBody) {
+    if (body.confirmation?.workerId) return body.confirmation.workerId;
+    if (!body.email) return null;
+    const worker = await this.workersRepo.findOne({
+      where: { email: body.email.trim().toLowerCase() },
+    });
+    return worker?.id || null;
   }
 
   private async sendSms(body: NotificationBody) {

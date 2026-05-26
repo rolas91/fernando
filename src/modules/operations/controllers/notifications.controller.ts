@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
@@ -13,6 +14,10 @@ import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateNotificationDto } from '../dto/create-notification.dto';
 import { UpdateNotificationDto } from '../dto/update-notification.dto';
 import { NotificationsService } from '../services/notifications.service';
+import type { Request } from 'express';
+import type { UserAccessContext } from '../../access/ports/access.port';
+
+type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
 @ApiTags('operations')
 @Controller('notifications')
@@ -23,6 +28,16 @@ export class NotificationsController {
   @Get()
   findAll() {
     return this.service.findAll();
+  }
+
+  @Get('mobile/me')
+  findMobileMine(@Req() req: ReqWithOpsUser) {
+    return this.service.findMobileForActor(req.user);
+  }
+
+  @Patch('mobile/:id/read')
+  markMobileRead(@Param('id') id: string, @Req() req: ReqWithOpsUser) {
+    return this.service.markMobileRead(id, req.user);
   }
 
   @Get(':id')

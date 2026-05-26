@@ -7,6 +7,10 @@ export class CreateNotificationDto {
   @IsString()
   type: string;
 
+  @IsOptional()
+  @IsString()
+  channel?: string;
+
   @IsString()
   title: string;
 
@@ -25,4 +29,28 @@ export class CreateNotificationDto {
   @IsOptional()
   @IsString()
   link?: string;
+
+  @IsOptional()
+  @IsString()
+  workerId?: string;
+
+  @IsOptional()
+  @IsString()
+  workOrderId?: string;
+
+  @IsOptional()
+  @IsString()
+  shiftId?: string;
+
+  @IsOptional()
+  @IsString()
+  roleId?: string;
+
+  @IsOptional()
+  @IsString()
+  deliveryStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  providerMessageId?: string;
 }

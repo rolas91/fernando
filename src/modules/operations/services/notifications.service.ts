@@ -47,6 +47,15 @@ export class NotificationsService {
     return saved;
   }
 
+  async removeMobile(id: string, actor: UserAccessContext | undefined) {
+    const worker = await this.resolveWorkerForActor(actor);
+    const item = await this.repo.findOne({ where: { id, workerId: worker.id } });
+    if (!item) throw new NotFoundException(`Notification ${id} not found`);
+    await this.repo.remove(item);
+    this.realtime.emitTableUpdated('notifications');
+    return { success: true };
+  }
+
   create(dto: CreateNotificationDto) {
     return this.repo
       .save(

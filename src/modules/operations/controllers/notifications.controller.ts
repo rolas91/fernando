@@ -40,6 +40,11 @@ export class NotificationsController {
     return this.service.markMobileRead(id, req.user);
   }
 
+  @Delete('mobile/:id')
+  removeMobile(@Param('id') id: string, @Req() req: ReqWithOpsUser) {
+    return this.service.removeMobile(id, req.user);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);

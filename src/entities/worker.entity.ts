@@ -109,6 +109,9 @@ export class Worker {
   @Column({ name: 'file_uploads', type: 'text', array: true, default: '{}' })
   fileUploads: string[];
 
+  @Column({ name: 'fcm_tokens', type: 'text', array: true, default: '{}' })
+  fcmTokens: string[];
+
   @Column({ name: 'hire_date', type: 'date', nullable: true })
   hireDate: string | null;
 

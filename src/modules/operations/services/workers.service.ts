@@ -375,4 +375,30 @@ export class WorkersService {
     this.realtime.emitTableUpdated('workers');
     return { success: true };
   }
+
+  async registerFcmTokenForActor(
+    rawToken: string,
+    actor: UserAccessContext | undefined,
+  ) {
+    const token = rawToken.trim();
+    if (!token) throw new ForbiddenException('FCM token is required.');
+    if (!actor?.email) {
+      throw new ForbiddenException('Authenticated user email is required.');
+    }
+
+    const worker = await this.workersRepo.findOne({
+      where: { email: actor.email.trim().toLowerCase() },
+    });
+    if (!worker) {
+      throw new NotFoundException(
+        `Worker profile for ${actor.email} was not found.`,
+      );
+    }
+
+    const existing = worker.fcmTokens || [];
+    worker.fcmTokens = [token, ...existing.filter((item) => item !== token)].slice(0, 5);
+    await this.workersRepo.save(worker);
+    this.realtime.emitTableUpdated('workers');
+    return { success: true, workerId: worker.id, tokenCount: worker.fcmTokens.length };
+  }
 }

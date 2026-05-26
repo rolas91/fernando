@@ -22,6 +22,7 @@ import { WorkersService } from '../services/workers.service';
 import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options';
 import type { Request } from 'express';
 import type { UserAccessContext } from '../../access/ports/access.port';
+import { RegisterFcmTokenDto } from '../dto/register-fcm-token.dto';
 
 type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
@@ -74,6 +75,15 @@ export class WorkersController {
   @ApiBody({ type: DeleteUploadDto })
   deleteUpload(@Body() dto: DeleteUploadDto) {
     return this.spacesStorage.deletePublicFileByUrl(dto.url);
+  }
+
+  @Post('me/fcm-token')
+  @ApiBody({ type: RegisterFcmTokenDto })
+  registerMyFcmToken(
+    @Body() dto: RegisterFcmTokenDto,
+    @Req() req: ReqWithOpsUser,
+  ) {
+    return this.workersService.registerFcmTokenForActor(dto.token, req.user);
   }
 
   @Get(':id')

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
-import { randomBytes } from 'crypto';
+import { createSign, randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
 import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-confirmation.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
@@ -79,6 +79,11 @@ type NotificationResult = {
   twilioErrorMessage?: string | null;
 };
 
+type FirebaseAccessToken = {
+  token: string;
+  expiresAt: number;
+};
+
 type TwilioStatusCallbackPayload = {
   MessageSid?: string;
   MessageStatus?: string;
@@ -94,6 +99,7 @@ type TwilioStatusCallbackPayload = {
 @Injectable()
 export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
+  private firebaseAccessToken: FirebaseAccessToken | null = null;
 
   constructor(
     @InjectRepository(ShiftAssignmentConfirmation)
@@ -165,13 +171,7 @@ export class IntegrationsService {
           ? await this.sendWhatsApp(prepared)
           : action === 'send_email'
             ? await this.sendEmail(prepared)
-            : {
-                success: true,
-                simulated: true,
-                channel: 'in_app',
-                note: 'In-app notification simulated',
-                confirmationUrl: prepared.confirmationUrl,
-              };
+            : await this.sendFirebaseCloudMessage(prepared);
 
     if (prepared.confirmationRequest && result?.success) {
       prepared.confirmationRequest.providerMessageSid =
@@ -814,6 +814,209 @@ export class IntegrationsService {
       messageId: info.messageId,
       confirmationUrl: (body as any).confirmationUrl,
     };
+  }
+
+  private async sendFirebaseCloudMessage(
+    body: NotificationBody & { confirmationUrl?: string },
+  ): Promise<NotificationResult> {
+    const tokens = await this.resolveFcmTokens(body);
+    if (tokens.length === 0) {
+      return {
+        success: true,
+        simulated: true,
+        channel: 'in_app',
+        note: 'FCM simulated because the worker has no registered device token.',
+        confirmationUrl: body.confirmationUrl,
+      };
+    }
+
+    const projectId = this.firebaseProjectId();
+    const accessToken = await this.getFirebaseAccessToken();
+    if (!projectId || !accessToken) {
+      return {
+        success: true,
+        simulated: true,
+        channel: 'in_app',
+        note: 'FCM simulated because Firebase credentials are not configured.',
+        confirmationUrl: body.confirmationUrl,
+      };
+    }
+
+    const endpoint = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
+    const title = 'Shift assignment notification';
+    const sendResults = await Promise.all(
+      tokens.map(async (token) => {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: {
+              token,
+              notification: {
+                title,
+                body: body.message || 'Notification',
+              },
+              data: {
+                channel: 'in_app',
+                workOrderId: body.confirmation?.workOrderId || '',
+                shiftId: body.confirmation?.shiftId || '',
+                roleId: body.confirmation?.roleId || '',
+                workerId: body.confirmation?.workerId || '',
+                confirmationUrl: body.confirmationUrl || '',
+              },
+              android: {
+                priority: 'HIGH',
+                notification: {
+                  channel_id: 'shift_notifications',
+                },
+              },
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          const error = await res.text();
+          return { ok: false, error };
+        }
+
+        const json = (await res.json()) as { name?: string };
+        return { ok: true, name: json.name };
+      }),
+    );
+
+    const sent = sendResults.filter((item) => item.ok);
+    if (sent.length === 0) {
+      return {
+        success: false,
+        simulated: false,
+        channel: 'in_app',
+        error:
+          sendResults.find((item) => !item.ok)?.error ||
+          'FCM rejected all messages.',
+        confirmationUrl: body.confirmationUrl,
+      };
+    }
+
+    return {
+      success: true,
+      simulated: false,
+      channel: 'in_app',
+      messageId: sent.map((item) => item.name).filter(Boolean).join(','),
+      confirmationUrl: body.confirmationUrl,
+    };
+  }
+
+  private async resolveFcmTokens(body: NotificationBody) {
+    const workerId = body.confirmation?.workerId;
+    const where = workerId
+      ? { id: workerId }
+      : body.email
+        ? { email: body.email.trim().toLowerCase() }
+        : null;
+    if (!where) return [];
+
+    const worker = await this.workersRepo.findOne({ where });
+    return (worker?.fcmTokens || []).filter((token) => token.trim());
+  }
+
+  private firebaseProjectId() {
+    return (
+      process.env.FIREBASE_PROJECT_ID ||
+      this.firebaseServiceAccount()?.project_id ||
+      ''
+    ).trim();
+  }
+
+  private firebaseServiceAccount():
+    | { client_email?: string; private_key?: string; project_id?: string }
+    | null {
+    const json = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
+    if (json) {
+      try {
+        return JSON.parse(json) as {
+          client_email?: string;
+          private_key?: string;
+          project_id?: string;
+        };
+      } catch {
+        this.logger.warn('FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.');
+      }
+    }
+
+    return {
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      private_key: process.env.FIREBASE_PRIVATE_KEY,
+      project_id: process.env.FIREBASE_PROJECT_ID,
+    };
+  }
+
+  private async getFirebaseAccessToken() {
+    if (
+      this.firebaseAccessToken &&
+      this.firebaseAccessToken.expiresAt > Date.now() + 60_000
+    ) {
+      return this.firebaseAccessToken.token;
+    }
+
+    const account = this.firebaseServiceAccount();
+    const clientEmail = account?.client_email?.trim();
+    const privateKey = account?.private_key?.replace(/\\n/g, '\n');
+    if (!clientEmail || !privateKey) return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    const jwtHeader = this.base64Url(
+      JSON.stringify({ alg: 'RS256', typ: 'JWT' }),
+    );
+    const jwtClaim = this.base64Url(
+      JSON.stringify({
+        iss: clientEmail,
+        scope: 'https://www.googleapis.com/auth/firebase.messaging',
+        aud: 'https://oauth2.googleapis.com/token',
+        iat: now,
+        exp: now + 3600,
+      }),
+    );
+    const unsignedJwt = `${jwtHeader}.${jwtClaim}`;
+    const signature = createSign('RSA-SHA256')
+      .update(unsignedJwt)
+      .sign(privateKey);
+    const assertion = `${unsignedJwt}.${this.base64Url(signature)}`;
+
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }).toString(),
+    });
+
+    if (!res.ok) {
+      this.logger.error(`Firebase OAuth failed status=${res.status} body=${await res.text()}`);
+      return null;
+    }
+
+    const body = (await res.json()) as {
+      access_token?: string;
+      expires_in?: number;
+    };
+    if (!body.access_token) return null;
+    this.firebaseAccessToken = {
+      token: body.access_token,
+      expiresAt: Date.now() + Number(body.expires_in || 3600) * 1000,
+    };
+    return this.firebaseAccessToken.token;
+  }
+
+  private base64Url(input: string | Buffer) {
+    return Buffer.from(input)
+      .toString('base64')
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
   }
 
   private generateConfirmationToken() {

@@ -77,7 +77,7 @@ export class WorkOrdersService {
     const search = (query.search || '').trim().toLowerCase();
     const status = (query.status || 'active').trim().toLowerCase();
     const assignments = await this.refreshAutoAssignmentStatuses(await this.workOrdersRepo.find({
-      order: { startDate: 'ASC' },
+      order: { createdAt: 'DESC', startDate: 'DESC', id: 'DESC' },
     }));
     const assigned = assignments.filter((wo) =>
       this.workOrderHasAssignedWorker(wo, worker.id),

@@ -11,6 +11,7 @@ import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
+import { Material } from '../../../entities/material.entity';
 import { Project } from '../../../entities/project.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
@@ -58,6 +59,8 @@ export class WorkOrdersService {
     private readonly projectsRepo: Repository<Project>,
     @InjectRepository(Equipment)
     private readonly equipmentRepo: Repository<Equipment>,
+    @InjectRepository(Material)
+    private readonly materialsRepo: Repository<Material>,
     @InjectRepository(FormSubmission)
     private readonly formSubmissionsRepo: Repository<FormSubmission>,
     @InjectRepository(FormTemplate)
@@ -95,6 +98,7 @@ export class WorkOrdersService {
         : [];
     const projectById = new Map(projects.map((project) => [project.id, project]));
     const completedShiftKeys = await this.resolveCompletedMobileShiftKeys(assigned);
+    const quickAccessMaps = await this.loadMobileQuickAccessMaps(assigned);
 
     return assigned
       .filter((wo) => this.mobileStatusMatches(wo.status, status))
@@ -122,6 +126,7 @@ export class WorkOrdersService {
           worker.id,
           projectById.get(wo.projectId),
           completedShiftKeys,
+          quickAccessMaps,
         ),
       );
   }
@@ -378,8 +383,13 @@ export class WorkOrdersService {
     workerId: string,
     project?: Project,
     completedShiftKeys = new Set<string>(),
+    quickAccessMaps?: {
+      workerById: Map<string, Worker>;
+      equipmentById: Map<string, Equipment>;
+      materialById: Map<string, Material>;
+    },
   ) {
-    const quickAccess = this.buildMobileQuickAccess(workOrder, project);
+    const quickAccess = this.buildMobileQuickAccess(workOrder, project, quickAccessMaps);
     const workerShifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
       .map((shift) => {
         const record = shift as Record<string, unknown>;
@@ -431,7 +441,31 @@ export class WorkOrdersService {
     };
   }
 
-  private buildMobileQuickAccess(workOrder: WorkOrder, project?: Project) {
+  private async loadMobileQuickAccessMaps(workOrders: WorkOrder[]) {
+    const workerIds = new Set<string>();
+    const equipmentIds = new Set<string>();
+    const materialIds = new Set<string>();
+    for (const workOrder of workOrders) {
+      const ids = this.collectMobileQuickAccessIds(workOrder);
+      ids.workerIds.forEach((id) => workerIds.add(id));
+      ids.equipmentIds.forEach((id) => equipmentIds.add(id));
+      ids.materialIds.forEach((id) => materialIds.add(id));
+    }
+
+    const [workers, equipment, materials]: [Worker[], Equipment[], Material[]] = await Promise.all([
+      workerIds.size > 0 ? this.workerRepo.find({ where: { id: In([...workerIds]) } }) : Promise.resolve([]),
+      equipmentIds.size > 0 ? this.equipmentRepo.find({ where: { id: In([...equipmentIds]) } }) : Promise.resolve([]),
+      materialIds.size > 0 ? this.materialsRepo.find({ where: { id: In([...materialIds]) } }) : Promise.resolve([]),
+    ]);
+
+    return {
+      workerById: new Map<string, Worker>(workers.map((item) => [item.id, item])),
+      equipmentById: new Map<string, Equipment>(equipment.map((item) => [item.id, item])),
+      materialById: new Map<string, Material>(materials.map((item) => [item.id, item])),
+    };
+  }
+
+  private collectMobileQuickAccessIds(workOrder: WorkOrder) {
     const workerIds = new Set<string>();
     const equipmentIds = new Set<string>();
     const materialIds = new Set<string>();
@@ -458,13 +492,132 @@ export class WorkOrdersService {
       }
     }
 
+    return { workerIds, equipmentIds, materialIds };
+  }
+
+  private buildMobileQuickAccess(
+    workOrder: WorkOrder,
+    project?: Project,
+    maps?: {
+      workerById: Map<string, Worker>;
+      equipmentById: Map<string, Equipment>;
+      materialById: Map<string, Material>;
+    },
+  ) {
+    const { workerIds, equipmentIds, materialIds } = this.collectMobileQuickAccessIds(workOrder);
+    const crew = [...workerIds].map((id) => {
+      const worker = maps?.workerById.get(id);
+      const name = worker
+        ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
+        : id;
+      return {
+        id,
+        name,
+        initials: this.initialsFromName(name),
+        roleLine: this.roleNamesForWorker(workOrder, id).join(', ') || worker?.role || worker?.type || 'Assigned crew',
+        badge: worker?.type || worker?.role || 'Crew',
+        phone: worker?.phone || '',
+      };
+    });
+    const equipment = [
+      ...[...equipmentIds].map((id) => {
+        const item = maps?.equipmentById.get(id);
+        return {
+          id,
+          name: item?.name || id,
+          description: item?.notes || item?.brand || item?.type || 'Assigned equipment',
+          status: item?.status || 'Assigned',
+          type: item?.type || 'Equipment',
+          identifier: item?.identifier || '',
+          kind: 'equipment',
+        };
+      }),
+      ...[...materialIds].map((id) => {
+        const item = maps?.materialById.get(id);
+        return {
+          id,
+          name: item?.name || id,
+          description: item?.notes || item?.brand || item?.type || 'Assigned material',
+          status: item?.status || 'Assigned',
+          type: item?.type || 'Material',
+          identifier: item?.identifier || '',
+          kind: 'material',
+        };
+      }),
+    ];
+    const notes = [
+      workOrder.dispatchNote?.trim()
+        ? { id: 'dispatchNote', title: 'Dispatch Note', body: workOrder.dispatchNote.trim() }
+        : null,
+      workOrder.notes?.trim()
+        ? { id: 'notes', title: 'Notes', body: workOrder.notes.trim() }
+        : null,
+    ].filter((item): item is { id: string; title: string; body: string } => Boolean(item));
+    const documents = [
+      ...(workOrder.fileUploads || []).filter(Boolean).map((url, index) => ({
+        id: `file_${index}`,
+        title: this.fileNameFromUrl(url),
+        url,
+        tag: 'Required',
+      })),
+      ...(workOrder.attachments || []).filter(Boolean).map((url, index) => ({
+        id: `attachment_${index}`,
+        title: this.fileNameFromUrl(url),
+        url,
+        tag: 'Reference',
+      })),
+    ];
+
     return {
-      crewCount: workerIds.size,
-      equipmentCount: equipmentIds.size + materialIds.size,
+      crewCount: crew.length,
+      equipmentCount: equipment.length,
       hasClient: Boolean(project?.clientId?.trim()),
-      hasNotes: Boolean(workOrder.notes?.trim() || workOrder.dispatchNote?.trim()),
-      documentCount: (workOrder.fileUploads || []).filter(Boolean).length + (workOrder.attachments || []).filter(Boolean).length,
+      hasNotes: notes.length > 0,
+      documentCount: documents.length,
+      crew,
+      equipment,
+      client: project?.clientId?.trim()
+        ? {
+            id: project.clientId,
+            name: project.name,
+            projectNumber: project.number,
+            projectManager: project.projectManager,
+            projectManagerEmail: project.projectManagerEmail,
+          }
+        : null,
+      notes,
+      documents,
     };
+  }
+
+  private roleNamesForWorker(workOrder: WorkOrder, workerId: string) {
+    const names = new Set<string>();
+    for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+      const roles = Array.isArray(shift.roles)
+        ? (shift.roles as Record<string, unknown>[])
+        : [];
+      for (const role of roles) {
+        const assignedWorkers = Array.isArray(role.assignedWorkers) ? role.assignedWorkers : [];
+        if (!assignedWorkers.includes(workerId)) continue;
+        if (typeof role.roleName === 'string' && role.roleName.trim()) names.add(role.roleName.trim());
+      }
+    }
+    return [...names];
+  }
+
+  private initialsFromName(name: string) {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    return (parts[0]?.[0] || '?') + (parts[1]?.[0] || '');
+  }
+
+  private fileNameFromUrl(url: string) {
+    const clean = url.split('?')[0] || url;
+    const name = clean.split('/').pop() || 'Document';
+    try {
+      return decodeURIComponent(name);
+    } catch {
+      return name;
+    }
   }
 
   private formatMobileLocation(workOrder: WorkOrder, project?: Project) {

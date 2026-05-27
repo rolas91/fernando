@@ -9,6 +9,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Equipment } from '../../../entities/equipment.entity';
+import { FormSubmission } from '../../../entities/form-submission.entity';
+import { FormTemplate } from '../../../entities/form-template.entity';
 import { Project } from '../../../entities/project.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
@@ -56,6 +58,10 @@ export class WorkOrdersService {
     private readonly projectsRepo: Repository<Project>,
     @InjectRepository(Equipment)
     private readonly equipmentRepo: Repository<Equipment>,
+    @InjectRepository(FormSubmission)
+    private readonly formSubmissionsRepo: Repository<FormSubmission>,
+    @InjectRepository(FormTemplate)
+    private readonly formTemplatesRepo: Repository<FormTemplate>,
     @InjectRepository(Worker)
     private readonly workerRepo: Repository<Worker>,
     @InjectRepository(CompanySettings)
@@ -88,6 +94,7 @@ export class WorkOrdersService {
         ? await this.projectsRepo.find({ where: { id: In(projectIds) } })
         : [];
     const projectById = new Map(projects.map((project) => [project.id, project]));
+    const completedShiftKeys = await this.resolveCompletedMobileShiftKeys(assigned);
 
     return assigned
       .filter((wo) => this.mobileStatusMatches(wo.status, status))
@@ -109,7 +116,14 @@ export class WorkOrdersService {
           .toLowerCase();
         return haystack.includes(search);
       })
-      .map((wo) => this.serializeMobileAssignment(wo, worker.id, projectById.get(wo.projectId)));
+      .map((wo) =>
+        this.serializeMobileAssignment(
+          wo,
+          worker.id,
+          projectById.get(wo.projectId),
+          completedShiftKeys,
+        ),
+      );
   }
 
   async updateMobileShiftConfirmation(
@@ -317,10 +331,48 @@ export class WorkOrdersService {
     return status === filter;
   }
 
+  private async resolveCompletedMobileShiftKeys(workOrders: WorkOrder[]) {
+    const workOrderIds = [...new Set(workOrders.map((wo) => wo.id).filter(Boolean))];
+    if (workOrderIds.length === 0) return new Set<string>();
+
+    const submissions = await this.formSubmissionsRepo.find({
+      where: {
+        workOrderId: In(workOrderIds),
+        status: 'submitted',
+      },
+    });
+    const pdfSubmissions = submissions.filter(
+      (submission) => submission.shiftId && submission.pdfUrl?.trim(),
+    );
+    if (pdfSubmissions.length === 0) return new Set<string>();
+
+    const templateIds = [...new Set(pdfSubmissions.map((submission) => submission.templateId).filter(Boolean))];
+    const templates =
+      templateIds.length > 0
+        ? await this.formTemplatesRepo.find({ where: { id: In(templateIds) } })
+        : [];
+    const workOrderTemplateIds = new Set(
+      templates
+        .filter((template) => {
+          const category = (template.category || '').toLowerCase();
+          const name = (template.name || '').toLowerCase();
+          return category.includes('work order') || category.includes('workorder') || name.includes('work order');
+        })
+        .map((template) => template.id),
+    );
+
+    return new Set(
+      pdfSubmissions
+        .filter((submission) => workOrderTemplateIds.has(submission.templateId))
+        .map((submission) => `${submission.workOrderId}:${submission.shiftId}`),
+    );
+  }
+
   private serializeMobileAssignment(
     workOrder: WorkOrder,
     workerId: string,
     project?: Project,
+    completedShiftKeys = new Set<string>(),
   ) {
     const workerShifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
       .map((shift) => {
@@ -350,6 +402,9 @@ export class WorkOrdersService {
             confirmation?.status === 'confirmed' || confirmation?.status === 'declined'
               ? confirmation.status
               : 'pending',
+          completed: completedShiftKeys.has(
+            `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
+          ),
         };
       })
       .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))

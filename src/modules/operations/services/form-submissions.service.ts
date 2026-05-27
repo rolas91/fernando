@@ -11,7 +11,10 @@ import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
 import { UpdateFormSubmissionDto } from '../dto/update-form-submission.dto';
 import { SpacesStorageService } from './spaces-storage.service';
-import { TimesheetsService } from './timesheets.service';
+import {
+  normalizeTimesheetSubmissionRow,
+  TimesheetsService,
+} from './timesheets.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -951,9 +954,9 @@ export class FormSubmissionsService {
     const next: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(normalized)) {
       if (Array.isArray(value) && value.some(isTimesheetRowLike)) {
-        next[key] = value.filter(
-          (row) => isTimesheetRowLike(row) && row.workerId === workerId,
-        );
+        next[key] = value
+          .filter((row) => isTimesheetRowLike(row) && row.workerId === workerId)
+          .map((row) => normalizeTimesheetSubmissionRow(row));
       } else {
         next[key] = value;
       }

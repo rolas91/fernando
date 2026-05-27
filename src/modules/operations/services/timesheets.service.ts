@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Timesheet } from '../../../entities/timesheet.entity';
@@ -72,6 +72,10 @@ export class TimesheetsService {
         where: { workOrderId, shiftId, workerId },
       });
       const status = stringValue(row.status) || existing?.status || 'pending';
+      const clockIn = stringValue(row.startTime) || stringValue(row.clockIn) || existing?.clockIn || '';
+      const clockOut = stringValue(row.endTime) || stringValue(row.clockOut) || existing?.clockOut || '';
+      const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
+      const hours = calculateTimesheetHours({ startTime: clockIn, endTime: clockOut, lunchTaken });
       const next = this.timesheetsRepo.create({
         ...(existing ?? {}),
         id:
@@ -82,13 +86,13 @@ export class TimesheetsService {
         workOrderId,
         shiftId,
         date: stringValue(row.shiftDate) || stringValue(row.date) || existing?.date || new Date().toISOString().slice(0, 10),
-        clockIn: stringValue(row.startTime) || stringValue(row.clockIn) || existing?.clockIn || '',
-        clockOut: stringValue(row.endTime) || stringValue(row.clockOut) || existing?.clockOut || '',
+        clockIn,
+        clockOut,
         breakMinutes: numberValue(row.breakMinutes, existing?.breakMinutes ?? 0),
-        regularHours: String(numberValue(row.st ?? row.regularHours, Number(existing?.regularHours ?? 0))),
-        overtimeHours: String(numberValue(row.ot ?? row.overtimeHours, Number(existing?.overtimeHours ?? 0))),
-        doubleTimeHours: String(numberValue(row.dt ?? row.doubleTimeHours, Number(existing?.doubleTimeHours ?? 0))),
-        lunchTaken: booleanValue(row.lunchTaken, existing?.lunchTaken ?? false),
+        regularHours: String(hours.st),
+        overtimeHours: String(hours.ot),
+        doubleTimeHours: String(hours.dt),
+        lunchTaken,
         employeeNote: stringValue(row.employeeNote) || existing?.employeeNote || '',
         signature: signatureValue(row.signature) || existing?.signature || '',
         status:
@@ -179,6 +183,70 @@ function numberValue(value: unknown, fallback = 0): number {
 
 function booleanValue(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function roundHours(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function timeToMinutes(value: string) {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+export function calculateTimesheetHours(row: {
+  startTime?: string;
+  endTime?: string;
+  clockIn?: string;
+  clockOut?: string;
+  lunchTaken?: boolean;
+}) {
+  const startLabel = stringValue(row.startTime) || stringValue(row.clockIn);
+  const endLabel = stringValue(row.endTime) || stringValue(row.clockOut);
+  const start = timeToMinutes(startLabel);
+  const end = timeToMinutes(endLabel);
+  if (start === null || end === null) {
+    throw new BadRequestException('Timesheet Start Time and End Time must use HH:mm format.');
+  }
+  if (end <= start) {
+    throw new BadRequestException('Timesheet End Time must be greater than Start Time.');
+  }
+
+  const totalHours = (end - start) / 60;
+  const regularLimit = 8;
+  const doubleTimeThreshold = 12;
+  const dt = Math.max(0, totalHours - doubleTimeThreshold);
+  const ot = Math.max(0, Math.min(totalHours, doubleTimeThreshold) - regularLimit);
+  const st = Math.min(totalHours, regularLimit) + (row.lunchTaken === false ? 1 : 0);
+
+  return {
+    st: roundHours(st),
+    ot: roundHours(ot),
+    dt: roundHours(dt),
+    total: roundHours(st + ot + dt),
+  };
+}
+
+export function normalizeTimesheetSubmissionRow(row: Record<string, unknown>) {
+  const clockIn = stringValue(row.startTime) || stringValue(row.clockIn);
+  const clockOut = stringValue(row.endTime) || stringValue(row.clockOut);
+  const lunchTaken = booleanValue(row.lunchTaken, false);
+  const hours = calculateTimesheetHours({ startTime: clockIn, endTime: clockOut, lunchTaken });
+  return {
+    ...row,
+    startTime: clockIn,
+    endTime: clockOut,
+    st: hours.st,
+    ot: hours.ot,
+    dt: hours.dt,
+    total: hours.total,
+    lunchTaken,
+  };
 }
 
 function deterministicTimesheetId(workOrderId: string, shiftId: string, workerId: string): string {

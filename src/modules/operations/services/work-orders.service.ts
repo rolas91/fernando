@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { Client } from '../../../entities/client.entity';
 import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { FormSubmission } from '../../../entities/form-submission.entity';
@@ -57,6 +58,8 @@ export class WorkOrdersService {
     private readonly workOrdersRepo: Repository<WorkOrder>,
     @InjectRepository(Project)
     private readonly projectsRepo: Repository<Project>,
+    @InjectRepository(Client)
+    private readonly clientsRepo: Repository<Client>,
     @InjectRepository(Equipment)
     private readonly equipmentRepo: Repository<Equipment>,
     @InjectRepository(Material)
@@ -387,6 +390,8 @@ export class WorkOrdersService {
       workerById: Map<string, Worker>;
       equipmentById: Map<string, Equipment>;
       materialById: Map<string, Material>;
+      clientById: Map<string, Client>;
+      pdfSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
     },
   ) {
     const quickAccess = this.buildMobileQuickAccess(workOrder, project, quickAccessMaps);
@@ -445,23 +450,54 @@ export class WorkOrdersService {
     const workerIds = new Set<string>();
     const equipmentIds = new Set<string>();
     const materialIds = new Set<string>();
+    const projectIds = new Set<string>();
+    const workOrderIds = new Set<string>();
     for (const workOrder of workOrders) {
       const ids = this.collectMobileQuickAccessIds(workOrder);
       ids.workerIds.forEach((id) => workerIds.add(id));
       ids.equipmentIds.forEach((id) => equipmentIds.add(id));
       ids.materialIds.forEach((id) => materialIds.add(id));
+      if (workOrder.projectId) projectIds.add(workOrder.projectId);
+      if (workOrder.id) workOrderIds.add(workOrder.id);
     }
 
-    const [workers, equipment, materials]: [Worker[], Equipment[], Material[]] = await Promise.all([
+    const projects = projectIds.size > 0
+      ? await this.projectsRepo.find({ where: { id: In([...projectIds]) } })
+      : [];
+    const clientIds = [
+      ...new Set(projects.map((project) => project.clientId).filter(Boolean)),
+    ];
+
+    const [workers, equipment, materials, clients, pdfSubmissions]: [
+      Worker[],
+      Equipment[],
+      Material[],
+      Client[],
+      FormSubmission[],
+    ] = await Promise.all([
       workerIds.size > 0 ? this.workerRepo.find({ where: { id: In([...workerIds]) } }) : Promise.resolve([]),
       equipmentIds.size > 0 ? this.equipmentRepo.find({ where: { id: In([...equipmentIds]) } }) : Promise.resolve([]),
       materialIds.size > 0 ? this.materialsRepo.find({ where: { id: In([...materialIds]) } }) : Promise.resolve([]),
+      clientIds.length > 0 ? this.clientsRepo.find({ where: { id: In(clientIds) } }) : Promise.resolve([]),
+      workOrderIds.size > 0
+        ? this.formSubmissionsRepo.find({ where: { workOrderId: In([...workOrderIds]), status: 'submitted' } })
+        : Promise.resolve([]),
     ]);
+    const pdfSubmissionsByWorkOrderId = new Map<string, FormSubmission[]>();
+    pdfSubmissions
+      .filter((submission) => submission.pdfUrl?.trim())
+      .forEach((submission) => {
+        const rows = pdfSubmissionsByWorkOrderId.get(submission.workOrderId) || [];
+        rows.push(submission);
+        pdfSubmissionsByWorkOrderId.set(submission.workOrderId, rows);
+      });
 
     return {
       workerById: new Map<string, Worker>(workers.map((item) => [item.id, item])),
       equipmentById: new Map<string, Equipment>(equipment.map((item) => [item.id, item])),
       materialById: new Map<string, Material>(materials.map((item) => [item.id, item])),
+      clientById: new Map<string, Client>(clients.map((item) => [item.id, item])),
+      pdfSubmissionsByWorkOrderId,
     };
   }
 
@@ -502,6 +538,8 @@ export class WorkOrdersService {
       workerById: Map<string, Worker>;
       equipmentById: Map<string, Equipment>;
       materialById: Map<string, Material>;
+      clientById: Map<string, Client>;
+      pdfSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
     },
   ) {
     const { workerIds, equipmentIds, materialIds } = this.collectMobileQuickAccessIds(workOrder);
@@ -554,6 +592,12 @@ export class WorkOrdersService {
         : null,
     ].filter((item): item is { id: string; title: string; body: string } => Boolean(item));
     const documents = [
+      ...(maps?.pdfSubmissionsByWorkOrderId.get(workOrder.id) || []).map((submission, index) => ({
+        id: `generated_pdf_${submission.id || index}`,
+        title: this.generatedPdfTitle(submission, index),
+        url: submission.pdfUrl,
+        tag: 'Generated PDF',
+      })),
       ...(workOrder.fileUploads || []).filter(Boolean).map((url, index) => ({
         id: `file_${index}`,
         title: this.fileNameFromUrl(url),
@@ -567,22 +611,33 @@ export class WorkOrdersService {
         tag: 'Reference',
       })),
     ];
+    const client = project?.clientId?.trim()
+      ? maps?.clientById.get(project.clientId) ?? null
+      : null;
 
     return {
       crewCount: crew.length,
       equipmentCount: equipment.length,
-      hasClient: Boolean(project?.clientId?.trim()),
+      hasClient: Boolean(client),
       hasNotes: notes.length > 0,
       documentCount: documents.length,
       crew,
       equipment,
-      client: project?.clientId?.trim()
+      client: client
         ? {
-            id: project.clientId,
-            name: project.name,
-            projectNumber: project.number,
-            projectManager: project.projectManager,
-            projectManagerEmail: project.projectManagerEmail,
+            id: client.id,
+            name: client.name,
+            contactName: client.contactName,
+            email: client.email,
+            phone: client.phone,
+            website: client.website,
+            address: [client.address, client.city, client.state, client.zipCode, client.country]
+              .map((item) => item?.trim())
+              .filter(Boolean)
+              .join(', '),
+            projectNumber: project?.number || '',
+            projectManager: project?.projectManager || '',
+            projectManagerEmail: project?.projectManagerEmail || '',
           }
         : null,
       notes,
@@ -618,6 +673,16 @@ export class WorkOrdersService {
     } catch {
       return name;
     }
+  }
+
+  private generatedPdfTitle(submission: FormSubmission, index: number) {
+    const submittedAt = submission.submittedAt
+      ? new Date(submission.submittedAt).toISOString().slice(0, 10)
+      : '';
+    return [
+      `Generated PDF ${index + 1}`,
+      submittedAt,
+    ].filter(Boolean).join(' - ');
   }
 
   private formatMobileLocation(workOrder: WorkOrder, project?: Project) {

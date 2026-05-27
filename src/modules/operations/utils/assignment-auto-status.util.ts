@@ -227,6 +227,32 @@ export function collectAssignedWorkerIds(
   return ids;
 }
 
+function weekStartISO(dateStr: string): string {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const value = new Date(y, (mo || 1) - 1, d || 1);
+  value.setHours(0, 0, 0, 0);
+  value.setDate(value.getDate() - value.getDay());
+  return localDateISO(value);
+}
+
+function collectAssignedWorkerWeekKeys(
+  shifts: Record<string, unknown>[],
+): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const shift of shifts) {
+    const times = parseShiftTimes(shift);
+    if (!times) continue;
+    const weekKey = weekStartISO(times.date);
+    for (const role of asRoleList(shift)) {
+      for (const wid of asStringArray(role.assignedWorkers)) {
+        if (!map.has(wid)) map.set(wid, new Set<string>());
+        map.get(wid)!.add(weekKey);
+      }
+    }
+  }
+  return map;
+}
+
 export function computeAssignmentSignals(
   input: Omit<
     ComputeAssignmentStatusInput,
@@ -321,10 +347,15 @@ export function computeAssignmentSignals(
   );
 
   const weeklyHours = computeWorkerWeeklyHoursScheduled(activeWos);
+  const assignedWeeksHere = collectAssignedWorkerWeekKeys(shifts);
   let assignedWorkerWeeklyOvertimeRisk = false;
-  assignedHere.forEach((wid) => {
-    const h = weeklyHours.get(wid) ?? 0;
-    if (h > rules.weeklyHoursRisk) assignedWorkerWeeklyOvertimeRisk = true;
+  assignedWeeksHere.forEach((weekKeys, wid) => {
+    const workerHoursByWeek = weeklyHours.get(wid);
+    if (!workerHoursByWeek) return;
+    weekKeys.forEach((weekKey) => {
+      const h = workerHoursByWeek.get(weekKey) ?? 0;
+      if (h > rules.weeklyHoursRisk) assignedWorkerWeeklyOvertimeRisk = true;
+    });
   });
 
   const today = localDateISO(now);
@@ -369,16 +400,19 @@ export function computeAssignmentSignals(
 
 function computeWorkerWeeklyHoursScheduled(
   workOrders: Array<{ shifts: Record<string, unknown>[] }>,
-): Map<string, number> {
-  const map = new Map<string, number>();
+): Map<string, Map<string, number>> {
+  const map = new Map<string, Map<string, number>>();
   for (const wo of workOrders) {
     for (const shift of wo.shifts || []) {
       const times = parseShiftTimes(shift);
       if (!times) continue;
+      const weekKey = weekStartISO(times.date);
       const hrs = shiftDurationHours(times.date, times.start, times.end);
       for (const role of asRoleList(shift)) {
         for (const wid of asStringArray(role.assignedWorkers)) {
-          map.set(wid, (map.get(wid) || 0) + hrs);
+          if (!map.has(wid)) map.set(wid, new Map<string, number>());
+          const workerHoursByWeek = map.get(wid)!;
+          workerHoursByWeek.set(weekKey, (workerHoursByWeek.get(weekKey) || 0) + hrs);
         }
       }
     }

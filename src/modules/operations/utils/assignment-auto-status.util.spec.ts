@@ -137,6 +137,134 @@ describe('computeAssignmentStatus', () => {
     expect(r.signals.allShiftsFullyStaffed).toBe(true);
   });
 
+  it('does not mark at risk for hours scheduled outside the evaluated shift week', () => {
+    const r = computeAssignmentStatus({
+      workOrderId: 'wo_current',
+      startDate: '2026-05-26',
+      endDate: '2026-05-26',
+      shifts: [
+        {
+          id: 's_current',
+          date: '2026-05-26',
+          startTime: '07:00',
+          endTime: '16:00',
+          roles: [
+            {
+              id: 'r_current',
+              roleName: 'Lead',
+              requiredCount: 1,
+              assignedWorkers: ['w1'],
+              assignedEquipment: [],
+              workerConfirmations: [{ workerId: 'w1', status: 'confirmed' }],
+            },
+          ],
+        },
+      ],
+      allWorkOrdersForScheduling: [
+        {
+          id: 'wo_current',
+          status: 'in_progress',
+          shifts: [
+            {
+              id: 's_current',
+              date: '2026-05-26',
+              startTime: '07:00',
+              endTime: '16:00',
+              roles: [{ id: 'r_current', requiredCount: 1, assignedWorkers: ['w1'], assignedEquipment: [] }],
+            },
+          ],
+        },
+        {
+          id: 'wo_previous_week',
+          status: 'at_risk',
+          shifts: [
+            {
+              id: 's_prev_1',
+              date: '2026-05-18',
+              startTime: '07:00',
+              endTime: '16:00',
+              roles: [{ id: 'r_prev_1', requiredCount: 1, assignedWorkers: ['w1'], assignedEquipment: [] }],
+            },
+            {
+              id: 's_prev_2',
+              date: '2026-05-19',
+              startTime: '07:00',
+              endTime: '16:00',
+              roles: [{ id: 'r_prev_2', requiredCount: 1, assignedWorkers: ['w1'], assignedEquipment: [] }],
+            },
+            {
+              id: 's_prev_3',
+              date: '2026-05-20',
+              startTime: '07:00',
+              endTime: '16:00',
+              roles: [{ id: 'r_prev_3', requiredCount: 1, assignedWorkers: ['w1'], assignedEquipment: [] }],
+            },
+            {
+              id: 's_prev_4',
+              date: '2026-05-21',
+              startTime: '07:00',
+              endTime: '16:00',
+              roles: [{ id: 'r_prev_4', requiredCount: 1, assignedWorkers: ['w1'], assignedEquipment: [] }],
+            },
+            {
+              id: 's_prev_5',
+              date: '2026-05-22',
+              startTime: '07:00',
+              endTime: '16:00',
+              roles: [{ id: 'r_prev_5', requiredCount: 1, assignedWorkers: ['w1'], assignedEquipment: [] }],
+            },
+          ],
+        },
+      ],
+      equipmentStatusById: new Map(),
+      workerCertExpiryDates: new Map(),
+      rules,
+      now: new Date('2026-05-26T12:00:00'),
+    });
+    expect(r.status).toBe('in_progress');
+    expect(r.signals.assignedWorkerWeeklyOvertimeRisk).toBe(false);
+  });
+
+  it('marks at risk when assigned worker exceeds hours in the evaluated week', () => {
+    const sameWeekShifts = [26, 27, 28, 29, 30].map((day) => ({
+      id: `s_may_${day}`,
+      date: `2026-05-${day}`,
+      startTime: '07:00',
+      endTime: '16:00',
+      roles: [{ id: `r_may_${day}`, requiredCount: 1, assignedWorkers: ['w1'], assignedEquipment: [] }],
+    }));
+    const r = computeAssignmentStatus({
+      workOrderId: 'wo_current',
+      startDate: '2026-05-26',
+      endDate: '2026-05-30',
+      shifts: [
+        {
+          ...sameWeekShifts[0],
+          roles: [
+            {
+              id: 'r_current',
+              roleName: 'Lead',
+              requiredCount: 1,
+              assignedWorkers: ['w1'],
+              assignedEquipment: [],
+              workerConfirmations: [{ workerId: 'w1', status: 'confirmed' }],
+            },
+          ],
+        },
+      ],
+      allWorkOrdersForScheduling: [
+        { id: 'wo_current', status: 'in_progress', shifts: [sameWeekShifts[0]] },
+        { id: 'wo_same_week', status: 'confirmed', shifts: sameWeekShifts.slice(1) },
+      ],
+      equipmentStatusById: new Map(),
+      workerCertExpiryDates: new Map(),
+      rules,
+      now: new Date('2026-05-26T12:00:00'),
+    });
+    expect(r.status).toBe('at_risk');
+    expect(r.signals.assignedWorkerWeeklyOvertimeRisk).toBe(true);
+  });
+
   it('returns critical on decline', () => {
     const r = computeAssignmentStatus({
       workOrderId: 'wo1',

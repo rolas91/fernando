@@ -379,6 +379,7 @@ export class WorkOrdersService {
     project?: Project,
     completedShiftKeys = new Set<string>(),
   ) {
+    const quickAccess = this.buildMobileQuickAccess(workOrder, project);
     const workerShifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
       .map((shift) => {
         const record = shift as Record<string, unknown>;
@@ -425,7 +426,44 @@ export class WorkOrdersService {
       projectId: workOrder.projectId,
       projectName: project?.name || '',
       location: this.formatMobileLocation(workOrder, project),
+      quickAccess,
       shifts: workerShifts,
+    };
+  }
+
+  private buildMobileQuickAccess(workOrder: WorkOrder, project?: Project) {
+    const workerIds = new Set<string>();
+    const equipmentIds = new Set<string>();
+    const materialIds = new Set<string>();
+    for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+      const roles = Array.isArray(shift.roles)
+        ? (shift.roles as Record<string, unknown>[])
+        : [];
+      for (const role of roles) {
+        if (Array.isArray(role.assignedWorkers)) {
+          role.assignedWorkers
+            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+            .forEach((id) => workerIds.add(id));
+        }
+        if (Array.isArray(role.assignedEquipment)) {
+          role.assignedEquipment
+            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+            .forEach((id) => equipmentIds.add(id));
+        }
+        if (Array.isArray(role.assignedMaterials)) {
+          role.assignedMaterials
+            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+            .forEach((id) => materialIds.add(id));
+        }
+      }
+    }
+
+    return {
+      crewCount: workerIds.size,
+      equipmentCount: equipmentIds.size + materialIds.size,
+      hasClient: Boolean(project?.clientId?.trim()),
+      hasNotes: Boolean(workOrder.notes?.trim() || workOrder.dispatchNote?.trim()),
+      documentCount: (workOrder.fileUploads || []).filter(Boolean).length + (workOrder.attachments || []).filter(Boolean).length,
     };
   }
 

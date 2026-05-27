@@ -335,37 +335,42 @@ export class WorkOrdersService {
     const workOrderIds = [...new Set(workOrders.map((wo) => wo.id).filter(Boolean))];
     if (workOrderIds.length === 0) return new Set<string>();
 
-    const submissions = await this.formSubmissionsRepo.find({
-      where: {
-        workOrderId: In(workOrderIds),
-        status: 'submitted',
-      },
-    });
-    const pdfSubmissions = submissions.filter(
-      (submission) => submission.shiftId && submission.pdfUrl?.trim(),
+    const [submissions, templates] = await Promise.all([
+      this.formSubmissionsRepo.find({
+        where: {
+          workOrderId: In(workOrderIds),
+          status: 'submitted',
+        },
+      }),
+      this.formTemplatesRepo.find(),
+    ]);
+    const submittedKeys = new Set(
+      submissions
+        .filter((submission) => submission.shiftId && submission.pdfUrl?.trim())
+        .map((submission) => `${submission.workOrderId}:${submission.shiftId}:${submission.templateId}`),
     );
-    if (pdfSubmissions.length === 0) return new Set<string>();
+    const completedShiftKeys = new Set<string>();
 
-    const templateIds = [...new Set(pdfSubmissions.map((submission) => submission.templateId).filter(Boolean))];
-    const templates =
-      templateIds.length > 0
-        ? await this.formTemplatesRepo.find({ where: { id: In(templateIds) } })
-        : [];
-    const workOrderTemplateIds = new Set(
-      templates
-        .filter((template) => {
-          const category = (template.category || '').toLowerCase();
-          const name = (template.name || '').toLowerCase();
-          return category.includes('work order') || category.includes('workorder') || name.includes('work order');
-        })
-        .map((template) => template.id),
-    );
+    for (const workOrder of workOrders) {
+      const pickedTemplateIds = new Set((workOrder.formTemplateIds || []).filter(Boolean));
+      const requiredTemplates = templates.filter((template) => {
+        if (template.isRequired === false) return false;
+        return pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id);
+      });
+      if (requiredTemplates.length === 0) continue;
+      const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
+      for (const shift of shifts) {
+        const record = shift as Record<string, unknown>;
+        const shiftId = typeof record.id === 'string' ? record.id : '';
+        if (!shiftId) continue;
+        const hasEveryRequired = requiredTemplates.every((template) =>
+          submittedKeys.has(`${workOrder.id}:${shiftId}:${template.id}`),
+        );
+        if (hasEveryRequired) completedShiftKeys.add(`${workOrder.id}:${shiftId}`);
+      }
+    }
 
-    return new Set(
-      pdfSubmissions
-        .filter((submission) => workOrderTemplateIds.has(submission.templateId))
-        .map((submission) => `${submission.workOrderId}:${submission.shiftId}`),
-    );
+    return completedShiftKeys;
   }
 
   private serializeMobileAssignment(

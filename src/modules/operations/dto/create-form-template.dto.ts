@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateFormTemplateDto {
   @IsString()
@@ -14,6 +14,10 @@ export class CreateFormTemplateDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isRequired?: boolean;
 
   @IsOptional()
   @IsString()

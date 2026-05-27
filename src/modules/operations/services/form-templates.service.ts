@@ -63,6 +63,7 @@ export class FormTemplatesService {
   create(dto: CreateFormTemplateDto) {
     const payload = {
       ...dto,
+      isRequired: dto.isRequired ?? true,
       fields: normalizeFormFields(dto.fields),
     };
     return this.repo.save(this.repo.create(payload));

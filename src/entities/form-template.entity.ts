@@ -20,6 +20,9 @@ export class FormTemplate {
   @Column({ type: 'varchar', length: 120, default: 'Safety' })
   category: string;
 
+  @Column({ name: 'is_required', type: 'boolean', default: true })
+  isRequired: boolean;
+
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
   fields: Record<string, unknown>[];
 

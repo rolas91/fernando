@@ -876,6 +876,12 @@ export class CreateOperationsTables20260407000200
             default: "'Safety'",
           },
           {
+            name: 'is_required',
+            type: 'boolean',
+            isNullable: false,
+            default: true,
+          },
+          {
             name: 'fields',
             type: 'jsonb',
             isNullable: false,

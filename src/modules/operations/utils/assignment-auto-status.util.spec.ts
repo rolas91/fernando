@@ -40,7 +40,7 @@ describe('computeAssignmentStatus', () => {
     expect(r.status).toBe('pending');
   });
 
-  it('returns completed when past end and staffed', () => {
+  it('does not complete from date and staffing alone', () => {
     const r = computeAssignmentStatus({
       workOrderId: 'wo1',
       startDate: '2026-04-01',
@@ -69,7 +69,39 @@ describe('computeAssignmentStatus', () => {
       rules,
       now,
     });
+    expect(r.status).toBe('confirmed');
+    expect(r.signals.allWorkOrderShiftFormsSubmitted).toBe(false);
+  });
+
+  it('returns completed when every shift has submitted Work Order PDF', () => {
+    const r = computeAssignmentStatus({
+      workOrderId: 'wo1',
+      startDate: '2026-04-01',
+      endDate: '2026-05-20',
+      shifts: [
+        {
+          id: 's1',
+          date: '2026-05-04',
+          startTime: '07:00',
+          endTime: '16:00',
+          roles: [
+            {
+              id: 'r1',
+              roleName: 'Flagger',
+              requiredCount: 1,
+              assignedWorkers: ['w1'],
+              assignedEquipment: [],
+            },
+          ],
+        },
+      ],
+      ...emptyCtx,
+      completedWorkOrderShiftKeys: new Set(['wo1:s1']),
+      rules,
+      now,
+    });
     expect(r.status).toBe('completed');
+    expect(r.signals.allWorkOrderShiftFormsSubmitted).toBe(true);
   });
 
   it('returns confirmed when fully staffed and confirmations in before start', () => {

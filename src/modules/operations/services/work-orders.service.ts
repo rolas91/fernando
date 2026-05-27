@@ -751,6 +751,10 @@ export class WorkOrdersService {
       }
 
       const allForScheduling = this.buildSchedulingSnapshot(entity, allRows);
+      const completedWorkOrderShiftKeys =
+        await this.resolveCompletedMobileShiftKeys(
+          allRows.some((row) => row.id === entity.id) ? allRows : [...allRows, entity],
+        );
 
       const { status } = computeAssignmentStatus({
         workOrderId: entity.id,
@@ -762,6 +766,7 @@ export class WorkOrdersService {
         allWorkOrdersForScheduling: allForScheduling,
         equipmentStatusById,
         workerCertExpiryDates,
+        completedWorkOrderShiftKeys,
         rules,
         now: new Date(),
       });
@@ -807,6 +812,8 @@ export class WorkOrdersService {
           (w.workerCertifications ?? []).map((wc) => wc.expirationDate),
         );
       }
+      const completedWorkOrderShiftKeys =
+        await this.resolveCompletedMobileShiftKeys(rows);
 
       const changed: WorkOrder[] = [];
       for (const row of rows) {
@@ -821,6 +828,7 @@ export class WorkOrdersService {
           allWorkOrdersForScheduling: this.buildSchedulingSnapshot(row, rows),
           equipmentStatusById,
           workerCertExpiryDates,
+          completedWorkOrderShiftKeys,
           rules,
           now: new Date(),
         });

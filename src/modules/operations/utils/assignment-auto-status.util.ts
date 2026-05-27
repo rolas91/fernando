@@ -50,6 +50,7 @@ export interface AssignmentStatusSignals {
   hasScheduleConflict: boolean;
   assignedWorkerWeeklyOvertimeRisk: boolean;
   assignedWorkerCertExpiringRisk: boolean;
+  allWorkOrderShiftFormsSubmitted: boolean;
   minShiftStartInHours: number | null;
 }
 
@@ -71,6 +72,7 @@ export interface ComputeAssignmentStatusInput {
   equipmentStatusById: ReadonlyMap<string, string>;
   /** Worker id → list of certification expiry YYYY-MM-DD or null. */
   workerCertExpiryDates: ReadonlyMap<string, (string | null | undefined)[]>;
+  completedWorkOrderShiftKeys?: ReadonlySet<string>;
   rules: AssignmentAutoStatusRules;
   now: Date;
 }
@@ -237,6 +239,7 @@ export function computeAssignmentSignals(
     allWorkOrdersForScheduling,
     equipmentStatusById,
     workerCertExpiryDates,
+    completedWorkOrderShiftKeys,
     rules,
     now,
   } = input;
@@ -299,6 +302,12 @@ export function computeAssignmentSignals(
       : 1;
 
   const allShiftsFullyStaffed = missingSlotsTotal === 0;
+  const allWorkOrderShiftFormsSubmitted =
+    shifts.length > 0 &&
+    shifts.every((shift) => {
+      const shiftId = typeof shift.id === 'string' ? shift.id.trim() : '';
+      return Boolean(shiftId && completedWorkOrderShiftKeys?.has(`${workOrderId}:${shiftId}`));
+    });
 
   const assignedHere = collectAssignedWorkerIds(shifts);
 
@@ -353,6 +362,7 @@ export function computeAssignmentSignals(
     hasScheduleConflict,
     assignedWorkerWeeklyOvertimeRisk,
     assignedWorkerCertExpiringRisk,
+    allWorkOrderShiftFormsSubmitted,
     minShiftStartInHours,
   };
 }
@@ -499,7 +509,7 @@ export function computeAssignmentStatus(
   const start = (startDate ?? '').toString().trim().split('T')[0] || '';
   const end = (endDate ?? '').toString().trim().split('T')[0] || '';
 
-  if (end && end < today && signals.missingSlotsTotal === 0) {
+  if (signals.allWorkOrderShiftFormsSubmitted) {
     return { status: 'completed', signals };
   }
 

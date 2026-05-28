@@ -1015,11 +1015,10 @@ export class FormSubmissionsService {
         .map((template) => template.id),
     );
 
-    return rows.filter(
-      (row) =>
-        timesheetTemplateIds.has(row.templateId) &&
-        (!workerId || !row.workerId || row.workerId === workerId),
-    );
+    return rows.filter((row) => {
+      if (!timesheetTemplateIds.has(row.templateId)) return true;
+      return !workerId || !row.workerId || row.workerId === workerId;
+    });
   }
 
   async remove(id: string) {

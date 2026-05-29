@@ -78,7 +78,7 @@ export class TimesheetsService {
       const existing = await this.timesheetsRepo.findOne({
         where: { workOrderId, shiftId, workerId },
       });
-      const status = stringValue(row.status) || existing?.status || 'pending';
+      const status = operationalTimesheetStatus(row.status, existing?.status);
       const clockIn = stringValue(row.startTime) || stringValue(row.clockIn) || existing?.clockIn || '';
       const clockOut = stringValue(row.endTime) || stringValue(row.clockOut) || existing?.clockOut || '';
       const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
@@ -102,10 +102,7 @@ export class TimesheetsService {
         lunchTaken,
         employeeNote: stringValue(row.employeeNote) || existing?.employeeNote || '',
         signature: signatureValue(row.signature) || existing?.signature || '',
-        status:
-          existing?.status === 'completed' && status === 'pending'
-            ? 'completed'
-            : status,
+        status,
         approvedBy: existing?.approvedBy || '',
         rejectedReason: existing?.rejectedReason || '',
         notes: stringValue(row.notes) || existing?.notes || '',
@@ -235,6 +232,20 @@ function numberValue(value: unknown, fallback = 0): number {
 
 function booleanValue(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function operationalTimesheetStatus(value: unknown, existingStatus?: string) {
+  const incoming = stringValue(value).toLowerCase();
+  const existing = stringValue(existingStatus).toLowerCase();
+  const lockedStatuses = new Set(['approved', 'rejected']);
+  if (lockedStatuses.has(existing) && (!incoming || incoming === 'completed' || incoming === 'submitted')) {
+    return existing;
+  }
+  if (!incoming) return existing || 'pending';
+  if (incoming === 'completed' || incoming === 'submitted' || incoming === 'done') {
+    return 'pending';
+  }
+  return incoming;
 }
 
 function roundHours(value: number) {

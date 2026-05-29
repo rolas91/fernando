@@ -29,7 +29,9 @@ function shouldServeFrontend() {
 
 async function bootstrap() {
   ensureRuntimeEnv();
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
   const expressApp = app.getHttpAdapter().getInstance();
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));

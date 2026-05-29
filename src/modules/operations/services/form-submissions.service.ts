@@ -5,6 +5,7 @@ import { basename, resolve } from 'path';
 import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
+import { Incident } from '../../../entities/incident.entity';
 import { Worker } from '../../../entities/worker.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
@@ -821,6 +822,8 @@ export class FormSubmissionsService {
     private readonly repo: Repository<FormSubmission>,
     @InjectRepository(FormTemplate)
     private readonly templatesRepo: Repository<FormTemplate>,
+    @InjectRepository(Incident)
+    private readonly incidentsRepo: Repository<Incident>,
     @InjectRepository(Worker)
     private readonly workersRepo: Repository<Worker>,
     private readonly realtime: RealtimeGateway,
@@ -894,6 +897,7 @@ export class FormSubmissionsService {
       }),
     );
     await this.syncTimesheetsFromSubmission(saved);
+    await this.syncIncidentFromSubmission(saved, template);
     saved.pdfUrl = await this.generatePdf(saved, template);
     await this.repo.save(saved);
     this.realtime.emitTableUpdated('form_submissions');
@@ -935,6 +939,7 @@ export class FormSubmissionsService {
     });
     const saved = await this.repo.save(item);
     await this.syncTimesheetsFromSubmission(saved);
+    await this.syncIncidentFromSubmission(saved, template);
     await this.deleteGeneratedPdf(previousPdfUrl);
     saved.pdfUrl = await this.generatePdf(saved, template);
     await this.repo.save(saved);
@@ -995,6 +1000,93 @@ export class FormSubmissionsService {
     });
   }
 
+  private isIncidentSubmission(template: FormTemplate | null) {
+    const category = (template?.category || '').toLowerCase();
+    const name = (template?.name || '').toLowerCase();
+    return category.includes('incident') || name.includes('incident');
+  }
+
+  private dataString(data: Record<string, unknown>, keys: string[]) {
+    for (const key of keys) {
+      const value = data[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    }
+    return '';
+  }
+
+  private dataDate(data: Record<string, unknown>, keys: string[], fallback?: Date | null) {
+    const raw = this.dataString(data, keys);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if (fallback instanceof Date && !Number.isNaN(fallback.getTime())) {
+      return fallback.toISOString().slice(0, 10);
+    }
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private normalizeIncidentSeverity(value: string) {
+    const key = value.trim().toLowerCase();
+    if (['low', 'medium', 'high', 'critical'].includes(key)) return key;
+    return 'medium';
+  }
+
+  private async syncIncidentFromSubmission(
+    submission: FormSubmission,
+    template: FormTemplate | null,
+  ) {
+    if (!this.isIncidentSubmission(template)) return;
+    if (submission.status !== 'submitted') return;
+
+    const data = submission.data ?? {};
+    const id = `inc_${submission.id}`.slice(0, 64);
+    const existing = await this.incidentsRepo.findOne({ where: { id } });
+    const incidentType = this.dataString(data, ['incident_type', 'incidentType', 'type']);
+    const title =
+      this.dataString(data, ['title', 'incident_title', 'incidentTitle']) ||
+      (incidentType ? `${incidentType} Incident` : template?.name || 'Incident Report');
+    const description = this.dataString(data, [
+      'what_happened',
+      'whatHappened',
+      'description',
+      'incident_description',
+      'incidentDescription',
+      'narrative',
+    ]);
+    const status =
+      existing?.status ||
+      this.dataString(data, ['incident_status', 'incidentStatus', 'status']).trim().toLowerCase() ||
+      'open';
+
+    const incident = this.incidentsRepo.create({
+      ...(existing ?? {}),
+      id,
+      projectId: submission.projectId || existing?.projectId || '',
+      reportedBy:
+        submission.workerId ||
+        this.dataString(data, ['reported_by', 'reportedBy', 'person_reporting', 'personReporting']) ||
+        existing?.reportedBy ||
+        '',
+      date: this.dataDate(data, ['incident_date', 'incidentDate', 'report_date', 'reportDate'], submission.submittedAt),
+      severity: this.normalizeIncidentSeverity(this.dataString(data, ['severity', 'severity_level', 'severityLevel'])),
+      status,
+      title: title.slice(0, 255),
+      description,
+      location: this.dataString(data, ['incident_location', 'incidentLocation', 'location']),
+      actions: this.dataString(data, [
+        'immediate_actions_taken',
+        'immediateActionsTaken',
+        'actions',
+        'actions_taken',
+        'actionsTaken',
+      ]),
+      photos: Array.isArray(data.photos_evidence)
+        ? data.photos_evidence.map((item) => String(item)).filter(Boolean)
+        : existing?.photos ?? [],
+    });
+    await this.incidentsRepo.save(incident);
+    this.realtime.emitTableUpdated('incidents');
+  }
+
   private async filterSubmissionsForActor(
     rows: FormSubmission[],
     actor?: UserAccessContext,
@@ -1024,12 +1116,15 @@ export class FormSubmissionsService {
   async remove(id: string) {
     const item = await this.findOne(id);
     const removedTimesheetRows = findTimesheetRows(item.data ?? {});
+    const incidentId = `inc_${item.id}`.slice(0, 64);
     await this.repo.remove(item);
     await this.reconcileTimesheetsAfterSubmissionRemoval(
       item,
       removedTimesheetRows,
     );
+    await this.incidentsRepo.delete({ id: incidentId });
     await this.deleteGeneratedPdf(item.pdfUrl);
+    this.realtime.emitTableUpdated('incidents');
     this.realtime.emitTableUpdated('form_submissions');
     return { success: true };
   }

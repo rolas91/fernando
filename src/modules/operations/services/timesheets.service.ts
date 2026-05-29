@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { FormSubmission } from '../../../entities/form-submission.entity';
+import { FormTemplate } from '../../../entities/form-template.entity';
 import { Timesheet } from '../../../entities/timesheet.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
@@ -11,10 +13,15 @@ export class TimesheetsService {
   constructor(
     @InjectRepository(Timesheet)
     private readonly timesheetsRepo: Repository<Timesheet>,
+    @InjectRepository(FormSubmission)
+    private readonly formSubmissionsRepo: Repository<FormSubmission>,
+    @InjectRepository(FormTemplate)
+    private readonly formTemplatesRepo: Repository<FormTemplate>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
-  findAll() {
+  async findAll() {
+    await this.reconcileTimesheetSubmissions();
     return this.timesheetsRepo.find({ order: { date: 'DESC' } });
   }
 
@@ -157,6 +164,51 @@ export class TimesheetsService {
     await this.timesheetsRepo.remove(item);
     this.realtime.emitTableUpdated('timesheets');
     return { success: true };
+  }
+
+  private isTimesheetTemplate(template: FormTemplate) {
+    return [template.category, template.name]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes('timesheet'));
+  }
+
+  private findTimesheetRows(data: Record<string, unknown>) {
+    const rows: Record<string, unknown>[] = [];
+    for (const value of Object.values(data)) {
+      if (!Array.isArray(value)) continue;
+      for (const entry of value) {
+        if (
+          typeof entry === 'object' &&
+          entry !== null &&
+          typeof (entry as Record<string, unknown>).workerId === 'string'
+        ) {
+          rows.push(entry as Record<string, unknown>);
+        }
+      }
+    }
+    return rows;
+  }
+
+  private async reconcileTimesheetSubmissions() {
+    const templates = await this.formTemplatesRepo.find();
+    const templateIds = templates
+      .filter((template) => this.isTimesheetTemplate(template))
+      .map((template) => template.id);
+    if (templateIds.length === 0) return;
+
+    const submissions = await this.formSubmissionsRepo.find({
+      where: { templateId: In(templateIds), status: 'submitted' },
+      order: { submittedAt: 'ASC' },
+    });
+    for (const submission of submissions) {
+      const rows = this.findTimesheetRows(submission.data ?? {});
+      if (rows.length === 0) continue;
+      await this.upsertShiftRows(rows, {
+        workOrderId: submission.workOrderId,
+        shiftId: submission.shiftId,
+        projectId: submission.projectId,
+      });
+    }
   }
 }
 

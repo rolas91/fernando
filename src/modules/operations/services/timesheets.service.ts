@@ -65,7 +65,7 @@ export class TimesheetsService {
 
   async upsertShiftRows(
     rows: Array<Record<string, unknown>>,
-    opts?: { workOrderId?: string; shiftId?: string; projectId?: string },
+    opts?: { workOrderId?: string; shiftId?: string; projectId?: string; emitRealtime?: boolean },
   ) {
     const saved: Timesheet[] = [];
 
@@ -107,10 +107,15 @@ export class TimesheetsService {
         rejectedReason: existing?.rejectedReason || '',
         notes: stringValue(row.notes) || existing?.notes || '',
       });
+      if (existing && !hasTimesheetChanges(existing, next)) {
+        continue;
+      }
       saved.push(await this.timesheetsRepo.save(next));
     }
 
-    if (saved.length > 0) this.realtime.emitTableUpdated('timesheets');
+    if (saved.length > 0 && opts?.emitRealtime !== false) {
+      this.realtime.emitTableUpdated('timesheets');
+    }
     return saved;
   }
 
@@ -205,6 +210,7 @@ export class TimesheetsService {
           workOrderId: submission.workOrderId,
           shiftId: submission.shiftId,
           projectId: submission.projectId,
+          emitRealtime: false,
         });
       } catch (error) {
         console.warn(
@@ -238,8 +244,35 @@ function numberValue(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function numericEqual(a: unknown, b: unknown) {
+  return numberValue(a) === numberValue(b);
+}
+
 function booleanValue(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function hasTimesheetChanges(existing: Timesheet, next: Timesheet) {
+  return (
+    existing.workerId !== next.workerId ||
+    existing.projectId !== next.projectId ||
+    existing.workOrderId !== next.workOrderId ||
+    existing.shiftId !== next.shiftId ||
+    existing.date !== next.date ||
+    existing.clockIn !== next.clockIn ||
+    existing.clockOut !== next.clockOut ||
+    existing.breakMinutes !== next.breakMinutes ||
+    !numericEqual(existing.regularHours, next.regularHours) ||
+    !numericEqual(existing.overtimeHours, next.overtimeHours) ||
+    !numericEqual(existing.doubleTimeHours, next.doubleTimeHours) ||
+    existing.lunchTaken !== next.lunchTaken ||
+    existing.employeeNote !== next.employeeNote ||
+    existing.signature !== next.signature ||
+    existing.status !== next.status ||
+    existing.approvedBy !== next.approvedBy ||
+    existing.rejectedReason !== next.rejectedReason ||
+    existing.notes !== next.notes
+  );
 }
 
 function operationalTimesheetStatus(value: unknown, existingStatus?: string) {

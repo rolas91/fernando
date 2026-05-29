@@ -200,11 +200,19 @@ export class TimesheetsService {
     for (const submission of submissions) {
       const rows = this.findTimesheetRows(submission.data ?? {});
       if (rows.length === 0) continue;
-      await this.upsertShiftRows(rows, {
-        workOrderId: submission.workOrderId,
-        shiftId: submission.shiftId,
-        projectId: submission.projectId,
-      });
+      try {
+        await this.upsertShiftRows(rows, {
+          workOrderId: submission.workOrderId,
+          shiftId: submission.shiftId,
+          projectId: submission.projectId,
+        });
+      } catch (error) {
+        console.warn(
+          `Skipping timesheet submission reconciliation for ${submission.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
   }
 }
@@ -253,7 +261,20 @@ function roundHours(value: number) {
 }
 
 function timeToMinutes(value: string) {
-  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  const normalized = value.trim();
+  const twelveHourMatch = normalized.match(/^(\d{1,2}):(\d{2})\s*([AP])\.?M\.?$/i);
+  if (twelveHourMatch) {
+    let hours = Number(twelveHourMatch[1]);
+    const minutes = Number(twelveHourMatch[2]);
+    const period = twelveHourMatch[3].toUpperCase();
+    if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
+    if (period === 'A' && hours === 12) hours = 0;
+    if (period === 'P' && hours !== 12) hours += 12;
+    return hours * 60 + minutes;
+  }
+
+  const match = normalized.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
   const hours = Number(match[1]);
   const minutes = Number(match[2]);

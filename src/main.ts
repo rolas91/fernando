@@ -7,6 +7,7 @@ import { json, urlencoded, type NextFunction, type Request, type Response } from
 import { join, resolve } from 'path';
 import { AppModule } from './app.module';
 import { MulterExceptionFilter } from './common/filters/multer-exception.filter';
+import { corsOptions } from './config/cors';
 import { ensureRuntimeEnv } from './config/ensure-env';
 
 function isSwaggerEnabled() {
@@ -39,12 +40,7 @@ async function bootstrap() {
   expressApp.get('/healthz', (_req: Request, res: Response) => {
     return res.status(200).json({ status: 'ok' });
   });
-  app.enableCors({
-    origin:
-      process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()) ??
-      true,
-    credentials: true,
-  });
+  app.enableCors(corsOptions());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

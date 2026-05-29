@@ -1,12 +1,10 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server } from 'socket.io';
+import { corsOptions } from '../../config/cors';
 
 @WebSocketGateway({
   namespace: '/realtime',
-  cors: {
-    origin: process.env.CORS_ORIGIN?.split(',').map((x) => x.trim()) || true,
-    credentials: true,
-  },
+  cors: corsOptions(),
 })
 export class RealtimeGateway {
   @WebSocketServer()

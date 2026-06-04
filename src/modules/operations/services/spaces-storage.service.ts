@@ -50,8 +50,12 @@ export class SpacesStorageService {
     return this.uploadFilesForScope('workers', files, workerId);
   }
 
+  async uploadShiftChatFiles(files: UploadFileCandidate[], shiftId?: string) {
+    return this.uploadFilesForScope('shift-chat', files, shiftId);
+  }
+
   private async uploadFilesForScope(
-    scopePrefix: 'workers' | 'work-orders' | 'certifications',
+    scopePrefix: 'workers' | 'work-orders' | 'certifications' | 'shift-chat',
     files: UploadFileCandidate[],
     scopeId?: string,
   ) {
@@ -148,7 +152,7 @@ export class SpacesStorageService {
 
   private assertUploadCandidate(
     file: UploadFileCandidate,
-    scope: 'workers' | 'work-orders' | 'certifications',
+    scope: 'workers' | 'work-orders' | 'certifications' | 'shift-chat',
     maxBytes: number,
   ) {
     const buffer = file.buffer;

@@ -15,6 +15,7 @@ import { Project } from '../../entities/project.entity';
 import { ProjectType } from '../../entities/project-type.entity';
 import { Shift } from '../../entities/shift.entity';
 import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-confirmation.entity';
+import { ShiftChatMessage } from '../../entities/shift-chat-message.entity';
 import { Skill } from '../../entities/skill.entity';
 import { StatusCatalog } from '../../entities/status-catalog.entity';
 import { Timesheet } from '../../entities/timesheet.entity';
@@ -42,6 +43,7 @@ import { NotificationsController } from './controllers/notifications.controller'
 import { ProjectsController } from './controllers/projects.controller';
 import { ProjectTypesController } from './controllers/project-types.controller';
 import { ShiftsController } from './controllers/shifts.controller';
+import { ShiftChatController } from './controllers/shift-chat.controller';
 import { SkillsController } from './controllers/skills.controller';
 import { StatusCatalogController } from './controllers/status-catalog.controller';
 import { TimesheetsController } from './controllers/timesheets.controller';
@@ -64,6 +66,7 @@ import { NotificationsService } from './services/notifications.service';
 import { ProjectsService } from './services/projects.service';
 import { ProjectTypesService } from './services/project-types.service';
 import { ShiftsService } from './services/shifts.service';
+import { ShiftChatService } from './services/shift-chat.service';
 import { SkillsService } from './services/skills.service';
 import { StatusCatalogService } from './services/status-catalog.service';
 import { TimesheetsService } from './services/timesheets.service';
@@ -73,6 +76,7 @@ import { WorkersService } from './services/workers.service';
 import { WorkerRolesService } from './services/worker-roles.service';
 import { OperationsAuthGuard } from './operations-auth.guard';
 import { SpacesStorageService } from './services/spaces-storage.service';
+import { ShiftChatGateway } from './gateways/shift-chat.gateway';
 
 @Module({
   imports: [
@@ -88,6 +92,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
       Certification,
       Shift,
       ShiftAssignmentConfirmation,
+      ShiftChatMessage,
       StatusCatalog,
       Project,
       ProjectType,
@@ -110,6 +115,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkersController,
     WorkerRolesController,
     ShiftsController,
+    ShiftChatController,
     SkillsController,
     StatusCatalogController,
     ProjectsController,
@@ -135,6 +141,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkerRolesService,
     CertificationsService,
     ShiftsService,
+    ShiftChatService,
     SkillsService,
     StatusCatalogService,
     ProjectsService,
@@ -154,6 +161,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     AvailabilityRequestsService,
     CompanySettingsService,
     SpacesStorageService,
+    ShiftChatGateway,
     OperationsAuthGuard,
   ],
   exports: [
@@ -161,6 +169,7 @@ import { SpacesStorageService } from './services/spaces-storage.service';
     WorkerRolesService,
     CertificationsService,
     ShiftsService,
+    ShiftChatService,
     SkillsService,
     StatusCatalogService,
     ProjectsService,

@@ -34,13 +34,32 @@ export const ALLOWED_WORK_ORDER_UPLOAD_MIME = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 
+export const ALLOWED_SHIFT_CHAT_UPLOAD_MIME = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/aac',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/webm',
+  'audio/3gpp',
+  'audio/3gpp2',
+  'audio/amr',
+  'video/mp4',
+  'application/octet-stream',
+]);
+
 export const ALLOWED_MIME_BY_UPLOAD_SCOPE: Record<
-  'workers' | 'work-orders' | 'certifications',
+  'workers' | 'work-orders' | 'certifications' | 'shift-chat',
   ReadonlySet<string>
 > = {
   certifications: ALLOWED_CERTIFICATION_UPLOAD_MIME,
   workers: ALLOWED_WORKER_UPLOAD_MIME,
   'work-orders': ALLOWED_WORK_ORDER_UPLOAD_MIME,
+  'shift-chat': ALLOWED_SHIFT_CHAT_UPLOAD_MIME,
 };
 
 export type SpacesUploadScope = keyof typeof ALLOWED_MIME_BY_UPLOAD_SCOPE;
@@ -80,6 +99,24 @@ function inferMimeFromOriginalName(
       return scope === 'work-orders'
         ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         : null;
+    case 'mp3':
+      return scope === 'shift-chat' ? 'audio/mpeg' : null;
+    case 'm4a':
+      return scope === 'shift-chat' ? 'audio/mp4' : null;
+    case 'aac':
+      return scope === 'shift-chat' ? 'audio/aac' : null;
+    case 'wav':
+      return scope === 'shift-chat' ? 'audio/wav' : null;
+    case 'ogg':
+      return scope === 'shift-chat' ? 'audio/ogg' : null;
+    case 'webm':
+      return scope === 'shift-chat' ? 'audio/webm' : null;
+    case '3gp':
+      return scope === 'shift-chat' ? 'audio/3gpp' : null;
+    case 'amr':
+      return scope === 'shift-chat' ? 'audio/amr' : null;
+    case 'mp4':
+      return scope === 'shift-chat' ? 'video/mp4' : null;
     default:
       return null;
   }

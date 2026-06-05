@@ -146,6 +146,21 @@ function parseJsonValue(value: string): unknown {
   }
 }
 
+function formatTimesheetClockLabel(value: string) {
+  const normalized = value.trim();
+  if (!normalized) return '';
+  if (/^\d{1,2}:\d{2}\s*[AP]\.?M\.?$/i.test(normalized)) return normalized.toUpperCase().replace(/\s+/, ' ');
+  const match = normalized.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return normalized;
+  let hours = Number(match[1]);
+  const minutes = match[2];
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23) return normalized;
+  const period = hours >= 12 ? 'PM' : 'AM';
+  if (hours === 0) hours = 12;
+  if (hours > 12) hours -= 12;
+  return `${hours}:${minutes} ${period}`;
+}
+
 @Injectable()
 export class FormContextResolutionService {
   constructor(
@@ -529,8 +544,8 @@ export class FormContextResolutionService {
         workOrderTitle: workOrder.title ?? '',
         shiftId,
         shiftDate: timesheet?.date || shiftString(shift, 'date'),
-        startTime: timesheet?.clockIn || shiftString(shift, 'startTime'),
-        endTime: timesheet?.clockOut || shiftString(shift, 'endTime'),
+        startTime: timesheet?.clockIn || formatTimesheetClockLabel(shiftString(shift, 'startTime')),
+        endTime: timesheet?.clockOut || formatTimesheetClockLabel(shiftString(shift, 'endTime')),
         st: Number(timesheet?.regularHours ?? 0),
         ot: Number(timesheet?.overtimeHours ?? 0),
         dt: Number(timesheet?.doubleTimeHours ?? 0),

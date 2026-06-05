@@ -472,14 +472,14 @@ function buildTimesheetPdf(
   while (employeeRows.length < 8) employeeRows.push({});
   const tableX = left;
   const cols = [
-    { label: 'Employee', w: 116 },
-    { label: 'Signature', w: 102 },
-    { label: 'ST', w: 34 },
-    { label: 'OT', w: 34 },
-    { label: 'DT', w: 34 },
+    { label: 'Employee', w: 98 },
+    { label: 'Signature', w: 78 },
+    { label: '1st Job #', w: 62 },
+    { label: '2nd Job #', w: 62 },
+    { label: '3rd Job #', w: 62 },
     { label: 'Total', w: 38 },
-    { label: 'Lunch Y/N', w: 45 },
-    { label: 'Notes', w: 149 },
+    { label: 'D/N', w: 36 },
+    { label: 'Notes', w: 116 },
   ];
   let x = tableX;
   cols.forEach((col) => {
@@ -501,15 +501,22 @@ function buildTimesheetPdf(
     grandSt += st;
     grandOt += ot;
     grandDt += dt;
+    const rowNotes = [
+      row.lunchTaken === false && row.workerId ? 'No lunch' : '',
+      row.lunchTaken === true && row.workerId ? 'Lunch taken' : '',
+      row.employeeNote || row.notes || notes || '',
+    ]
+      .filter(Boolean)
+      .join(' / ');
     const values = [
       fitText(row.workerName || row.name || row.workerId || '', 24),
       isSignaturePath(row.signature) || isSignatureImage(row.signature) ? '' : row.signature ? 'Captured' : '',
-      row.workerId ? fitText(st, 5) : '',
-      row.workerId ? fitText(ot, 5) : '',
-      row.workerId ? fitText(dt, 5) : '',
+      '',
+      fitText(row.secondJobHours || '', 10),
+      fitText(row.thirdJobHours || '', 10),
       row.workerId ? fitText(total, 5) : '',
-      row.workerId ? yesNo(row.lunchTaken) : '',
-      fitText(row.employeeNote || row.notes || notes || '', 28),
+      fitText(row.dayOrNight || row.dayNight || row.shiftPeriod || '', 4),
+      fitText(rowNotes, 24),
     ];
     const rowH = 38;
     let colX = tableX;
@@ -525,27 +532,32 @@ function buildTimesheetPdf(
       if (colIndex === 1 && row.signature) {
         drawSignature(ops, images, row.signature, colX + 2, y - rowH + 1, col.w - 4, rowH - 2);
       }
+      if (colIndex === 2 && row.workerId) {
+        ops.push(pdfText(`ST ${fitText(st, 5)}`, colX + 5, y - 11, 7, 'F2'));
+        ops.push(pdfText(`OT ${fitText(ot, 5)}`, colX + 5, y - 22, 7, 'F2'));
+        ops.push(pdfText(`DT ${fitText(dt, 5)}`, colX + 5, y - 33, 7, 'F2'));
+      }
       colX += col.w;
     });
     y -= rowH;
   });
 
   const grandTotal = grandSt + grandOt + grandDt;
-  ops.push(pdfFillRect(tableX, y - 18, 218, 18, yellow));
-  ops.push(pdfRect(tableX, y - 18, 218, 18));
-  ops.push(pdfText('Hours Worked', tableX + 84, y - 12, 7, 'F2'));
-  let totalX = tableX + 218;
-  [grandSt, grandOt, grandDt, grandTotal].forEach((value, index) => {
-    const w = index === 3 ? 38 : 34;
-    ops.push(pdfFillRect(totalX, y - 18, w, 18, yellow));
-    ops.push(pdfRect(totalX, y - 18, w, 18));
-    ops.push(pdfText(fitText(value, 6), totalX + 7, y - 12, 8, 'F2'));
-    totalX += w;
+  let totalX = tableX;
+  [
+    { text: 'Hours Worked', w: 176 },
+    { text: `ST ${fitText(grandSt, 5)}  OT ${fitText(grandOt, 5)}  DT ${fitText(grandDt, 5)}`, w: 62 },
+    { text: '', w: 62 },
+    { text: '', w: 62 },
+    { text: fitText(grandTotal, 6), w: 38 },
+    { text: 'TOTAL', w: 36 },
+    { text: '', w: 116 },
+  ].forEach((cellInfo) => {
+    ops.push(pdfFillRect(totalX, y - 18, cellInfo.w, 18, yellow));
+    ops.push(pdfRect(totalX, y - 18, cellInfo.w, 18));
+    ops.push(pdfText(cellInfo.text, totalX + 4, y - 12, 7, 'F2'));
+    totalX += cellInfo.w;
   });
-  ops.push(pdfFillRect(totalX, y - 18, 45, 18, yellow));
-  ops.push(pdfRect(totalX, y - 18, 45, 18));
-  ops.push(pdfText('TOTAL', totalX + 8, y - 12, 7, 'F2'));
-  ops.push(pdfRect(totalX + 45, y - 18, 149, 18));
   y -= 34;
 
   ops.push(pdfRect(left, y - 48, pageW, 48));

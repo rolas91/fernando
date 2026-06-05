@@ -12,6 +12,7 @@ import { WorkOrder } from '../../../entities/work-order.entity';
 import { Worker } from '../../../entities/worker.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { CreateShiftChatMessageDto } from '../dto/create-shift-chat-message.dto';
+import { SpacesStorageService } from './spaces-storage.service';
 
 @Injectable()
 export class ShiftChatService {
@@ -22,6 +23,7 @@ export class ShiftChatService {
     private readonly workOrdersRepo: Repository<WorkOrder>,
     @InjectRepository(Worker)
     private readonly workersRepo: Repository<Worker>,
+    private readonly spacesStorage: SpacesStorageService,
   ) {}
 
   async findMessages(actor: UserAccessContext | undefined, shiftId: string) {
@@ -69,6 +71,29 @@ export class ShiftChatService {
       replyToPreview: (dto.replyToPreview || '').trim(),
     });
     return this.serialize(saved);
+  }
+
+  async deleteMessage(
+    actor: UserAccessContext | undefined,
+    shiftId: string,
+    messageId: string,
+  ) {
+    const { worker } = await this.assertActorCanAccessShift(actor, shiftId);
+    const message = await this.chatRepo.findOne({
+      where: { id: messageId, shiftId },
+    });
+    if (!message) {
+      throw new NotFoundException('Chat message not found.');
+    }
+    if (message.senderWorkerId !== worker.id) {
+      throw new ForbiddenException('Only the message sender can delete it.');
+    }
+
+    await this.chatRepo.delete({ id: message.id, shiftId });
+    if (message.mediaUrl) {
+      await this.spacesStorage.deleteManyPublicFiles([message.mediaUrl]);
+    }
+    return { id: message.id, shiftId };
   }
 
   async assertActorCanAccessShift(actor: UserAccessContext | undefined, shiftId: string) {

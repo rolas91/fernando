@@ -62,6 +62,10 @@ export class ShiftChatGateway implements OnGatewayConnection {
     this.server.to(this.roomName(shiftId)).emit('shift-chat:message', message);
   }
 
+  emitShiftMessageDeleted(shiftId: string, payload: { id: string; shiftId: string }) {
+    this.server.to(this.roomName(shiftId)).emit('shift-chat:message-deleted', payload);
+  }
+
   private async resolveActor(client: Socket) {
     const raw =
       typeof client.handshake.auth?.token === 'string'

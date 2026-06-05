@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -47,6 +48,17 @@ export class ShiftChatController {
     const message = await this.shiftChat.createMessage(req.user, shiftId, dto);
     this.shiftChatGateway.emitShiftMessage(shiftId, message);
     return message;
+  }
+
+  @Delete(':shiftId/messages/:messageId')
+  async deleteMessage(
+    @Req() req: ReqWithOpsUser,
+    @Param('shiftId') shiftId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    const deleted = await this.shiftChat.deleteMessage(req.user, shiftId, messageId);
+    this.shiftChatGateway.emitShiftMessageDeleted(shiftId, deleted);
+    return deleted;
   }
 
   @Post(':shiftId/uploads')

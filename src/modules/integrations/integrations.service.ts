@@ -189,6 +189,97 @@ export class IntegrationsService {
     return result;
   }
 
+  async sendChatPushNotification(params: {
+    workerId: string;
+    title: string;
+    body: string;
+    workOrderId: string;
+    shiftId: string;
+    messageId: string;
+    senderName: string;
+  }): Promise<NotificationResult> {
+    const worker = await this.workersRepo.findOne({ where: { id: params.workerId } });
+    const tokens = (worker?.fcmTokens || []).filter((token) => token.trim());
+    if (tokens.length === 0) {
+      return {
+        success: true,
+        simulated: true,
+        channel: 'in_app',
+        note: 'FCM simulated because the worker has no registered device token.',
+      };
+    }
+
+    const projectId = this.firebaseProjectId();
+    const accessToken = await this.getFirebaseAccessToken();
+    if (!projectId || !accessToken) {
+      return {
+        success: true,
+        simulated: true,
+        channel: 'in_app',
+        note: 'FCM simulated because Firebase credentials are not configured.',
+      };
+    }
+
+    const endpoint = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
+    const sendResults = await Promise.all(
+      tokens.map(async (token) => {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: {
+              token,
+              notification: {
+                title: params.title,
+                body: params.body,
+              },
+              data: {
+                type: 'shift_chat_message',
+                channel: 'shift_chat',
+                workOrderId: params.workOrderId,
+                shiftId: params.shiftId,
+                messageId: params.messageId,
+                senderName: params.senderName,
+              },
+              android: {
+                priority: 'HIGH',
+                notification: {
+                  channel_id: 'shift_notifications',
+                },
+              },
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          return { ok: false, error: await res.text() };
+        }
+        const json = (await res.json()) as { name?: string };
+        return { ok: true, name: json.name };
+      }),
+    );
+
+    const sent = sendResults.filter((item) => item.ok);
+    if (sent.length === 0) {
+      return {
+        success: false,
+        simulated: false,
+        channel: 'in_app',
+        error: sendResults.find((item) => !item.ok)?.error || 'FCM rejected all chat messages.',
+      };
+    }
+
+    return {
+      success: true,
+      simulated: false,
+      channel: 'in_app',
+      messageId: sent.map((item) => item.name).filter(Boolean).join(','),
+    };
+  }
+
   async handleTwilioStatusCallback(payload: TwilioStatusCallbackPayload) {
     const messageSid = payload.MessageSid || payload.SmsSid || null;
     const status = payload.MessageStatus || payload.SmsStatus || null;

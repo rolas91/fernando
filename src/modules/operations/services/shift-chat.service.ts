@@ -7,12 +7,15 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
+import { Notification } from '../../../entities/notification.entity';
 import { ShiftChatMessage } from '../../../entities/shift-chat-message.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { Worker } from '../../../entities/worker.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { CreateShiftChatMessageDto } from '../dto/create-shift-chat-message.dto';
 import { SpacesStorageService } from './spaces-storage.service';
+import { IntegrationsService } from '../../integrations/integrations.service';
+import { RealtimeGateway } from '../../realtime/realtime.gateway';
 
 @Injectable()
 export class ShiftChatService {
@@ -23,7 +26,11 @@ export class ShiftChatService {
     private readonly workOrdersRepo: Repository<WorkOrder>,
     @InjectRepository(Worker)
     private readonly workersRepo: Repository<Worker>,
+    @InjectRepository(Notification)
+    private readonly notificationsRepo: Repository<Notification>,
     private readonly spacesStorage: SpacesStorageService,
+    private readonly integrations: IntegrationsService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   async findMessages(actor: UserAccessContext | undefined, shiftId: string) {
@@ -70,7 +77,39 @@ export class ShiftChatService {
       replyToKind: (dto.replyToKind || '').trim(),
       replyToPreview: (dto.replyToPreview || '').trim(),
     });
-    return this.serialize(saved);
+    const serialized = this.serialize(saved);
+    await this.notifyShiftRecipients(workOrder, worker.id, serialized);
+    return serialized;
+  }
+
+  async unreadCount(actor: UserAccessContext | undefined, shiftId: string) {
+    const { worker } = await this.assertActorCanAccessShift(actor, shiftId);
+    const count = await this.notificationsRepo.count({
+      where: {
+        workerId: worker.id,
+        shiftId,
+        type: 'shift_chat_message',
+        channel: 'in_app',
+        read: false,
+      },
+    });
+    return { shiftId, unreadCount: count };
+  }
+
+  async markShiftRead(actor: UserAccessContext | undefined, shiftId: string) {
+    const { worker } = await this.assertActorCanAccessShift(actor, shiftId);
+    await this.notificationsRepo.update(
+      {
+        workerId: worker.id,
+        shiftId,
+        type: 'shift_chat_message',
+        channel: 'in_app',
+        read: false,
+      },
+      { read: true },
+    );
+    this.realtime.emitTableUpdated('notifications');
+    return { shiftId, unreadCount: 0 };
   }
 
   async deleteMessage(
@@ -140,6 +179,85 @@ export class ShiftChatService {
         : [];
       return assignedWorkers.includes(workerId);
     });
+  }
+
+  private assignedWorkerIdsForShift(workOrder: WorkOrder, shiftId: string) {
+    const shift = (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).find((item) => {
+      const record = item as Record<string, unknown>;
+      return record.id === shiftId;
+    }) as Record<string, unknown> | undefined;
+    const roles = Array.isArray(shift?.roles) ? (shift.roles as Record<string, unknown>[]) : [];
+    const ids = new Set<string>();
+    for (const role of roles) {
+      const assignedWorkers = Array.isArray(role.assignedWorkers)
+        ? role.assignedWorkers
+        : [];
+      for (const workerId of assignedWorkers) {
+        if (typeof workerId === 'string' && workerId.trim()) ids.add(workerId);
+      }
+    }
+    return [...ids];
+  }
+
+  private notificationBody(message: ReturnType<ShiftChatService['serialize']>) {
+    if (message.body?.trim()) return message.body.trim().slice(0, 180);
+    if (message.kind === 'image') return 'Sent a photo';
+    if (message.kind === 'audio') return 'Sent a voice message';
+    return 'Sent a message';
+  }
+
+  private async notifyShiftRecipients(
+    workOrder: WorkOrder,
+    senderWorkerId: string,
+    message: ReturnType<ShiftChatService['serialize']>,
+  ) {
+    const recipientIds = this.assignedWorkerIdsForShift(workOrder, message.shiftId)
+      .filter((workerId) => workerId !== senderWorkerId);
+    if (recipientIds.length === 0) return;
+
+    const body = this.notificationBody(message);
+    const title = `${message.senderName || 'Shift chat'} sent a message`;
+    const notifications = await this.notificationsRepo.save(
+      recipientIds.map((workerId) => this.notificationsRepo.create({
+        id: `notif_${randomUUID()}`,
+        type: 'shift_chat_message',
+        channel: 'in_app',
+        title,
+        message: body,
+        timestamp: new Date(),
+        read: false,
+        link: 'shift-chat',
+        workerId,
+        workOrderId: message.workOrderId,
+        shiftId: message.shiftId,
+        roleId: null,
+        deliveryStatus: 'pending',
+        providerMessageId: null,
+      })),
+    );
+
+    this.realtime.emitTableUpdated('notifications');
+
+    await Promise.all(
+      notifications.map(async (notification) => {
+        const result = await this.integrations.sendChatPushNotification({
+          workerId: notification.workerId || '',
+          title,
+          body,
+          workOrderId: message.workOrderId,
+          shiftId: message.shiftId,
+          messageId: message.id,
+          senderName: message.senderName,
+        });
+        notification.deliveryStatus = result.simulated
+          ? 'simulated'
+          : result.success
+            ? 'sent'
+            : 'failed';
+        notification.providerMessageId = result.messageId || result.error || null;
+        await this.notificationsRepo.save(notification);
+      }),
+    );
   }
 
   private kindFromContentType(contentType?: string) {

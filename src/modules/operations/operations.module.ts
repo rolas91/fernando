@@ -28,6 +28,7 @@ import { AccessModule } from '../access/access.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 import { ActivityFeedController } from './controllers/activity-feed.controller';
 import { AvailabilityRequestsController } from './controllers/availability-requests.controller';
 import { CertificationsController } from './controllers/certifications.controller';
@@ -84,6 +85,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     AuthModule,
     UsersModule,
     RealtimeModule,
+    IntegrationsModule,
     TypeOrmModule.forFeature([
       Worker,
       WorkerRole,

@@ -38,6 +38,16 @@ export class ShiftChatController {
     return this.shiftChat.findMessages(req.user, shiftId);
   }
 
+  @Get(':shiftId/unread-count')
+  unreadCount(@Req() req: ReqWithOpsUser, @Param('shiftId') shiftId: string) {
+    return this.shiftChat.unreadCount(req.user, shiftId);
+  }
+
+  @Post(':shiftId/read')
+  markRead(@Req() req: ReqWithOpsUser, @Param('shiftId') shiftId: string) {
+    return this.shiftChat.markShiftRead(req.user, shiftId);
+  }
+
   @Post(':shiftId/messages')
   @ApiBody({ type: CreateShiftChatMessageDto })
   async createMessage(

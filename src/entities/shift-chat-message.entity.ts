@@ -46,6 +46,18 @@ export class ShiftChatMessage {
   @Column({ name: 'media_size', type: 'int', default: 0 })
   mediaSize: number;
 
+  @Column({ name: 'reply_to_message_id', type: 'varchar', length: 64, default: '' })
+  replyToMessageId: string;
+
+  @Column({ name: 'reply_to_sender_name', type: 'varchar', length: 180, default: '' })
+  replyToSenderName: string;
+
+  @Column({ name: 'reply_to_kind', type: 'varchar', length: 16, default: '' })
+  replyToKind: string;
+
+  @Column({ name: 'reply_to_preview', type: 'varchar', length: 280, default: '' })
+  replyToPreview: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

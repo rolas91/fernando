@@ -63,6 +63,10 @@ export class ShiftChatService {
       mediaName: (dto.mediaName || '').trim(),
       mediaContentType: (dto.mediaContentType || '').trim(),
       mediaSize: Number(dto.mediaSize) || 0,
+      replyToMessageId: (dto.replyToMessageId || '').trim(),
+      replyToSenderName: (dto.replyToSenderName || '').trim(),
+      replyToKind: (dto.replyToKind || '').trim(),
+      replyToPreview: (dto.replyToPreview || '').trim(),
     });
     return this.serialize(saved);
   }
@@ -134,6 +138,10 @@ export class ShiftChatService {
       mediaName: row.mediaName,
       mediaContentType: row.mediaContentType,
       mediaSize: row.mediaSize,
+      replyToMessageId: row.replyToMessageId,
+      replyToSenderName: row.replyToSenderName,
+      replyToKind: row.replyToKind,
+      replyToPreview: row.replyToPreview,
       createdAt: row.createdAt?.toISOString?.() || new Date().toISOString(),
     };
   }

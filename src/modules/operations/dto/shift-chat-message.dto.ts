@@ -11,5 +11,9 @@ export type ShiftChatMessageDto = {
   mediaName: string;
   mediaContentType: string;
   mediaSize: number;
+  replyToMessageId: string;
+  replyToSenderName: string;
+  replyToKind: string;
+  replyToPreview: string;
   createdAt: string;
 };

@@ -356,7 +356,7 @@ export class IntegrationsService {
       };
     }
 
-    workOrder.shifts = normalizeWorkOrderShifts(workOrder.shifts);
+    workOrder.shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
     const shift = workOrder.shifts.find((item: any) => item?.id === confirmation.shiftId) as
       | Record<string, any>
       | undefined;
@@ -533,7 +533,7 @@ export class IntegrationsService {
       throw new Error(`Assignment ${confirmation.workOrderId} was not found.`);
     }
 
-    workOrder.shifts = normalizeWorkOrderShifts(workOrder.shifts);
+    workOrder.shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
     const shift = workOrder.shifts.find((item: any) => item?.id === confirmation.shiftId) as
       | Record<string, any>
       | undefined;
@@ -615,7 +615,7 @@ export class IntegrationsService {
     await this.confirmationsRepo.save(record);
 
     workOrder.shifts = updateShiftWorkerConfirmation(
-      normalizeWorkOrderShifts(workOrder.shifts),
+      normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts),
       {
         shiftId: request.shiftId,
         roleId: request.roleId,

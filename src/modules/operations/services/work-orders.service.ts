@@ -146,7 +146,7 @@ export class WorkOrdersService {
 
     const worker = await this.resolveWorkerForMobileUser(actor);
     const workOrder = await this.findOne(workOrderId);
-    const shifts = normalizeWorkOrderShifts(workOrder.shifts);
+    const shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
     this.logger.log(
       `[mobile-confirmation] shift request workOrder=${workOrderId} shift=${shiftId} worker=${worker.id} email=${worker.email} status=${status}`,
     );
@@ -204,7 +204,7 @@ export class WorkOrdersService {
 
     const worker = await this.resolveWorkerForMobileUser(actor);
     const workOrder = await this.findOne(workOrderId);
-    const shifts = normalizeWorkOrderShifts(workOrder.shifts);
+    const shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
     let updatedCount = 0;
     const touchedShifts: string[] = [];
     const respondedAt = new Date().toISOString();

@@ -197,7 +197,7 @@ export function updateShiftWorkerConfirmation(
   },
   updates: Partial<ShiftWorkerConfirmation>,
 ): Record<string, unknown>[] {
-  const normalized = normalizeWorkOrderShifts(shifts);
+  const normalized = normalizeWorkOrderShifts(shifts, shifts);
 
   return normalized.map((shift) => {
     if (shift.id !== target.shiftId || !Array.isArray(shift.roles)) return shift;

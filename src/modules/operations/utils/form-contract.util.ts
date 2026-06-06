@@ -37,6 +37,7 @@ type FieldRules = {
   maxFiles?: number;
   maxFileSizeMb?: number;
   acceptedMimeTypes?: string[];
+  hiddenForMobileRoles?: string[];
 };
 
 type FieldUi = {
@@ -128,6 +129,7 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
   const maxFiles = asNumber(input.maxFiles);
   const maxFileSizeMb = asNumber(input.maxFileSizeMb);
   const acceptedMimeTypes = asStringArray(input.acceptedMimeTypes);
+  const hiddenForMobileRoles = asStringArray(input.hiddenForMobileRoles);
 
   if (type === 'text' || type === 'textarea') {
     if (minLength !== undefined) rules.minLength = minLength;
@@ -162,6 +164,10 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
     if (maxFiles !== undefined) rules.maxFiles = maxFiles;
     if (maxFileSizeMb !== undefined) rules.maxFileSizeMb = maxFileSizeMb;
     if (acceptedMimeTypes) rules.acceptedMimeTypes = acceptedMimeTypes;
+  }
+
+  if (type === 'signature' && hiddenForMobileRoles) {
+    rules.hiddenForMobileRoles = hiddenForMobileRoles;
   }
 
   return Object.keys(rules).length > 0 ? rules : undefined;

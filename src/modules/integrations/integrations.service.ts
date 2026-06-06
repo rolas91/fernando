@@ -195,6 +195,7 @@ export class IntegrationsService {
     body: string;
     workOrderId: string;
     shiftId: string;
+    shiftDate?: string;
     messageId: string;
     senderName: string;
   }): Promise<NotificationResult> {
@@ -241,6 +242,7 @@ export class IntegrationsService {
                 channel: 'shift_chat',
                 workOrderId: params.workOrderId,
                 shiftId: params.shiftId,
+                shiftDate: params.shiftDate || '',
                 messageId: params.messageId,
                 senderName: params.senderName,
               },

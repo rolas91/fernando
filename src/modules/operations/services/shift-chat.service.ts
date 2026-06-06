@@ -217,6 +217,7 @@ export class ShiftChatService {
 
     const body = this.notificationBody(message);
     const title = `${message.senderName || 'Shift chat'} sent a message`;
+    const shiftDate = this.shiftDateForMessage(workOrder, message.shiftId);
     const notifications = await this.notificationsRepo.save(
       recipientIds.map((workerId) => this.notificationsRepo.create({
         id: `notif_${randomUUID()}`,
@@ -246,6 +247,7 @@ export class ShiftChatService {
           body,
           workOrderId: message.workOrderId,
           shiftId: message.shiftId,
+          shiftDate,
           messageId: message.id,
           senderName: message.senderName,
         });
@@ -258,6 +260,14 @@ export class ShiftChatService {
         await this.notificationsRepo.save(notification);
       }),
     );
+  }
+
+  private shiftDateForMessage(workOrder: WorkOrder, shiftId: string) {
+    const shift = (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).find((item) => {
+      const record = item as Record<string, unknown>;
+      return record.id === shiftId;
+    }) as Record<string, unknown> | undefined;
+    return typeof shift?.date === 'string' ? shift.date : undefined;
   }
 
   private kindFromContentType(contentType?: string) {

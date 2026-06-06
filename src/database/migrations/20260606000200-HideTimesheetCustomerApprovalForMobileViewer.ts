@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class HideCustomerSignatureForMobileViewer20260606000100 implements MigrationInterface {
-  name = 'HideCustomerSignatureForMobileViewer20260606000100';
+export class HideTimesheetCustomerApprovalForMobileViewer20260606000200 implements MigrationInterface {
+  name = 'HideTimesheetCustomerApprovalForMobileViewer20260606000200';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const hasTable = await queryRunner.hasTable('form_templates');
@@ -15,15 +15,6 @@ export class HideCustomerSignatureForMobileViewer20260606000100 implements Migra
           id,
           jsonb_agg(
             CASE
-              WHEN field.value->>'id' = 'customer_approval_signature'
-                OR field.value->>'key' = 'customerApprovalSignature'
-                OR lower(field.value->>'label') LIKE '%customer%approval%'
-              THEN jsonb_set(
-                field.value,
-                '{rules}',
-                COALESCE(field.value->'rules', '{}'::jsonb) || '{"hiddenForMobileRoles":["viewer"]}'::jsonb,
-                true
-              )
               WHEN field.value->>'id' = 'worker_timesheets'
                 OR field.value->>'key' = 'workerTimesheets'
                 OR field.value->>'type' = 'timesheet'
@@ -46,10 +37,7 @@ export class HideCustomerSignatureForMobileViewer20260606000100 implements Migra
         AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements(ft.fields) AS field(value)
-          WHERE field.value->>'id' = 'customer_approval_signature'
-            OR field.value->>'key' = 'customerApprovalSignature'
-            OR lower(field.value->>'label') LIKE '%customer%approval%'
-            OR field.value->>'id' = 'worker_timesheets'
+          WHERE field.value->>'id' = 'worker_timesheets'
             OR field.value->>'key' = 'workerTimesheets'
             OR field.value->>'type' = 'timesheet'
         )
@@ -68,15 +56,6 @@ export class HideCustomerSignatureForMobileViewer20260606000100 implements Migra
           id,
           jsonb_agg(
             CASE
-              WHEN field.value->>'id' = 'customer_approval_signature'
-                OR field.value->>'key' = 'customerApprovalSignature'
-                OR lower(field.value->>'label') LIKE '%customer%approval%'
-              THEN jsonb_set(
-                field.value,
-                '{rules}',
-                COALESCE(field.value->'rules', '{}'::jsonb) - 'hiddenForMobileRoles',
-                true
-              )
               WHEN field.value->>'id' = 'worker_timesheets'
                 OR field.value->>'key' = 'workerTimesheets'
                 OR field.value->>'type' = 'timesheet'
@@ -99,10 +78,7 @@ export class HideCustomerSignatureForMobileViewer20260606000100 implements Migra
         AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements(ft.fields) AS field(value)
-          WHERE field.value->>'id' = 'customer_approval_signature'
-            OR field.value->>'key' = 'customerApprovalSignature'
-            OR lower(field.value->>'label') LIKE '%customer%approval%'
-            OR field.value->>'id' = 'worker_timesheets'
+          WHERE field.value->>'id' = 'worker_timesheets'
             OR field.value->>'key' = 'workerTimesheets'
             OR field.value->>'type' = 'timesheet'
         )

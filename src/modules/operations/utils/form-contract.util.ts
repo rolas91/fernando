@@ -38,6 +38,7 @@ type FieldRules = {
   maxFileSizeMb?: number;
   acceptedMimeTypes?: string[];
   hiddenForMobileRoles?: string[];
+  hideCustomerApprovalForMobileRoles?: string[];
 };
 
 type FieldUi = {
@@ -130,6 +131,9 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
   const maxFileSizeMb = asNumber(input.maxFileSizeMb);
   const acceptedMimeTypes = asStringArray(input.acceptedMimeTypes);
   const hiddenForMobileRoles = asStringArray(input.hiddenForMobileRoles);
+  const hideCustomerApprovalForMobileRoles = asStringArray(
+    input.hideCustomerApprovalForMobileRoles,
+  );
 
   if (type === 'text' || type === 'textarea') {
     if (minLength !== undefined) rules.minLength = minLength;
@@ -168,6 +172,11 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
 
   if (type === 'signature' && hiddenForMobileRoles) {
     rules.hiddenForMobileRoles = hiddenForMobileRoles;
+  }
+
+  if (type === 'timesheet' && hideCustomerApprovalForMobileRoles) {
+    rules.hideCustomerApprovalForMobileRoles =
+      hideCustomerApprovalForMobileRoles;
   }
 
   return Object.keys(rules).length > 0 ? rules : undefined;

@@ -796,6 +796,7 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     label: 'Worker Timesheets',
     type: 'timesheet',
     required: true,
+    rules: { hideCustomerApprovalForMobileRoles: ['viewer'] },
     dataBinding: { path: 'shift.timesheetWorkers', optional: false },
     ui: {
       section: 'Labor & Equipment',
@@ -872,7 +873,6 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     label: 'Customer Contract / Approval',
     type: 'signature',
     required: false,
-    rules: { hiddenForMobileRoles: ['viewer'] },
     ui: { section: 'Notes & Signature', layout: 'full' },
   },
   {

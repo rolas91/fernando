@@ -894,6 +894,7 @@ export class FormSubmissionsService {
       validateSubmissionAgainstFields(
         normalizeFormFields(template.fields),
         data,
+        { mobileRole: this.mobileValidationRole(template, actor) },
       );
     }
 
@@ -936,6 +937,7 @@ export class FormSubmissionsService {
       validateSubmissionAgainstFields(
         normalizeFormFields(template.fields),
         data,
+        { mobileRole: this.mobileValidationRole(template, actor) },
       );
     }
 
@@ -992,6 +994,13 @@ export class FormSubmissionsService {
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write')
     );
+  }
+
+  private mobileValidationRole(
+    template: FormTemplate | null,
+    actor?: UserAccessContext,
+  ) {
+    return this.isMobileTimesheetSubmission(template, actor) ? actor?.role : undefined;
   }
 
   private async resolveWorkerIdForActor(actor?: UserAccessContext) {

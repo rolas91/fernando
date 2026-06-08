@@ -38,7 +38,6 @@ type FieldRules = {
   maxFileSizeMb?: number;
   acceptedMimeTypes?: string[];
   hiddenForMobileRoles?: string[];
-  hideCustomerApprovalForMobileRoles?: string[];
 };
 
 type FieldUi = {
@@ -131,9 +130,6 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
   const maxFileSizeMb = asNumber(input.maxFileSizeMb);
   const acceptedMimeTypes = asStringArray(input.acceptedMimeTypes);
   const hiddenForMobileRoles = asStringArray(input.hiddenForMobileRoles);
-  const hideCustomerApprovalForMobileRoles = asStringArray(
-    input.hideCustomerApprovalForMobileRoles,
-  );
 
   if (type === 'text' || type === 'textarea') {
     if (minLength !== undefined) rules.minLength = minLength;
@@ -172,11 +168,6 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
 
   if (type === 'signature' && hiddenForMobileRoles) {
     rules.hiddenForMobileRoles = hiddenForMobileRoles;
-  }
-
-  if (type === 'timesheet' && hideCustomerApprovalForMobileRoles) {
-    rules.hideCustomerApprovalForMobileRoles =
-      hideCustomerApprovalForMobileRoles;
   }
 
   return Object.keys(rules).length > 0 ? rules : undefined;
@@ -284,10 +275,17 @@ const HHMM_RE = /^\d{2}:\d{2}$/;
 export function validateSubmissionAgainstFields(
   fields: DynamicFormField[],
   data: Record<string, unknown> | undefined,
+  options?: { mobileRole?: string },
 ) {
   const payload = data || {};
+  const mobileRole = options?.mobileRole?.trim().toLowerCase() || '';
 
   for (const field of fields) {
+    const hiddenForRole = field.rules?.hiddenForMobileRoles
+      ?.map((role) => role.trim().toLowerCase())
+      .includes(mobileRole);
+    if (hiddenForRole) continue;
+
     const value = payload[field.id] ?? payload[field.label];
     if (field.required && isValueEmpty(value)) {
       throw new BadRequestException(`Field "${field.label}" is required`);

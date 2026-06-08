@@ -132,6 +132,12 @@ function workerRoleNames(shift: ShiftLike, workerId: string): string[] {
   return [...names];
 }
 
+function hasTimesheetSupervisorRole(roleNames: string[]) {
+  return roleNames.some((roleName) =>
+    /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(roleName),
+  );
+}
+
 function shiftString(shift: ShiftLike, key: string): string {
   const value = shift[key];
   return typeof value === 'string' ? value : '';
@@ -508,11 +514,12 @@ export class FormContextResolutionService {
     let workerIds = collectRoleIds(shift, 'assignedWorkers');
     const workerIdForActor = await this.resolveWorkerIdForActor(actor);
     const category = (template.category || '').toLowerCase();
+    const actorRoleNames = workerIdForActor ? workerRoleNames(shift, workerIdForActor) : [];
     const isMobileSelfTimesheet =
-      actor?.role === 'viewer' &&
       category.includes('timesheet') &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
-      !actor?.permissions.includes('form-submissions.write');
+      !actor?.permissions.includes('form-submissions.write') &&
+      !hasTimesheetSupervisorRole(actorRoleNames);
     if (isMobileSelfTimesheet && workerIdForActor) {
       workerIds = workerIds.filter((workerId) => workerId === workerIdForActor);
     }

@@ -203,6 +203,19 @@ function findTimesheetRows(data: Record<string, unknown>) {
   return [];
 }
 
+function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {
+  const roleNames = [
+    ...(Array.isArray(row.roleNames) ? row.roleNames : [row.roleNames]),
+    row.roleName,
+    row.employeeLabel,
+  ];
+  return roleNames.some(
+    (roleName) =>
+      typeof roleName === 'string' &&
+      /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(roleName),
+  );
+}
+
 function isTimesheetRowLike(value: unknown): value is Record<string, unknown> {
   return (
     typeof value === 'object' &&
@@ -898,13 +911,11 @@ export class FormSubmissionsService {
       );
     }
 
+    const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(template, actor, data);
     const saved = await this.repo.save(
       this.repo.create({
         ...dto,
-        workerId:
-          this.isMobileTimesheetSubmission(template, actor) && actor
-            ? await this.resolveWorkerIdForActor(actor)
-            : dto.workerId,
+        workerId: isSelfTimesheet && actor ? await this.resolveWorkerIdForActor(actor) : dto.workerId,
         data,
         submittedAt: dto.submittedAt ? new Date(dto.submittedAt) : undefined,
       }),
@@ -941,12 +952,10 @@ export class FormSubmissionsService {
       );
     }
 
+    const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(template, actor, data);
     Object.assign(item, {
       ...dto,
-      workerId:
-        this.isMobileTimesheetSubmission(template, actor) && actor
-          ? await this.resolveWorkerIdForActor(actor)
-          : dto.workerId ?? item.workerId,
+      workerId: isSelfTimesheet && actor ? await this.resolveWorkerIdForActor(actor) : dto.workerId ?? item.workerId,
       data,
       submittedAt:
         dto.submittedAt !== undefined ? new Date(dto.submittedAt) : undefined,
@@ -967,7 +976,7 @@ export class FormSubmissionsService {
     actor?: UserAccessContext,
   ) {
     const normalized = normalizeSubmissionData(data);
-    if (!this.isMobileTimesheetSubmission(template, actor)) return normalized;
+    if (!(await this.isMobileSelfTimesheetSubmission(template, actor, normalized))) return normalized;
 
     const workerId = await this.resolveWorkerIdForActor(actor);
     const next: Record<string, unknown> = {};
@@ -983,25 +992,39 @@ export class FormSubmissionsService {
     return next;
   }
 
-  private isMobileTimesheetSubmission(
+  private isMobileTimesheetRequest(
     template: FormTemplate | null,
     actor?: UserAccessContext,
   ) {
     const category = (template?.category || '').toLowerCase();
     return (
       Boolean(actor) &&
-      actor?.role === 'viewer' &&
       category.includes('timesheet') &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write')
     );
   }
 
+  private async isMobileSelfTimesheetSubmission(
+    template: FormTemplate | null,
+    actor?: UserAccessContext,
+    data?: Record<string, unknown>,
+  ) {
+    if (!this.isMobileTimesheetRequest(template, actor)) return false;
+    const workerId = await this.resolveWorkerIdForActor(actor);
+    const rows = findTimesheetRows(data ?? {});
+    const actorRows = workerId
+      ? rows.filter((row) => row.workerId === workerId)
+      : [];
+    const rowsToInspect = actorRows.length > 0 ? actorRows : rows;
+    return !rowsToInspect.some(timesheetRowHasSupervisorRole);
+  }
+
   private mobileValidationRole(
     template: FormTemplate | null,
     actor?: UserAccessContext,
   ) {
-    return this.isMobileTimesheetSubmission(template, actor) ? actor?.role : undefined;
+    return this.isMobileTimesheetRequest(template, actor) ? actor?.role : undefined;
   }
 
   private async resolveWorkerIdForActor(actor?: UserAccessContext) {

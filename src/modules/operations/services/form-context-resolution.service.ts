@@ -509,6 +509,7 @@ export class FormContextResolutionService {
     const workerIdForActor = await this.resolveWorkerIdForActor(actor);
     const category = (template.category || '').toLowerCase();
     const isMobileSelfTimesheet =
+      actor?.role === 'viewer' &&
       category.includes('timesheet') &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write');

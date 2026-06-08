@@ -990,6 +990,7 @@ export class FormSubmissionsService {
     const category = (template?.category || '').toLowerCase();
     return (
       Boolean(actor) &&
+      actor?.role === 'viewer' &&
       category.includes('timesheet') &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write')
@@ -1115,6 +1116,7 @@ export class FormSubmissionsService {
     if (!actor) return rows;
     if (actor.permissions.includes('form-submissions.write')) return rows;
     if (!actor.permissions.includes('mobile.timesheets.submit')) return rows;
+    if (actor.role !== 'viewer') return rows;
 
     const workerId = await this.resolveWorkerIdForActor(actor);
     const templateIds = [...new Set(rows.map((row) => row.templateId).filter(Boolean))];
@@ -1130,7 +1132,11 @@ export class FormSubmissionsService {
 
     return rows.filter((row) => {
       if (!timesheetTemplateIds.has(row.templateId)) return true;
-      return !workerId || !row.workerId || row.workerId === workerId;
+      if (!workerId) return true;
+      if (row.workerId) return row.workerId === workerId;
+      const timesheetRows = findTimesheetRows(row.data ?? {});
+      if (timesheetRows.length === 0) return true;
+      return timesheetRows.some((timesheetRow) => timesheetRow.workerId === workerId);
     });
   }
 

@@ -32,15 +32,21 @@ export class FormSubmissionsController {
     @Query('workOrderId') workOrderId?: string,
     @Query('templateId') templateId?: string,
     @Query('shiftId') shiftId?: string,
+    @Query('timesheetScope') timesheetScope?: 'own' | 'all',
     @Req() req?: ReqWithOpsUser,
   ) {
+    const normalizedTimesheetScope =
+      timesheetScope === 'own' || timesheetScope === 'all' ? timesheetScope : undefined;
     if (projectId || workOrderId || templateId || shiftId) {
       return this.service.findAll(
-        { projectId, workOrderId, templateId, shiftId },
+        { projectId, workOrderId, templateId, shiftId, timesheetScope: normalizedTimesheetScope },
         req?.user,
       );
     }
-    return this.service.findAll(undefined, req?.user);
+    return this.service.findAll(
+      normalizedTimesheetScope ? { timesheetScope: normalizedTimesheetScope } : undefined,
+      req?.user,
+    );
   }
 
   @Get(':id')

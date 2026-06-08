@@ -284,7 +284,7 @@ function operationalTimesheetStatus(value: unknown, existingStatus?: string) {
   }
   if (!incoming) return existing || 'pending';
   if (incoming === 'completed' || incoming === 'submitted' || incoming === 'done') {
-    return 'pending';
+    return 'completed';
   }
   return incoming;
 }

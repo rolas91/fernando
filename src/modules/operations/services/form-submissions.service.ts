@@ -244,6 +244,8 @@ function canSubmitFinalMobileTimesheets(actor?: UserAccessContext) {
   );
 }
 
+type TimesheetScope = 'own' | 'all';
+
 function isTimesheetRowLike(value: unknown): value is Record<string, unknown> {
   return (
     typeof value === 'object' &&
@@ -889,14 +891,16 @@ export class FormSubmissionsService {
     workOrderId?: string;
     templateId?: string;
     shiftId?: string;
+    timesheetScope?: TimesheetScope;
   }, actor?: UserAccessContext) {
     const projectId = filters?.projectId?.trim();
     const workOrderId = filters?.workOrderId?.trim();
     const templateId = filters?.templateId?.trim();
     const shiftId = filters?.shiftId?.trim();
+    const timesheetScope = filters?.timesheetScope;
     const hasFilters = Boolean(projectId || workOrderId || templateId || shiftId);
     const filterForActor = async (rows: FormSubmission[]) =>
-      this.filterSubmissionsForActor(rows, actor);
+      this.filterSubmissionsForActor(rows, actor, timesheetScope);
     if (!hasFilters) {
       return this.repo
         .find({ order: { submittedAt: 'DESC' } })
@@ -1164,8 +1168,10 @@ export class FormSubmissionsService {
   private async filterSubmissionsForActor(
     rows: FormSubmission[],
     actor?: UserAccessContext,
+    timesheetScope?: TimesheetScope,
   ) {
     if (!actor) return rows;
+    if (timesheetScope === 'all') return rows;
     if (canSubmitFinalMobileTimesheets(actor)) return rows;
     if (actor.permissions.includes('form-submissions.write')) return rows;
     if (!actor.permissions.includes('mobile.timesheets.submit')) return rows;

@@ -79,13 +79,16 @@ export class FormTemplatesController {
     @Param('id') id: string,
     @Query('workOrderId') workOrderId?: string,
     @Query('shiftId') shiftId?: string,
+    @Query('timesheetScope') timesheetScope?: 'own' | 'all',
     @Req() req?: ReqWithOpsUser,
   ) {
     const w = workOrderId?.trim();
     if (!w) {
       throw new BadRequestException('workOrderId query parameter is required');
     }
-    return this.contextResolution.previewTemplateForWorkOrder(id, w, shiftId, req?.user);
+    return this.contextResolution.previewTemplateForWorkOrder(id, w, shiftId, req?.user, {
+      timesheetScope: timesheetScope === 'own' || timesheetScope === 'all' ? timesheetScope : undefined,
+    });
   }
 
   @Get(':id')

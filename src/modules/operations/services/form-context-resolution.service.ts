@@ -24,6 +24,7 @@ import { WorkOrdersService } from './work-orders.service';
 import { ProjectsService } from './projects.service';
 
 type ShiftLike = Record<string, unknown>;
+type TimesheetScope = 'own' | 'all';
 
 function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === 'object' && input !== null && !Array.isArray(input);
@@ -223,6 +224,7 @@ export class FormContextResolutionService {
     workOrderId: string,
     shiftId?: string,
     actor?: UserAccessContext,
+    options?: { timesheetScope?: TimesheetScope },
   ) {
     const template = await this.formTemplates.findOne(templateId);
     const fields = normalizeFormFields(template.fields) as DynamicFormField[];
@@ -312,7 +314,9 @@ export class FormContextResolutionService {
       workerLabelById,
       equipmentLabelById,
       materialLabelById,
-      workerTimesheetByShiftId: shift ? await this.loadWorkerTimesheetRows(workOrder, shift, template, actor) : [],
+      workerTimesheetByShiftId: shift
+        ? await this.loadWorkerTimesheetRows(workOrder, shift, template, actor, options?.timesheetScope)
+        : [],
     };
 
     const fieldPreviews = fields.map((field) => {
@@ -538,13 +542,17 @@ export class FormContextResolutionService {
     shift: ShiftLike,
     template: FormTemplate,
     actor?: UserAccessContext,
+    timesheetScope?: TimesheetScope,
   ): Promise<Record<string, unknown>[]> {
     let workerIds = collectRoleIds(shift, 'assignedWorkers');
     const workerIdForActor = await this.resolveWorkerIdForActor(actor);
     const actorRoleNames = workerIdForActor ? workerRoleNames(shift, workerIdForActor) : [];
+    const forcedSelfTimesheet = timesheetScope === 'own';
+    const forcedAllTimesheets = timesheetScope === 'all';
     const isMobileSelfTimesheet =
+      !forcedAllTimesheets &&
       isTimesheetTemplate(template) &&
-      isViewerRole(actor) &&
+      (forcedSelfTimesheet || isViewerRole(actor)) &&
       !canSubmitFinalMobileTimesheets(actor) &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write') &&

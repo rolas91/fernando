@@ -232,6 +232,18 @@ function isViewerRole(actor?: UserAccessContext) {
   return (actor?.role || '').trim().toLowerCase() === 'viewer';
 }
 
+function canSubmitFinalMobileTimesheets(actor?: UserAccessContext) {
+  const permissions = actor?.permissions ?? [];
+  const role = (actor?.role || '').trim().toLowerCase();
+  return (
+    ['scheduler', 'manager', 'admin'].includes(role) ||
+    permissions.includes('form-submissions.write') ||
+    permissions.includes('timesheets.write') ||
+    permissions.includes('work-orders.write') ||
+    permissions.includes('mobile.work-orders.submit')
+  );
+}
+
 function isTimesheetRowLike(value: unknown): value is Record<string, unknown> {
   return (
     typeof value === 'object' &&
@@ -1027,6 +1039,7 @@ export class FormSubmissionsService {
   ) {
     if (!this.isMobileTimesheetRequest(template, actor)) return false;
     if (!isViewerRole(actor)) return false;
+    if (canSubmitFinalMobileTimesheets(actor)) return false;
     const workerId = await this.resolveWorkerIdForActor(actor);
     const rows = findTimesheetRows(data ?? {});
     const actorRows = workerId
@@ -1153,6 +1166,7 @@ export class FormSubmissionsService {
     actor?: UserAccessContext,
   ) {
     if (!actor) return rows;
+    if (canSubmitFinalMobileTimesheets(actor)) return rows;
     if (actor.permissions.includes('form-submissions.write')) return rows;
     if (!actor.permissions.includes('mobile.timesheets.submit')) return rows;
     if (actor.role !== 'viewer') return rows;

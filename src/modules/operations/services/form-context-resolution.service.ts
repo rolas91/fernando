@@ -154,6 +154,18 @@ function isViewerRole(actor?: UserAccessContext) {
   return (actor?.role || '').trim().toLowerCase() === 'viewer';
 }
 
+function canSubmitFinalMobileTimesheets(actor?: UserAccessContext) {
+  const permissions = actor?.permissions ?? [];
+  const role = (actor?.role || '').trim().toLowerCase();
+  return (
+    ['scheduler', 'manager', 'admin'].includes(role) ||
+    permissions.includes('form-submissions.write') ||
+    permissions.includes('timesheets.write') ||
+    permissions.includes('work-orders.write') ||
+    permissions.includes('mobile.work-orders.submit')
+  );
+}
+
 function shiftString(shift: ShiftLike, key: string): string {
   const value = shift[key];
   return typeof value === 'string' ? value : '';
@@ -533,6 +545,7 @@ export class FormContextResolutionService {
     const isMobileSelfTimesheet =
       isTimesheetTemplate(template) &&
       isViewerRole(actor) &&
+      !canSubmitFinalMobileTimesheets(actor) &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write') &&
       !hasTimesheetSupervisorRole(actorRoleNames);

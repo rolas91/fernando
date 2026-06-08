@@ -22,6 +22,28 @@ import { FormTemplatesService } from '../services/form-templates.service';
 
 type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
+function normalizedTemplateText(value: string | undefined) {
+  return (value || '').trim().toLowerCase().replace(/[_\s-]+/g, ' ');
+}
+
+function templateCategoryKey(template: { category?: string; name?: string }) {
+  const category = normalizedTemplateText(template.category);
+  const name = normalizedTemplateText(template.name);
+  if (category.includes('timesheet') || category.includes('time sheet') || name.includes('timesheet') || name.includes('time sheet')) {
+    return 'timesheet';
+  }
+  if (category.includes('incident') || name.includes('incident')) return 'incident';
+  if (
+    category.includes('work order') ||
+    category.includes('workorder') ||
+    name.includes('work order') ||
+    name.includes('workorder')
+  ) {
+    return 'workorder';
+  }
+  return 'other';
+}
+
 @ApiTags('operations')
 @Controller('form-templates')
 @UseGuards(OperationsAuthGuard)
@@ -94,9 +116,12 @@ export class FormTemplatesController {
   ) {
     if (!actor) return templates;
     if (actor.permissions.includes('form-submissions.write')) return templates;
-    if (!actor.permissions.includes('mobile.timesheets.submit')) return templates;
-    return templates.filter((template) =>
-      (template.category || '').toLowerCase().includes('timesheet'),
-    );
+    return templates.filter((template) => {
+      const category = templateCategoryKey(template);
+      if (category === 'timesheet') return actor.permissions.includes('mobile.timesheets.submit');
+      if (category === 'incident') return actor.permissions.includes('mobile.incidents.submit');
+      if (category === 'workorder') return actor.permissions.includes('mobile.work-orders.submit');
+      return true;
+    });
   }
 }

@@ -138,6 +138,22 @@ function hasTimesheetSupervisorRole(roleNames: string[]) {
   );
 }
 
+function normalizedTemplateText(value: string | undefined) {
+  return (value || '').trim().toLowerCase().replace(/[_\s-]+/g, ' ');
+}
+
+function isTimesheetTemplate(template: FormTemplate) {
+  const key = normalizedTemplateText(template.category);
+  const name = normalizedTemplateText(template.name);
+  if (key.includes('work order') || key.includes('workorder')) return false;
+  if (key.includes('timesheet') || key.includes('time sheet')) return true;
+  return name.includes('timesheet') || name.includes('time sheet');
+}
+
+function isViewerRole(actor?: UserAccessContext) {
+  return (actor?.role || '').trim().toLowerCase() === 'viewer';
+}
+
 function shiftString(shift: ShiftLike, key: string): string {
   const value = shift[key];
   return typeof value === 'string' ? value : '';
@@ -513,10 +529,10 @@ export class FormContextResolutionService {
   ): Promise<Record<string, unknown>[]> {
     let workerIds = collectRoleIds(shift, 'assignedWorkers');
     const workerIdForActor = await this.resolveWorkerIdForActor(actor);
-    const category = (template.category || '').toLowerCase();
     const actorRoleNames = workerIdForActor ? workerRoleNames(shift, workerIdForActor) : [];
     const isMobileSelfTimesheet =
-      category.includes('timesheet') &&
+      isTimesheetTemplate(template) &&
+      isViewerRole(actor) &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write') &&
       !hasTimesheetSupervisorRole(actorRoleNames);

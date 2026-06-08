@@ -216,6 +216,22 @@ function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {
   );
 }
 
+function normalizedTemplateText(value: string | undefined) {
+  return (value || '').trim().toLowerCase().replace(/[_\s-]+/g, ' ');
+}
+
+function isTimesheetTemplate(template: FormTemplate | null) {
+  if (!template) return false;
+  const category = normalizedTemplateText(template.category);
+  const name = normalizedTemplateText(template.name);
+  if (category.includes('work order') || category.includes('workorder')) return false;
+  return category.includes('timesheet') || category.includes('time sheet') || name.includes('timesheet') || name.includes('time sheet');
+}
+
+function isViewerRole(actor?: UserAccessContext) {
+  return (actor?.role || '').trim().toLowerCase() === 'viewer';
+}
+
 function isTimesheetRowLike(value: unknown): value is Record<string, unknown> {
   return (
     typeof value === 'object' &&
@@ -996,10 +1012,9 @@ export class FormSubmissionsService {
     template: FormTemplate | null,
     actor?: UserAccessContext,
   ) {
-    const category = (template?.category || '').toLowerCase();
     return (
       Boolean(actor) &&
-      category.includes('timesheet') &&
+      isTimesheetTemplate(template) &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write')
     );
@@ -1011,6 +1026,7 @@ export class FormSubmissionsService {
     data?: Record<string, unknown>,
   ) {
     if (!this.isMobileTimesheetRequest(template, actor)) return false;
+    if (!isViewerRole(actor)) return false;
     const workerId = await this.resolveWorkerIdForActor(actor);
     const rows = findTimesheetRows(data ?? {});
     const actorRows = workerId

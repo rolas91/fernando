@@ -960,8 +960,10 @@ export class FormSubmissionsService {
     );
     await this.syncTimesheetsFromSubmission(saved);
     await this.syncIncidentFromSubmission(saved, template);
-    saved.pdfUrl = await this.generatePdf(saved, template);
-    await this.repo.save(saved);
+    if (!isTimesheetTemplate(template) || canSubmitFinalMobileTimesheets(actor)) {
+      saved.pdfUrl = await this.generatePdf(saved, template);
+      await this.repo.save(saved);
+    }
     this.realtime.emitTableUpdated('form_submissions');
     return saved;
   }
@@ -1001,9 +1003,11 @@ export class FormSubmissionsService {
     const saved = await this.repo.save(item);
     await this.syncTimesheetsFromSubmission(saved);
     await this.syncIncidentFromSubmission(saved, template);
-    await this.deleteGeneratedPdf(previousPdfUrl);
-    saved.pdfUrl = await this.generatePdf(saved, template);
-    await this.repo.save(saved);
+    if (!isTimesheetTemplate(template) || canSubmitFinalMobileTimesheets(actor)) {
+      await this.deleteGeneratedPdf(previousPdfUrl);
+      saved.pdfUrl = await this.generatePdf(saved, template);
+      await this.repo.save(saved);
+    }
     this.realtime.emitTableUpdated('form_submissions');
     return saved;
   }

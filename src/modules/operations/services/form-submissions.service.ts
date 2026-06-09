@@ -500,11 +500,72 @@ function buildTimesheetPdf(
     ops.push(pdfText(fitText(value, max) || '-', x + 3, y - h + 5, 7.2));
   };
 
+  const dayNames = ['Sun', 'M', 'T', 'W', 'Th', 'F', 'Sat'];
+  const dayIndex = new Date(`${dateValue}T12:00:00`).getDay();
+  const circleDay = circleOne || dayNames[dayIndex];
+
   let y = 728;
   cell('Date:', dateValue, left, y, 92, 24, 18, yellow);
-  cell('Circle One:', circleOne || '', left + 92, y, 116, 24, 18, yellow);
-  cell('Shift:', `${fitText(firstRow.startTime || '', 8)} - ${fitText(firstRow.endTime || '', 8)}`, left + 208, y, 105, 24, 24, yellow);
-  cell('Lunch?', rows.some((row) => row.lunchTaken) ? 'Yes' : 'No', left + 313, y, 60, 24, 8, yellow);
+
+  // Circle One - day of week with checkbox
+  ops.push(pdfFillRect(left + 92, y - 24, 116, 24, yellow));
+  ops.push(pdfRect(left + 92, y - 24, 116, 24));
+  ops.push(pdfText('Circle One:', left + 95, y - 7, 5.8, 'F2'));
+  const dayOpts = ['M', 'T', 'W', 'Th', 'F', 'Sat', 'Sun'];
+  dayOpts.forEach((d, i) => {
+    const dx = left + 105 + i * 14;
+    const dy = y - 17;
+    if (d === circleDay) {
+      ops.push(`q 0 0 0 rg ${dx} ${dy - 4} 4 4 re f Q`);
+    } else {
+      ops.push(`q 0 0 0 RG ${dx} ${dy - 4} 4 4 re S Q`);
+    }
+    ops.push(pdfText(d, dx + 6, dy, 5.5));
+  });
+
+  // Shift with AM/PM checkbox
+  ops.push(pdfFillRect(left + 208, y - 24, 105, 24, yellow));
+  ops.push(pdfRect(left + 208, y - 24, 105, 24));
+  ops.push(pdfText('Shift:', left + 211, y - 7, 5.8, 'F2'));
+  const startTimeStr = String(firstRow.startTime || '');
+  const startH = Number(startTimeStr.split(':')[0]);
+  const isAm = startTimeStr.includes('AM') || (startH > 0 && startH < 12);
+  const sx = left + 230;
+  const sy = y - 17;
+  if (isAm) {
+    ops.push(`q 0 0 0 rg ${sx} ${sy - 4} 4 4 re f Q`);
+  } else {
+    ops.push(`q 0 0 0 RG ${sx} ${sy - 4} 4 4 re S Q`);
+  }
+  ops.push(pdfText('AM', sx + 6, sy, 5.5));
+  if (!isAm) {
+    ops.push(`q 0 0 0 rg ${sx + 22} ${sy - 4} 4 4 re f Q`);
+  } else {
+    ops.push(`q 0 0 0 RG ${sx + 22} ${sy - 4} 4 4 re S Q`);
+  }
+  ops.push(pdfText('PM', sx + 28, sy, 5.5));
+  ops.push(pdfText(`${fitText(firstRow.startTime || '', 8)}-${fitText(firstRow.endTime || '', 8)}`, left + 215, y - 20, 6));
+
+  // Lunch? with Yes/No checkbox
+  ops.push(pdfFillRect(left + 313, y - 24, 60, 24, yellow));
+  ops.push(pdfRect(left + 313, y - 24, 60, 24));
+  ops.push(pdfText('Lunch?', left + 316, y - 7, 5.8, 'F2'));
+  const anyLunch = rows.some((r) => r.lunchTaken);
+  const lx = left + 325;
+  const ly = y - 17;
+  if (anyLunch) {
+    ops.push(`q 0 0 0 rg ${lx} ${ly - 4} 4 4 re f Q`);
+  } else {
+    ops.push(`q 0 0 0 RG ${lx} ${ly - 4} 4 4 re S Q`);
+  }
+  ops.push(pdfText('Yes', lx + 6, ly, 5.5));
+  if (!anyLunch) {
+    ops.push(`q 0 0 0 rg ${lx + 28} ${ly - 4} 4 4 re f Q`);
+  } else {
+    ops.push(`q 0 0 0 RG ${lx + 28} ${ly - 4} 4 4 re S Q`);
+  }
+  ops.push(pdfText('No', lx + 34, ly, 5.5));
+
   cell('Job Number:', jobNumber, left + 373, y, 92, 24, 18, yellow);
   cell('1st Job #', jobNumber, left + 465, y, 87, 24, 18, yellow);
 
@@ -532,6 +593,7 @@ function buildTimesheetPdf(
     { label: 'D/N', w: 36 },
     { label: 'Notes', w: 116 },
   ];
+  const colEnds = [0, 98, 176, 238, 300, 362, 400, 436, 552];
   let x = tableX;
   cols.forEach((col) => {
     ops.push(pdfFillRect(x, y - 15, col.w, 15, lightYellow));
@@ -544,52 +606,85 @@ function buildTimesheetPdf(
   let grandSt = 0;
   let grandOt = 0;
   let grandDt = 0;
+  const subH = 14;
+  const subLabels = ['ST', 'OT', 'DT'];
+
   employeeRows.forEach((row, index) => {
     const st = row.workerId ? numberField(row.st ?? row.regularHours) : 0;
     const ot = row.workerId ? numberField(row.ot ?? row.overtimeHours) : 0;
     const dt = row.workerId ? numberField(row.dt ?? row.doubleTimeHours) : 0;
-    const total = st + ot + dt;
     grandSt += st;
     grandOt += ot;
     grandDt += dt;
+
     const rowNotes = [
       row.lunchTaken === false && row.workerId ? 'No lunch' : '',
       row.lunchTaken === true && row.workerId ? 'Lunch taken' : '',
       row.employeeNote || row.notes || notes || '',
-    ]
-      .filter(Boolean)
-      .join(' / ');
-    const values = [
-      fitText(row.workerName || row.name || row.workerId || '', 24),
-      isSignaturePath(row.signature) || isSignatureImage(row.signature) ? '' : row.signature ? 'Captured' : '',
-      '',
-      fitText(row.secondJobHours || '', 10),
-      fitText(row.thirdJobHours || '', 10),
-      row.workerId ? fitText(total, 5) : '',
-      fitText(row.dayOrNight || row.dayNight || row.shiftPeriod || '', 4),
-      fitText(rowNotes, 24),
-    ];
-    const rowH = 38;
-    let colX = tableX;
-    cols.forEach((col, colIndex) => {
-      if (colIndex === 0 && index % 2 === 1) {
-        ops.push(pdfFillRect(colX, y - rowH, col.w, rowH, [0.98, 0.96, 0.78]));
+    ].filter(Boolean).join(' / ');
+
+    const rowH = subH * 3;
+    const rowY = y;
+    const nameText = fitText(row.workerName || row.name || row.workerId || '', 24);
+    const sigText = isSignaturePath(row.signature) || isSignatureImage(row.signature) ? '' : row.signature ? 'Captured' : '';
+    const dayNight = fitText(row.dayOrNight || row.dayNight || row.shiftPeriod || '', 4);
+
+    // Alternating background for employee column
+    if (index % 2 === 1) {
+      ops.push(pdfFillRect(tableX, rowY - rowH, colEnds[1], rowH, [0.98, 0.96, 0.78]));
+    }
+
+    // Col 0: Employee (spans 3 sub-rows)
+    ops.push(pdfRect(tableX, rowY - rowH, colEnds[1], rowH));
+    if (row.workerId) {
+      ops.push(pdfText(nameText, tableX + 3, rowY - 18, 8));
+      ops.push(pdfText(firstString(row.roleNames || row.employeeLabel || ''), tableX + 3, rowY - 30, 6));
+    }
+
+    // Col 1: Signature (spans 3 sub-rows)
+    ops.push(pdfRect(tableX + colEnds[1], rowY - rowH, colEnds[2] - colEnds[1], rowH));
+    ops.push(pdfText(sigText, tableX + colEnds[1] + 3, rowY - 18, 8));
+    if (row.signature) {
+      drawSignature(ops, images, row.signature, tableX + colEnds[1] + 2, rowY - rowH + 1, colEnds[2] - colEnds[1] - 4, rowH - 2);
+    }
+
+    // Col 6: D/N (spans 3 sub-rows)
+    ops.push(pdfRect(tableX + colEnds[6], rowY - rowH, colEnds[7] - colEnds[6], rowH));
+    ops.push(pdfText(dayNight, tableX + colEnds[6] + (colEnds[7] - colEnds[6]) / 2 - 4, rowY - 20, 8, 'F2'));
+
+    // Col 7: Notes (spans 3 sub-rows)
+    ops.push(pdfRect(tableX + colEnds[7], rowY - rowH, colEnds[8] - colEnds[7], rowH));
+    ops.push(pdfText(fitText(rowNotes, 28), tableX + colEnds[7] + 3, rowY - 18, 7));
+
+    // Per-sub-row columns: 1st Job#, 2nd Job#, 3rd Job#, Total
+    const subValues = [st, ot, dt];
+    for (let si = 0; si < 3; si++) {
+      const subY = rowY - si * subH;
+      const val = subValues[si];
+      const label = subLabels[si];
+
+      // Col 2: 1st Job #
+      ops.push(pdfRect(tableX + colEnds[2], subY - subH, colEnds[3] - colEnds[2], subH));
+      if (si === 0) {
+        ops.push(pdfText(fitText(jobNumber, 10), tableX + colEnds[2] + 3, subY - 9, 7));
       }
-      ops.push(pdfRect(colX, y - rowH, col.w, rowH));
-      ops.push(pdfText(values[colIndex], colX + 3, y - 13, colIndex < 2 ? 8 : 7));
-      if (colIndex === 0 && row.workerId) {
-        ops.push(pdfText(firstString(row.roleNames || row.employeeLabel || ''), colX + 3, y - 25, 6));
+
+      // Col 3: 2nd Job #
+      ops.push(pdfRect(tableX + colEnds[3], subY - subH, colEnds[4] - colEnds[3], subH));
+      if (si === 0) {
+        ops.push(pdfText(fitText(row.secondJobHours || '', 10), tableX + colEnds[3] + 3, subY - 9, 7));
       }
-      if (colIndex === 1 && row.signature) {
-        drawSignature(ops, images, row.signature, colX + 2, y - rowH + 1, col.w - 4, rowH - 2);
+
+      // Col 4: 3rd Job #
+      ops.push(pdfRect(tableX + colEnds[4], subY - subH, colEnds[5] - colEnds[4], subH));
+      if (si === 0) {
+        ops.push(pdfText(fitText(row.thirdJobHours || '', 10), tableX + colEnds[4] + 3, subY - 9, 7));
       }
-      if (colIndex === 2 && row.workerId) {
-        ops.push(pdfText(`ST ${fitText(st, 5)}`, colX + 5, y - 11, 7, 'F2'));
-        ops.push(pdfText(`OT ${fitText(ot, 5)}`, colX + 5, y - 22, 7, 'F2'));
-        ops.push(pdfText(`DT ${fitText(dt, 5)}`, colX + 5, y - 33, 7, 'F2'));
-      }
-      colX += col.w;
-    });
+
+      // Col 5: Total
+      ops.push(pdfRect(tableX + colEnds[5], subY - subH, colEnds[6] - colEnds[5], subH));
+      ops.push(pdfText(`${label} ${fitText(val, 3)}`, tableX + colEnds[5] + 2, subY - 9, 6.5, 'F2'));
+    }
     y -= rowH;
   });
 

@@ -12,6 +12,10 @@ import { CreateCommercialWorkOrderDto } from '../dto/create-commercial-work-orde
 import { GenerateCommercialInvoiceDto } from '../dto/generate-commercial-invoice.dto';
 import { ProcessOffRentDto } from '../dto/process-off-rent.dto';
 import { UpdateCommercialWorkOrderDto } from '../dto/update-commercial-work-order.dto';
+import {
+  buildCommercialInvoicePdf,
+  buildCommercialWorkOrderPdf,
+} from '../utils/commercial-pdf.util';
 
 type CommercialItem = Record<string, unknown> & {
   id: string;
@@ -283,6 +287,14 @@ export class CommercialWorkOrdersService {
     this.realtime.emitTableUpdated('commercial_invoices');
     this.realtime.emitTableUpdated('commercial_work_orders');
     return saved;
+  }
+
+  buildWorkOrderPdf(workOrder: CommercialWorkOrder) {
+    return buildCommercialWorkOrderPdf(workOrder);
+  }
+
+  buildInvoicePdf(invoice: CommercialInvoice) {
+    return buildCommercialInvoicePdf(invoice);
   }
 
   private resolveCreateStatus(type: 'sale' | 'on_rent', status?: string) {

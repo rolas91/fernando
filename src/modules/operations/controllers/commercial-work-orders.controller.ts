@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Header, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Res, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateCommercialWorkOrderDto } from '../dto/create-commercial-work-order.dto';
 import { GenerateCommercialInvoiceDto } from '../dto/generate-commercial-invoice.dto';
@@ -34,10 +35,15 @@ export class CommercialWorkOrdersController {
   }
 
   @Get('invoices/:invoiceId/pdf')
-  @Header('Content-Type', 'text/html; charset=utf-8')
-  async invoicePdf(@Param('invoiceId') invoiceId: string) {
+  async invoicePdf(@Param('invoiceId') invoiceId: string, @Res() res: Response) {
     const invoice = await this.service.findInvoice(invoiceId);
-    return invoice.pdfHtml;
+    const pdf = this.service.buildInvoicePdf(invoice);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${invoice.invoiceNumber}.pdf"`,
+    );
+    return res.send(pdf);
   }
 
   @Get(':id')
@@ -46,10 +52,15 @@ export class CommercialWorkOrdersController {
   }
 
   @Get(':id/pdf')
-  @Header('Content-Type', 'text/html; charset=utf-8')
-  async pdf(@Param('id') id: string) {
+  async pdf(@Param('id') id: string, @Res() res: Response) {
     const workOrder = await this.service.findOne(id);
-    return workOrder.pdfHtml || (await this.service.regeneratePdf(id)).pdfHtml;
+    const pdf = this.service.buildWorkOrderPdf(workOrder);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${workOrder.workOrderNumber}.pdf"`,
+    );
+    return res.send(pdf);
   }
 
   @Post()

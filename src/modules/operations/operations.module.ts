@@ -4,6 +4,7 @@ import { ActivityFeedItem } from '../../entities/activity-feed.entity';
 import { AvailabilityRequest } from '../../entities/availability-request.entity';
 import { Certification } from '../../entities/certification.entity';
 import { Client } from '../../entities/client.entity';
+import { CommercialWorkOrder } from '../../entities/commercial-work-order.entity';
 import { CompanySettings } from '../../entities/company-settings.entity';
 import { Equipment } from '../../entities/equipment.entity';
 import { FormSubmission } from '../../entities/form-submission.entity';
@@ -33,6 +34,7 @@ import { ActivityFeedController } from './controllers/activity-feed.controller';
 import { AvailabilityRequestsController } from './controllers/availability-requests.controller';
 import { CertificationsController } from './controllers/certifications.controller';
 import { ClientsController } from './controllers/clients.controller';
+import { CommercialWorkOrdersController } from './controllers/commercial-work-orders.controller';
 import { CompanySettingsController } from './controllers/company-settings.controller';
 import { EquipmentController } from './controllers/equipment.controller';
 import { FormContractController } from './controllers/form-contract.controller';
@@ -56,6 +58,7 @@ import { ActivityFeedService } from './services/activity-feed.service';
 import { AvailabilityRequestsService } from './services/availability-requests.service';
 import { CertificationsService } from './services/certifications.service';
 import { ClientsService } from './services/clients.service';
+import { CommercialWorkOrdersService } from './services/commercial-work-orders.service';
 import { CompanySettingsService } from './services/company-settings.service';
 import { EquipmentService } from './services/equipment.service';
 import { FormContextResolutionService } from './services/form-context-resolution.service';
@@ -89,6 +92,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     TypeOrmModule.forFeature([
       Worker,
       WorkerRole,
+      CommercialWorkOrder,
       Skill,
       WorkerCertification,
       Certification,
@@ -125,6 +129,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     WorkOrdersController,
     WorkOrderTypesController,
     ClientsController,
+    CommercialWorkOrdersController,
     EquipmentController,
     MaterialsController,
     TimesheetsController,
@@ -150,6 +155,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     ProjectTypesService,
     WorkOrdersService,
     WorkOrderTypesService,
+    CommercialWorkOrdersService,
     ClientsService,
     EquipmentService,
     MaterialsService,
@@ -178,6 +184,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     ProjectTypesService,
     WorkOrdersService,
     WorkOrderTypesService,
+    CommercialWorkOrdersService,
     ClientsService,
     EquipmentService,
     MaterialsService,

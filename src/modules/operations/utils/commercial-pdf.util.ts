@@ -1,7 +1,17 @@
 import { CommercialInvoice } from '../../../entities/commercial-invoice.entity';
 import { CommercialWorkOrder } from '../../../entities/commercial-work-order.entity';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { deflateSync, inflateSync } from 'zlib';
 
 type PdfItem = Record<string, unknown>;
+export type EmbeddedPdfImage = {
+  name: string;
+  width: number;
+  height: number;
+  data: Buffer;
+  filter?: 'DCTDecode' | 'FlateDecode';
+};
 
 function pdfEscape(value: string): string {
   return value
@@ -62,25 +72,145 @@ function formatDate(value: unknown) {
   return `${parts[1]}/${parts[2]}/${parts[0]}`;
 }
 
-function buildPdf(content: string): Buffer {
-  const objects: string[] = [];
+function readUInt32(buffer: Buffer, offset: number) {
+  return buffer.readUInt32BE(offset);
+}
+
+function paethPredictor(a: number, b: number, c: number) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  if (pa <= pb && pa <= pc) return a;
+  if (pb <= pc) return b;
+  return c;
+}
+
+function decodePngForPdf(path: string, name: string): EmbeddedPdfImage | null {
+  if (!existsSync(path)) return null;
+  const buffer = readFileSync(path);
+  if (buffer.toString('hex', 0, 8) !== '89504e470d0a1a0a') return null;
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idatChunks: Buffer[] = [];
+
+  while (offset < buffer.length) {
+    const length = readUInt32(buffer, offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    const data = buffer.subarray(dataStart, dataStart + length);
+    if (type === 'IHDR') {
+      width = readUInt32(data, 0);
+      height = readUInt32(data, 4);
+      bitDepth = data[8];
+      colorType = data[9];
+    } else if (type === 'IDAT') {
+      idatChunks.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+    offset = dataStart + length + 4;
+  }
+
+  if (!width || !height || bitDepth !== 8 || ![2, 6].includes(colorType)) {
+    return null;
+  }
+
+  const source = inflateSync(Buffer.concat(idatChunks));
+  const sourceChannels = colorType === 6 ? 4 : 3;
+  const bytesPerPixel = sourceChannels;
+  const scanlineLength = width * sourceChannels;
+  const rgbScanlineLength = width * 3;
+  const rgb = Buffer.alloc(height * rgbScanlineLength);
+  let sourceOffset = 0;
+  let previous = Buffer.alloc(scanlineLength);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = source[sourceOffset];
+    sourceOffset += 1;
+    const scanline = Buffer.from(source.subarray(sourceOffset, sourceOffset + scanlineLength));
+    sourceOffset += scanlineLength;
+
+    for (let x = 0; x < scanlineLength; x += 1) {
+      const left = x >= bytesPerPixel ? scanline[x - bytesPerPixel] : 0;
+      const up = previous[x] || 0;
+      const upLeft = x >= bytesPerPixel ? previous[x - bytesPerPixel] || 0 : 0;
+      if (filter === 1) {
+        scanline[x] = (scanline[x] + left) & 0xff;
+      } else if (filter === 2) {
+        scanline[x] = (scanline[x] + up) & 0xff;
+      } else if (filter === 3) {
+        scanline[x] = (scanline[x] + Math.floor((left + up) / 2)) & 0xff;
+      } else if (filter === 4) {
+        scanline[x] = (scanline[x] + paethPredictor(left, up, upLeft)) & 0xff;
+      }
+    }
+
+    for (let x = 0; x < width; x += 1) {
+      const src = x * sourceChannels;
+      const dst = y * rgbScanlineLength + x * 3;
+      const alpha = colorType === 6 ? scanline[src + 3] / 255 : 1;
+      rgb[dst] = Math.round(scanline[src] * alpha + 255 * (1 - alpha));
+      rgb[dst + 1] = Math.round(scanline[src + 1] * alpha + 255 * (1 - alpha));
+      rgb[dst + 2] = Math.round(scanline[src + 2] * alpha + 255 * (1 - alpha));
+    }
+    previous = scanline;
+  }
+
+  return {
+    name,
+    width,
+    height,
+    data: deflateSync(rgb),
+    filter: 'FlateDecode',
+  };
+}
+
+export function loadCommercialPdfLogoImage(name = 'Logo') {
+  return decodePngForPdf(join(process.cwd(), 'public', 'drtraffic-logo-horizontal.png'), name);
+}
+
+function buildPdf(content: string, images: EmbeddedPdfImage[] = []): Buffer {
+  const objects: Array<string | Buffer> = [];
+  const xObjectResources = images.length
+    ? `/XObject << ${images.map((image, index) => `/${image.name} ${7 + index} 0 R`).join(' ')} >>`
+    : '';
   objects.push('<< /Type /Catalog /Pages 2 0 R >>');
   objects.push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
   objects.push(
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> ${xObjectResources} >> /Contents 6 0 R >>`,
   );
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
   objects.push(
     `<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}\nendstream`,
   );
+  images.forEach((image) => {
+    objects.push(
+      Buffer.concat([
+        Buffer.from(
+          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${image.filter || 'FlateDecode'} /Length ${image.data.length} >>\nstream\n`,
+          'utf8',
+        ),
+        image.data,
+        Buffer.from('\nendstream', 'utf8'),
+      ]),
+    );
+  });
 
   const parts: Buffer[] = [Buffer.from('%PDF-1.4\n', 'utf8')];
   let length = parts[0].length;
   const offsets = [0];
   objects.forEach((object, index) => {
     offsets.push(length);
-    const block = Buffer.from(`${index + 1} 0 obj\n${object}\nendobj\n`, 'utf8');
+    const header = Buffer.from(`${index + 1} 0 obj\n`, 'utf8');
+    const body = typeof object === 'string' ? Buffer.from(object, 'utf8') : object;
+    const footer = Buffer.from('\nendobj\n', 'utf8');
+    const block = Buffer.concat([header, body, footer]);
     parts.push(block);
     length += block.length;
   });
@@ -113,11 +243,7 @@ function sectionTitle(ops: string[], title: string, y: number) {
 }
 
 function renderBrandHeader(ops: string[], title: string, number: string, date: string) {
-  ops.push(pdfFillRect(40, 708, 44, 44, [0.82, 0, 0]));
-  ops.push(pdfFillRect(46, 716, 32, 8, [1, 1, 1]));
-  ops.push(pdfFillRect(46, 732, 32, 8, [1, 1, 1]));
-  ops.push(pdfText('DR', 96, 724, 34, 'F2'));
-  ops.push(pdfText('TRAFFIC CONTROL', 98, 713, 8, 'F2'));
+  ops.push('q 130 0 0 41 40 714 cm /Logo Do Q');
   ops.push(pdfText('DR Traffic Control', 245, 742, 11, 'F2'));
   ops.push(pdfText('456 Traffic Way', 245, 727, 8));
   ops.push(pdfText('San Jose, CA 95131', 245, 715, 8));
@@ -129,6 +255,7 @@ function renderBrandHeader(ops: string[], title: string, number: string, date: s
 
 export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buffer {
   const ops: string[] = [];
+  const logo = loadCommercialPdfLogoImage();
   const isSale = workOrder.type === 'sale';
   renderBrandHeader(
     ops,
@@ -199,11 +326,12 @@ export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buf
   ops.push(pdfText('TOTAL', 420, 153, 9, 'F2'));
   ops.push(pdfText(money(total), 510, 153, 9, 'F2'));
   ops.push(pdfText('Thank you for your business!', 236, 58, 9));
-  return buildPdf(ops.join('\n'));
+  return buildPdf(ops.join('\n'), logo ? [logo] : []);
 }
 
 export function buildCommercialInvoicePdf(invoice: CommercialInvoice): Buffer {
   const ops: string[] = [];
+  const logo = loadCommercialPdfLogoImage();
   renderBrandHeader(ops, 'INVOICE', invoice.invoiceNumber, invoice.billingDate);
 
   ops.push(pdfText('BILL TO:', 40, 650, 8, 'F2'));
@@ -249,5 +377,5 @@ export function buildCommercialInvoicePdf(invoice: CommercialInvoice): Buffer {
   ops.push(pdfText('TOTAL', 404, 153, 9, 'F2'));
   ops.push(pdfText(money(invoice.amount), 504, 153, 9, 'F2'));
   ops.push(pdfText('Thank you for your business!', 236, 58, 9));
-  return buildPdf(ops.join('\n'));
+  return buildPdf(ops.join('\n'), logo ? [logo] : []);
 }

@@ -21,6 +21,7 @@ import {
   normalizeSubmissionData,
   validateSubmissionAgainstFields,
 } from '../utils/form-contract.util';
+import { loadCommercialPdfLogoImage } from '../utils/commercial-pdf.util';
 
 function pdfEscape(value: string): string {
   return value
@@ -68,6 +69,7 @@ type PdfImage = {
   width: number;
   height: number;
   data: Buffer;
+  filter?: 'DCTDecode' | 'FlateDecode';
 };
 
 function buildPdfContentPdf(content: string, images: PdfImage[] = []): Buffer {
@@ -89,7 +91,7 @@ function buildPdfContentPdf(content: string, images: PdfImage[] = []): Buffer {
     objects.push(
       Buffer.concat([
         Buffer.from(
-          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.data.length} >>\nstream\n`,
+          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${image.filter || 'DCTDecode'} /Length ${image.data.length} >>\nstream\n`,
           'utf8',
         ),
         image.data,
@@ -469,11 +471,17 @@ function buildTimesheetPdf(
 
   const ops: string[] = ['0.18 w', '0 0 0 RG'];
   const images: PdfImage[] = [];
+  const logo = loadCommercialPdfLogoImage('Logo');
+  if (logo) images.push(logo);
   const left = 30;
   const pageW = 552;
   const top = 750;
 
-  ops.push(pdfText('DR Traffic Control LLC', left, top, 13, 'F2'));
+  if (logo) {
+    ops.push('q 130 0 0 41 30 720 cm /Logo Do Q');
+  } else {
+    ops.push(pdfText('DR Traffic Control LLC', left, top, 13, 'F2'));
+  }
   ops.push(pdfText(template?.name || 'Timesheet', 470, top, 9, 'F2'));
 
   const cell = (
@@ -655,6 +663,8 @@ function buildWorkOrderPdf(
   const data = submission.data ?? {};
   const rows = findTimesheetRows(data);
   const images: PdfImage[] = [];
+  const logo = loadCommercialPdfLogoImage('Logo');
+  if (logo) images.push(logo);
   const submittedAt = submission.submittedAt
     ? new Date(submission.submittedAt)
     : new Date();
@@ -675,11 +685,7 @@ function buildWorkOrderPdf(
   const ops: string[] = [
     '0.18 w',
     '0 0 0 RG',
-    pdfFillRect(45, 716, 44, 44, [0.82, 0, 0]),
-    pdfFillRect(52, 724, 30, 7, [1, 1, 1]),
-    pdfFillRect(52, 738, 30, 7, [1, 1, 1]),
-    pdfText('DR', 101, 731, 36, 'F2'),
-    pdfText('TRAFFIC CONTROL', 102, 719, 9, 'F2'),
+    ...(logo ? ['q 130 0 0 41 45 719 cm /Logo Do Q'] : []),
     pdfText('WORK ORDER', 350, 736, 16, 'F2'),
     '0.82 0 0 rg',
     pdfText(`No. ${compactId(displayNumber, 18)}`, 472, 736, 12, 'F2'),

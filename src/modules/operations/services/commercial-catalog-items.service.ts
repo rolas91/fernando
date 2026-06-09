@@ -35,6 +35,7 @@ export class CommercialCatalogItemsService {
       description: dto.description.trim(),
       type: dto.type?.trim() || '',
       dailyRate: dto.dailyRate,
+      itemPrice: dto.itemPrice ?? 0,
       unit: dto.unit?.trim() || 'Each',
       status: dto.status?.trim() || 'active',
       notes: dto.notes?.trim() || '',
@@ -49,6 +50,7 @@ export class CommercialCatalogItemsService {
     if (dto.description !== undefined) item.description = dto.description.trim();
     if (dto.type !== undefined) item.type = dto.type.trim();
     if (dto.dailyRate !== undefined) item.dailyRate = dto.dailyRate;
+    if (dto.itemPrice !== undefined) item.itemPrice = dto.itemPrice;
     if (dto.unit !== undefined) item.unit = dto.unit.trim() || 'Each';
     if (dto.status !== undefined) item.status = dto.status.trim() || 'active';
     if (dto.notes !== undefined) item.notes = dto.notes.trim();

@@ -19,6 +19,10 @@ export class CreateCommercialCatalogItemDto {
   dailyRate: number;
 
   @IsOptional()
+  @IsNumber()
+  itemPrice?: number;
+
+  @IsOptional()
   @IsString()
   unit?: string;
 

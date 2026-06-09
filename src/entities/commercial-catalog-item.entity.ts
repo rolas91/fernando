@@ -23,6 +23,9 @@ export class CommercialCatalogItem {
   @Column({ name: 'daily_rate', type: 'numeric', precision: 12, scale: 2, default: 0 })
   dailyRate: number;
 
+  @Column({ name: 'item_price', type: 'numeric', precision: 12, scale: 2, default: 0 })
+  itemPrice: number;
+
   @Column({ type: 'varchar', length: 40, default: 'Each' })
   unit: string;
 

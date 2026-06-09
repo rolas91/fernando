@@ -6,8 +6,10 @@ import {
   CommercialWorkOrder,
   CommercialWorkOrderStatus,
 } from '../../../entities/commercial-work-order.entity';
+import { CommercialInvoice } from '../../../entities/commercial-invoice.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateCommercialWorkOrderDto } from '../dto/create-commercial-work-order.dto';
+import { GenerateCommercialInvoiceDto } from '../dto/generate-commercial-invoice.dto';
 import { ProcessOffRentDto } from '../dto/process-off-rent.dto';
 import { UpdateCommercialWorkOrderDto } from '../dto/update-commercial-work-order.dto';
 
@@ -18,6 +20,8 @@ type CommercialItem = Record<string, unknown> & {
   qty?: number;
   price?: number;
   amount?: number;
+  dailyRate?: number;
+  unit?: string;
   onRentQty?: number;
   onRentDate?: string;
   offRentQty?: number;
@@ -31,6 +35,8 @@ export class CommercialWorkOrdersService {
   constructor(
     @InjectRepository(CommercialWorkOrder)
     private readonly repo: Repository<CommercialWorkOrder>,
+    @InjectRepository(CommercialInvoice)
+    private readonly invoicesRepo: Repository<CommercialInvoice>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -209,6 +215,76 @@ export class CommercialWorkOrdersService {
     };
   }
 
+  findInvoices() {
+    return this.invoicesRepo.find({ order: { createdAt: 'DESC', invoiceNumber: 'DESC' } });
+  }
+
+  async findInvoice(id: string) {
+    const invoice = await this.invoicesRepo.findOne({ where: { id } });
+    if (!invoice) throw new NotFoundException(`Invoice ${id} not found`);
+    return invoice;
+  }
+
+  async generateInvoice(workOrderId: string, dto: GenerateCommercialInvoiceDto) {
+    const workOrder = await this.findOne(workOrderId);
+    if (workOrder.type !== 'on_rent' || workOrder.status !== 'on_rent') {
+      throw new BadRequestException('Only active On Rent work orders can generate rental invoices.');
+    }
+    const billingDate = dto.billingDate || this.todayIso();
+    const itemIdSet = new Set((dto.itemIds || []).filter(Boolean));
+    const allItems = this.asItems(workOrder.items);
+    const sourceItems = itemIdSet.size > 0
+      ? allItems.filter((item) => itemIdSet.has(item.id))
+      : allItems;
+    if (sourceItems.length === 0) {
+      throw new BadRequestException('At least one item must be selected for the invoice.');
+    }
+    const invoiceItems = sourceItems.map((item) => {
+      const duration = this.diffDays(item.onRentDate || workOrder.onRentDate, billingDate) || 28;
+      const qty = this.numberValue(item.onRentQty);
+      const dailyRate = this.numberValue(item.dailyRate);
+      const amount = qty * dailyRate * duration;
+      return {
+        itemId: item.id,
+        sku: item.sku,
+        description: item.description,
+        onRentQty: qty,
+        rentalDurationDays: duration,
+        invoiceQty: qty,
+        unit: item.unit || 'Each',
+        unitPrice: dailyRate,
+        amount,
+      };
+    });
+    const amount = invoiceItems.reduce((sum, item) => sum + this.numberValue(item.amount), 0);
+    const invoice = this.invoicesRepo.create({
+      id: `cinv_${randomUUID()}`,
+      invoiceNumber: await this.nextInvoiceNumber(),
+      commercialWorkOrderId: workOrder.id,
+      workOrderNumber: workOrder.workOrderNumber,
+      customerName: workOrder.customerName,
+      jobName: workOrder.jobName,
+      contact: workOrder.contact,
+      email: workOrder.email,
+      billingDate,
+      nextInvoiceDate: this.addDays(billingDate, 28),
+      amount,
+      status: 'generated',
+      items: invoiceItems,
+      createdBy: dto.createdBy?.trim() || '',
+    });
+    invoice.pdfHtml = this.renderInvoiceHtml(invoice);
+    const saved = await this.invoicesRepo.save(invoice);
+
+    workOrder.previousBillingDate = billingDate;
+    workOrder.nextInvoiceDate = saved.nextInvoiceDate;
+    await this.repo.save(workOrder);
+
+    this.realtime.emitTableUpdated('commercial_invoices');
+    this.realtime.emitTableUpdated('commercial_work_orders');
+    return saved;
+  }
+
   private resolveCreateStatus(type: 'sale' | 'on_rent', status?: string) {
     if (status === 'draft') return 'draft';
     return type === 'sale' ? 'sale_completed' : 'on_rent';
@@ -220,6 +296,7 @@ export class CommercialWorkOrdersService {
       const qty = this.numberValue(item.qty);
       const price = this.numberValue(item.price);
       const onRentQty = this.numberValue(item.onRentQty || item.qty);
+      const dailyRate = this.numberValue(item.dailyRate ?? item.price);
       return {
         id: typeof item.id === 'string' && item.id.trim() ? item.id : `line_${randomUUID()}`,
         catalogItemId: typeof item.catalogItemId === 'string' ? item.catalogItemId : '',
@@ -229,6 +306,8 @@ export class CommercialWorkOrdersService {
         qty: type === 'sale' ? qty : undefined,
         price: type === 'sale' ? price : undefined,
         amount: type === 'sale' ? qty * price : undefined,
+        dailyRate,
+        unit: String(item.unit || 'Each').trim() || 'Each',
         onRentQty: type === 'on_rent' ? onRentQty : undefined,
         onRentDate: type === 'on_rent' ? String(item.onRentDate || defaultOnRentDate) : undefined,
         notes: String(item.notes || '').trim(),
@@ -249,6 +328,16 @@ export class CommercialWorkOrdersService {
       .getOne();
     const current = Number((latest?.workOrderNumber || 'WO-00000').replace(/\D/g, ''));
     return `WO-${String(current + 1).padStart(5, '0')}`;
+  }
+
+  private async nextInvoiceNumber() {
+    const latest = await this.invoicesRepo
+      .createQueryBuilder('invoice')
+      .where("invoice.invoice_number ~ '^INV-[0-9]+$'")
+      .orderBy('invoice.invoiceNumber', 'DESC')
+      .getOne();
+    const current = Number((latest?.invoiceNumber || 'INV-000000').replace(/\D/g, ''));
+    return `INV-${String(current + 1).padStart(6, '0')}`;
   }
 
   private async nextRolloverNumber(original: CommercialWorkOrder) {
@@ -290,6 +379,27 @@ export class CommercialWorkOrdersService {
       <table><thead><tr><th>Item</th><th>Description</th><th>Qty</th><th>Unit</th><th>${isSale ? 'Price' : 'Daily Rate'}</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="notes"><strong>Notes:</strong><br/>${this.escape(workOrder.notes || workOrder.descriptionOfWork)}</div>
       ${isSale ? `<div class="total"><div><span>Subtotal</span><strong>${this.money(total)}</strong></div><div><span>Tax (0%)</span><strong>$0.00</strong></div><div class="grand"><span>Total</span><span>${this.money(total)}</span></div></div>` : ''}
+      <div class="footer">Thank you for your business!</div>
+    </body></html>`;
+  }
+
+  private renderInvoiceHtml(invoice: CommercialInvoice) {
+    const rows = (Array.isArray(invoice.items) ? invoice.items : [])
+      .map((raw) => {
+        const item = raw as Record<string, unknown>;
+        return `<tr><td>${this.escape(item.sku)}</td><td>${this.escape(item.description)}</td><td>${this.numberValue(item.onRentQty)}</td><td>${this.numberValue(item.rentalDurationDays)}</td><td>${this.numberValue(item.invoiceQty)}</td><td>${this.money(this.numberValue(item.unitPrice))}</td><td>${this.money(this.numberValue(item.amount))}</td></tr>`;
+      })
+      .join('');
+    return `<!doctype html><html><head><meta charset="utf-8"><style>
+      body{font-family:Arial,sans-serif;color:#111827;margin:32px}.top{display:flex;justify-content:space-between;border-bottom:2px solid #94a3b8;padding-bottom:20px}
+      .logo{font-size:48px;font-weight:900;letter-spacing:-4px}.red{color:#d40000}.meta{text-align:right}.meta h1{margin:0;font-size:30px}.meta h2{margin:6px 0;color:#b91c1c}
+      .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin:28px 0}.label{color:#b91c1c;font-size:12px;font-weight:700;text-transform:uppercase}.value{margin-top:8px;line-height:1.45}
+      table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#111827;color:#fff;font-size:12px;text-transform:uppercase}td,th{border:1px solid #cbd5e1;padding:10px}td:not(:nth-child(2)){text-align:center}.total{margin-left:auto;margin-top:18px;width:320px}.total div{display:flex;justify-content:space-between;border:1px solid #cbd5e1;padding:10px}.grand{background:#d40000;color:white;font-weight:800}.footer{text-align:center;color:#64748b;margin-top:42px}
+    </style></head><body>
+      <div class="top"><div><div class="logo"><span class="red">DR</span></div><div class="label">Traffic Control</div><div class="value">456 Traffic Way<br/>San Jose, CA 95131</div></div><div class="meta"><h1>INVOICE</h1><h2>${this.escape(invoice.invoiceNumber)}</h2><div>Billing Date: ${this.escape(invoice.billingDate)}</div><div>Work Order: ${this.escape(invoice.workOrderNumber)}</div></div></div>
+      <div class="grid"><div><div class="label">Bill To</div><div class="value">${this.escape(invoice.customerName)}<br/>${this.escape(invoice.contact)}<br/>${this.escape(invoice.email)}</div></div><div><div class="label">Job Name</div><div class="value">${this.escape(invoice.jobName)}</div></div><div><div class="label">Next Invoice Date</div><div class="value">${this.escape(invoice.nextInvoiceDate)}</div></div></div>
+      <table><thead><tr><th>SKU</th><th>Description</th><th>On Rent Qty</th><th>Rental Duration</th><th>This Invoice Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="total"><div><span>Subtotal</span><strong>${this.money(Number(invoice.amount))}</strong></div><div><span>Tax (0%)</span><strong>$0.00</strong></div><div class="grand"><span>Total</span><span>${this.money(Number(invoice.amount))}</span></div></div>
       <div class="footer">Thank you for your business!</div>
     </body></html>`;
   }

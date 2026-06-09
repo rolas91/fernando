@@ -2,6 +2,7 @@ import { Body, Controller, Get, Header, Param, Patch, Post, UseGuards } from '@n
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateCommercialWorkOrderDto } from '../dto/create-commercial-work-order.dto';
+import { GenerateCommercialInvoiceDto } from '../dto/generate-commercial-invoice.dto';
 import { ProcessOffRentDto } from '../dto/process-off-rent.dto';
 import { UpdateCommercialWorkOrderDto } from '../dto/update-commercial-work-order.dto';
 import { CommercialWorkOrdersService } from '../services/commercial-work-orders.service';
@@ -20,6 +21,23 @@ export class CommercialWorkOrdersController {
   @Get('open-rentals')
   findOpenRentals() {
     return this.service.findOpenRentals();
+  }
+
+  @Get('invoices')
+  findInvoices() {
+    return this.service.findInvoices();
+  }
+
+  @Get('invoices/:invoiceId')
+  findInvoice(@Param('invoiceId') invoiceId: string) {
+    return this.service.findInvoice(invoiceId);
+  }
+
+  @Get('invoices/:invoiceId/pdf')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  async invoicePdf(@Param('invoiceId') invoiceId: string) {
+    const invoice = await this.service.findInvoice(invoiceId);
+    return invoice.pdfHtml;
   }
 
   @Get(':id')
@@ -55,5 +73,14 @@ export class CommercialWorkOrdersController {
   @ApiBody({ type: ProcessOffRentDto })
   processOffRent(@Param('id') id: string, @Body() dto: ProcessOffRentDto) {
     return this.service.processOffRent(id, dto);
+  }
+
+  @Post(':id/invoices')
+  @ApiBody({ type: GenerateCommercialInvoiceDto })
+  generateInvoice(
+    @Param('id') id: string,
+    @Body() dto: GenerateCommercialInvoiceDto,
+  ) {
+    return this.service.generateInvoice(id, dto);
   }
 }

@@ -19,7 +19,7 @@ export class CommercialWorkOrderItemDto {
 
   @IsOptional()
   @IsString()
-  catalogSource?: 'material' | 'equipment';
+  catalogSource?: 'commercial' | 'material' | 'equipment';
 
   @IsString()
   sku: string;
@@ -34,6 +34,14 @@ export class CommercialWorkOrderItemDto {
   @IsOptional()
   @IsNumber()
   price?: number;
+
+  @IsOptional()
+  @IsNumber()
+  dailyRate?: number;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
 
   @IsOptional()
   @IsNumber()

@@ -4,6 +4,8 @@ import { ActivityFeedItem } from '../../entities/activity-feed.entity';
 import { AvailabilityRequest } from '../../entities/availability-request.entity';
 import { Certification } from '../../entities/certification.entity';
 import { Client } from '../../entities/client.entity';
+import { CommercialCatalogItem } from '../../entities/commercial-catalog-item.entity';
+import { CommercialInvoice } from '../../entities/commercial-invoice.entity';
 import { CommercialWorkOrder } from '../../entities/commercial-work-order.entity';
 import { CompanySettings } from '../../entities/company-settings.entity';
 import { Equipment } from '../../entities/equipment.entity';
@@ -34,6 +36,7 @@ import { ActivityFeedController } from './controllers/activity-feed.controller';
 import { AvailabilityRequestsController } from './controllers/availability-requests.controller';
 import { CertificationsController } from './controllers/certifications.controller';
 import { ClientsController } from './controllers/clients.controller';
+import { CommercialCatalogItemsController } from './controllers/commercial-catalog-items.controller';
 import { CommercialWorkOrdersController } from './controllers/commercial-work-orders.controller';
 import { CompanySettingsController } from './controllers/company-settings.controller';
 import { EquipmentController } from './controllers/equipment.controller';
@@ -58,6 +61,7 @@ import { ActivityFeedService } from './services/activity-feed.service';
 import { AvailabilityRequestsService } from './services/availability-requests.service';
 import { CertificationsService } from './services/certifications.service';
 import { ClientsService } from './services/clients.service';
+import { CommercialCatalogItemsService } from './services/commercial-catalog-items.service';
 import { CommercialWorkOrdersService } from './services/commercial-work-orders.service';
 import { CompanySettingsService } from './services/company-settings.service';
 import { EquipmentService } from './services/equipment.service';
@@ -92,6 +96,8 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     TypeOrmModule.forFeature([
       Worker,
       WorkerRole,
+      CommercialCatalogItem,
+      CommercialInvoice,
       CommercialWorkOrder,
       Skill,
       WorkerCertification,
@@ -129,6 +135,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     WorkOrdersController,
     WorkOrderTypesController,
     ClientsController,
+    CommercialCatalogItemsController,
     CommercialWorkOrdersController,
     EquipmentController,
     MaterialsController,
@@ -155,6 +162,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     ProjectTypesService,
     WorkOrdersService,
     WorkOrderTypesService,
+    CommercialCatalogItemsService,
     CommercialWorkOrdersService,
     ClientsService,
     EquipmentService,
@@ -184,6 +192,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     ProjectTypesService,
     WorkOrdersService,
     WorkOrderTypesService,
+    CommercialCatalogItemsService,
     CommercialWorkOrdersService,
     ClientsService,
     EquipmentService,

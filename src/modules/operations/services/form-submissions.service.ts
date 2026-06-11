@@ -12,10 +12,7 @@ import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
 import { UpdateFormSubmissionDto } from '../dto/update-form-submission.dto';
 import { SpacesStorageService } from './spaces-storage.service';
-import {
-  normalizeTimesheetSubmissionRow,
-  TimesheetsService,
-} from './timesheets.service';
+import { TimesheetsService } from './timesheets.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -1113,15 +1110,28 @@ export class FormSubmissionsService {
     actor?: UserAccessContext,
   ) {
     const normalized = normalizeSubmissionData(data);
-    if (!(await this.isMobileSelfTimesheetSubmission(template, actor, normalized))) return normalized;
+    if (!isTimesheetTemplate(template)) return normalized;
 
-    const workerId = await this.resolveWorkerIdForActor(actor);
+    const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(
+      template,
+      actor,
+      normalized,
+    );
+    const workerId = isSelfTimesheet
+      ? await this.resolveWorkerIdForActor(actor)
+      : '';
     const next: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(normalized)) {
       if (Array.isArray(value) && value.some(isTimesheetRowLike)) {
-        next[key] = value
-          .filter((row) => isTimesheetRowLike(row) && row.workerId === workerId)
-          .map((row) => normalizeTimesheetSubmissionRow(row));
+        next[key] = await Promise.all(
+          value
+            .filter(
+              (row) =>
+                isTimesheetRowLike(row) &&
+                (!isSelfTimesheet || row.workerId === workerId),
+            )
+            .map((row) => this.timesheetsService.normalizeSubmissionRow(row)),
+        );
       } else {
         next[key] = value;
       }

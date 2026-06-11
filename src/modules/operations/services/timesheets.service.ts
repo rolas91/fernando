@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
+import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Timesheet } from '../../../entities/timesheet.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
@@ -17,6 +18,8 @@ export class TimesheetsService {
     private readonly formSubmissionsRepo: Repository<FormSubmission>,
     @InjectRepository(FormTemplate)
     private readonly formTemplatesRepo: Repository<FormTemplate>,
+    @InjectRepository(CompanySettings)
+    private readonly companySettingsRepo: Repository<CompanySettings>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -68,6 +71,7 @@ export class TimesheetsService {
     opts?: { workOrderId?: string; shiftId?: string; projectId?: string; emitRealtime?: boolean },
   ) {
     const saved: Timesheet[] = [];
+    const calculationRules = await this.getCalculationRules();
 
     for (const row of rows) {
       const workerId = stringValue(row.workerId);
@@ -82,7 +86,10 @@ export class TimesheetsService {
       const clockIn = stringValue(row.startTime) || stringValue(row.clockIn) || existing?.clockIn || '';
       const clockOut = stringValue(row.endTime) || stringValue(row.clockOut) || existing?.clockOut || '';
       const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
-      const hours = calculateTimesheetHours({ startTime: clockIn, endTime: clockOut, lunchTaken });
+      const hours = calculateTimesheetHours(
+        { startTime: clockIn, endTime: clockOut, lunchTaken },
+        calculationRules,
+      );
       const next = this.timesheetsRepo.create({
         ...(existing ?? {}),
         id:
@@ -117,6 +124,17 @@ export class TimesheetsService {
       this.realtime.emitTableUpdated('timesheets');
     }
     return saved;
+  }
+
+  async normalizeSubmissionRow(row: Record<string, unknown>) {
+    return normalizeTimesheetSubmissionRow(row, await this.getCalculationRules());
+  }
+
+  private async getCalculationRules(): Promise<TimesheetCalculationRules> {
+    const settings = await this.companySettingsRepo.findOne({
+      where: { id: 'default' },
+    });
+    return timesheetCalculationRules(settings?.overtimeRules);
   }
 
   async removeShiftWorkerRows(
@@ -316,13 +334,36 @@ function timeToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
+export type TimesheetCalculationRules = {
+  regularHoursLimit: number;
+  doubleTimeThreshold: number;
+  noLunchCreditEnabled: boolean;
+  noLunchCreditMinimumHours: number;
+  noLunchCreditHours: number;
+};
+
+export function timesheetCalculationRules(
+  rules?: Record<string, unknown> | null,
+): TimesheetCalculationRules {
+  return {
+    regularHoursLimit: positiveNumber(rules?.regularHoursLimit, 8),
+    doubleTimeThreshold: positiveNumber(rules?.doubleTimeThreshold, 12),
+    noLunchCreditEnabled: booleanValue(rules?.noLunchCreditEnabled, true),
+    noLunchCreditMinimumHours: nonNegativeNumber(
+      rules?.noLunchCreditMinimumHours,
+      7,
+    ),
+    noLunchCreditHours: nonNegativeNumber(rules?.noLunchCreditHours, 1),
+  };
+}
+
 export function calculateTimesheetHours(row: {
   startTime?: string;
   endTime?: string;
   clockIn?: string;
   clockOut?: string;
   lunchTaken?: boolean;
-}) {
+}, rules: TimesheetCalculationRules = timesheetCalculationRules()) {
   const startLabel = stringValue(row.startTime) || stringValue(row.clockIn);
   const endLabel = stringValue(row.endTime) || stringValue(row.clockOut);
   const start = timeToMinutes(startLabel);
@@ -335,11 +376,17 @@ export function calculateTimesheetHours(row: {
   }
 
   const totalHours = (end - start) / 60;
-  const regularLimit = 8;
-  const doubleTimeThreshold = 12;
+  const regularLimit = rules.regularHoursLimit;
+  const doubleTimeThreshold = Math.max(rules.doubleTimeThreshold, regularLimit);
   const dt = Math.max(0, totalHours - doubleTimeThreshold);
   const ot = Math.max(0, Math.min(totalHours, doubleTimeThreshold) - regularLimit);
-  const st = Math.min(totalHours, regularLimit) + (row.lunchTaken === false ? 1 : 0);
+  const lunchCredit =
+    rules.noLunchCreditEnabled &&
+    row.lunchTaken === false &&
+    totalHours > rules.noLunchCreditMinimumHours
+      ? rules.noLunchCreditHours
+      : 0;
+  const st = Math.min(totalHours, regularLimit) + lunchCredit;
 
   return {
     st: roundHours(st),
@@ -349,11 +396,17 @@ export function calculateTimesheetHours(row: {
   };
 }
 
-export function normalizeTimesheetSubmissionRow(row: Record<string, unknown>) {
+export function normalizeTimesheetSubmissionRow(
+  row: Record<string, unknown>,
+  rules: TimesheetCalculationRules = timesheetCalculationRules(),
+) {
   const clockIn = stringValue(row.startTime) || stringValue(row.clockIn);
   const clockOut = stringValue(row.endTime) || stringValue(row.clockOut);
   const lunchTaken = booleanValue(row.lunchTaken, false);
-  const hours = calculateTimesheetHours({ startTime: clockIn, endTime: clockOut, lunchTaken });
+  const hours = calculateTimesheetHours(
+    { startTime: clockIn, endTime: clockOut, lunchTaken },
+    rules,
+  );
   return {
     ...row,
     startTime: clockIn,
@@ -364,6 +417,16 @@ export function normalizeTimesheetSubmissionRow(row: Record<string, unknown>) {
     total: hours.total,
     lunchTaken,
   };
+}
+
+function positiveNumber(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function nonNegativeNumber(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function deterministicTimesheetId(workOrderId: string, shiftId: string, workerId: string): string {

@@ -53,6 +53,9 @@ const DEFAULT_SETTINGS: Pick<
     overtimeMultiplier: 1.5,
     doubleTimeThreshold: 12,
     doubleTimeMultiplier: 2.0,
+    noLunchCreditEnabled: true,
+    noLunchCreditMinimumHours: 7,
+    noLunchCreditHours: 1,
   },
   workerTypes: [
     'Full-Time Employee',

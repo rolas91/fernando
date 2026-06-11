@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -6,19 +7,27 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
+import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateCompanySettingsDto } from '../dto/create-company-settings.dto';
 import { UpdateCompanySettingsDto } from '../dto/update-company-settings.dto';
 import { CompanySettingsService } from '../services/company-settings.service';
+import { SpacesStorageService } from '../services/spaces-storage.service';
 
 @ApiTags('operations')
 @Controller('company-settings')
 @UseGuards(OperationsAuthGuard)
 export class CompanySettingsController {
-  constructor(private readonly service: CompanySettingsService) {}
+  constructor(
+    private readonly service: CompanySettingsService,
+    private readonly spaces: SpacesStorageService,
+  ) {}
 
   @Get()
   findAll() {
@@ -45,5 +54,17 @@ export class CompanySettingsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  @Post('logo-upload')
+  @UseInterceptors(
+    FileInterceptor('file', createSpacesUploadMulterOptions('logo')),
+  )
+  async uploadLogo(
+    @UploadedFile() file: { originalname?: string; mimetype?: string; buffer?: Buffer; size?: number },
+  ) {
+    if (!file) throw new BadRequestException('No file provided.');
+    const result = await this.spaces.uploadLogo(file);
+    return { url: result?.url || '' };
   }
 }

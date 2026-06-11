@@ -22,6 +22,14 @@ export const ALLOWED_WORKER_UPLOAD_MIME = new Set([
   'image/png',
 ]);
 
+/** Logo: solo imágenes. */
+export const ALLOWED_LOGO_UPLOAD_MIME = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/svg+xml',
+]);
+
 /** Work orders: PDF, imágenes, Office habitual. */
 export const ALLOWED_WORK_ORDER_UPLOAD_MIME = new Set([
   'application/pdf',
@@ -53,13 +61,14 @@ export const ALLOWED_SHIFT_CHAT_UPLOAD_MIME = new Set([
 ]);
 
 export const ALLOWED_MIME_BY_UPLOAD_SCOPE: Record<
-  'workers' | 'work-orders' | 'certifications' | 'shift-chat',
+  'workers' | 'work-orders' | 'certifications' | 'shift-chat' | 'logo',
   ReadonlySet<string>
 > = {
   certifications: ALLOWED_CERTIFICATION_UPLOAD_MIME,
   workers: ALLOWED_WORKER_UPLOAD_MIME,
   'work-orders': ALLOWED_WORK_ORDER_UPLOAD_MIME,
   'shift-chat': ALLOWED_SHIFT_CHAT_UPLOAD_MIME,
+  logo: ALLOWED_LOGO_UPLOAD_MIME,
 };
 
 export type SpacesUploadScope = keyof typeof ALLOWED_MIME_BY_UPLOAD_SCOPE;

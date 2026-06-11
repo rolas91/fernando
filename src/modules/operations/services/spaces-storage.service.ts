@@ -54,8 +54,15 @@ export class SpacesStorageService {
     return this.uploadFilesForScope('shift-chat', files, shiftId);
   }
 
+  async uploadLogo(
+    file: UploadFileCandidate,
+  ) {
+    const results = await this.uploadFilesForScope('logo', [file], 'company');
+    return results[0] || null;
+  }
+
   private async uploadFilesForScope(
-    scopePrefix: 'workers' | 'work-orders' | 'certifications' | 'shift-chat',
+    scopePrefix: 'workers' | 'work-orders' | 'certifications' | 'shift-chat' | 'logo',
     files: UploadFileCandidate[],
     scopeId?: string,
   ) {

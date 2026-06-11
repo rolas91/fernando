@@ -45,6 +45,9 @@ export class CompanySettings {
   @Column({ name: 'assignment_auto_status', type: 'jsonb', nullable: true })
   assignmentAutoStatus: Record<string, unknown> | null;
 
+  @Column({ name: 'minimum_rest_hours', type: 'numeric', precision: 4, scale: 1, default: 8.0 })
+  minimumRestHours: number;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

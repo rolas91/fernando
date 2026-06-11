@@ -24,6 +24,10 @@ export class CreateCompanySettingsDto {
   logo?: string;
 
   @IsOptional()
+  @IsString()
+  logoIcon?: string;
+
+  @IsOptional()
   @IsObject()
   overtimeRules?: Record<string, unknown>;
 

@@ -67,4 +67,16 @@ export class CompanySettingsController {
     const result = await this.spaces.uploadLogo(file);
     return { url: result?.url || '' };
   }
+
+  @Post('logo-icon-upload')
+  @UseInterceptors(
+    FileInterceptor('file', createSpacesUploadMulterOptions('logo')),
+  )
+  async uploadLogoIcon(
+    @UploadedFile() file: { originalname?: string; mimetype?: string; buffer?: Buffer; size?: number },
+  ) {
+    if (!file) throw new BadRequestException('No file provided.');
+    const result = await this.spaces.uploadLogo(file);
+    return { url: result?.url || '' };
+  }
 }

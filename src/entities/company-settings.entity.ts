@@ -26,6 +26,9 @@ export class CompanySettings {
   @Column({ type: 'text', nullable: true })
   logo: string | null;
 
+  @Column({ name: 'logo_icon', type: 'text', nullable: true })
+  logoIcon: string | null;
+
   @Column({ name: 'overtime_rules', type: 'jsonb', nullable: true })
   overtimeRules: Record<string, unknown> | null;
 

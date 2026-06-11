@@ -1,4 +1,4 @@
-import { IsArray, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class CreateCompanySettingsDto {
   @IsString()
@@ -46,4 +46,8 @@ export class CreateCompanySettingsDto {
   @IsOptional()
   @IsObject()
   assignmentAutoStatus?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsNumber()
+  minimumRestHours?: number;
 }

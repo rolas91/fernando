@@ -159,7 +159,7 @@ export class SpacesStorageService {
 
   private assertUploadCandidate(
     file: UploadFileCandidate,
-    scope: 'workers' | 'work-orders' | 'certifications' | 'shift-chat',
+    scope: 'workers' | 'work-orders' | 'certifications' | 'shift-chat' | 'logo',
     maxBytes: number,
   ) {
     const buffer = file.buffer;

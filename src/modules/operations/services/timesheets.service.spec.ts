@@ -48,6 +48,21 @@ describe('calculateTimesheetHours', () => {
       ),
     ).toEqual({ st: 8, ot: 1, dt: 0, total: 9 });
   });
+
+  it('calculates an overnight shift using the next-day end time', () => {
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '07:00 PM',
+          endTime: '04:00 AM',
+          scheduledStartTime: '19:00',
+          scheduledEndTime: '04:00',
+          lunchTaken: true,
+        },
+        rules,
+      ),
+    ).toEqual({ st: 8, ot: 1, dt: 0, total: 9 });
+  });
 });
 
 describe('validateTimesheetStartTime', () => {
@@ -63,5 +78,11 @@ describe('validateTimesheetStartTime', () => {
     expect(() => validateTimesheetStartTime('06:59 AM', '07:00')).toThrow(
       'cannot be earlier',
     );
+  });
+
+  it('accepts the scheduled start for an overnight shift', () => {
+    expect(() =>
+      validateTimesheetStartTime('07:00 PM', '19:00', '04:00'),
+    ).not.toThrow();
   });
 });

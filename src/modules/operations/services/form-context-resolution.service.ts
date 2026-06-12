@@ -133,6 +133,57 @@ function workerRoleNames(shift: ShiftLike, workerId: string): string[] {
   return [...names];
 }
 
+function workerRoleStartTime(shift: ShiftLike, workerId: string): string {
+  const roles = shift.roles;
+  if (!Array.isArray(roles)) return shiftString(shift, 'startTime');
+  for (const role of roles) {
+    if (!isRecord(role)) continue;
+    const assignedWorkers = Array.isArray(role.assignedWorkers)
+      ? role.assignedWorkers
+      : [];
+    if (!assignedWorkers.includes(workerId)) continue;
+    if (typeof role.startTime === 'string' && role.startTime.trim()) {
+      return role.startTime;
+    }
+  }
+  return shiftString(shift, 'defaultRoleStartTime') || shiftString(shift, 'startTime');
+}
+
+function clockMinutes(value: string) {
+  const normalized = value.trim();
+  const twelveHour = normalized.match(/^(\d{1,2}):(\d{2})\s*([AP])\.?M\.?$/i);
+  if (twelveHour) {
+    let hours = Number(twelveHour[1]);
+    const minutes = Number(twelveHour[2]);
+    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
+    if (twelveHour[3].toUpperCase() === 'A' && hours === 12) hours = 0;
+    if (twelveHour[3].toUpperCase() === 'P' && hours !== 12) hours += 12;
+    return hours * 60 + minutes;
+  }
+  const twentyFourHour = normalized.match(/^(\d{1,2}):(\d{2})$/);
+  if (!twentyFourHour) return null;
+  const hours = Number(twentyFourHour[1]);
+  const minutes = Number(twentyFourHour[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function validExistingClockIn(
+  value: string | null | undefined,
+  scheduledStartTime: string,
+  scheduledEndTime: string,
+) {
+  if (!value) return false;
+  const start = clockMinutes(value);
+  const scheduledStart = clockMinutes(scheduledStartTime);
+  const scheduledEnd = clockMinutes(scheduledEndTime);
+  if (start === null || scheduledStart === null) return false;
+  if (scheduledEnd !== null && scheduledEnd <= scheduledStart && start <= scheduledEnd) {
+    return true;
+  }
+  return start >= scheduledStart;
+}
+
 function hasTimesheetSupervisorRole(roleNames: string[]) {
   return roleNames.some((roleName) =>
     /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(roleName),
@@ -572,8 +623,8 @@ export class FormContextResolutionService {
     const timesheetByWorkerId = new Map(
       existingTimesheets.map((timesheet) => [timesheet.workerId, timesheet]),
     );
-    const scheduledStartTime = formatTimesheetClockLabel(
-      shiftString(shift, 'startTime'),
+    const scheduledEndTime = formatTimesheetClockLabel(
+      shiftString(shift, 'endTime'),
     );
     return workerIds.map((workerId, index) => {
       const worker = workerById.get(workerId);
@@ -581,6 +632,16 @@ export class FormContextResolutionService {
       const workerName = worker
         ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
         : workerId;
+      const scheduledStartTime = formatTimesheetClockLabel(
+        workerRoleStartTime(shift, workerId),
+      );
+      const existingClockIn = validExistingClockIn(
+        timesheet?.clockIn,
+        scheduledStartTime,
+        scheduledEndTime,
+      )
+        ? timesheet?.clockIn
+        : '';
       return {
         workerId,
         workerName,
@@ -593,8 +654,9 @@ export class FormContextResolutionService {
         shiftId,
         shiftDate: timesheet?.date || shiftString(shift, 'date'),
         scheduledStartTime,
-        startTime: timesheet?.clockIn || scheduledStartTime,
-        endTime: timesheet?.clockOut || formatTimesheetClockLabel(shiftString(shift, 'endTime')),
+        scheduledEndTime,
+        startTime: existingClockIn || scheduledStartTime,
+        endTime: timesheet?.clockOut || scheduledEndTime,
         st: Number(timesheet?.regularHours ?? 0),
         ot: Number(timesheet?.overtimeHours ?? 0),
         dt: Number(timesheet?.doubleTimeHours ?? 0),

@@ -88,14 +88,25 @@ export class TimesheetsService {
       const status = operationalTimesheetStatus(row.status, existing?.status);
       const clockIn = stringValue(row.startTime) || stringValue(row.clockIn) || existing?.clockIn || '';
       const clockOut = stringValue(row.endTime) || stringValue(row.clockOut) || existing?.clockOut || '';
-      const scheduledStartTime = await this.getScheduledStartTime(
+      const scheduledTimes = await this.getScheduledShiftTimes(
         workOrderId,
         shiftId,
+        workerId,
       );
-      validateTimesheetStartTime(clockIn, scheduledStartTime);
+      validateTimesheetStartTime(
+        clockIn,
+        scheduledTimes.startTime,
+        scheduledTimes.endTime,
+      );
       const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
       const hours = calculateTimesheetHours(
-        { startTime: clockIn, endTime: clockOut, lunchTaken },
+        {
+          startTime: clockIn,
+          endTime: clockOut,
+          scheduledStartTime: scheduledTimes.startTime,
+          scheduledEndTime: scheduledTimes.endTime,
+          lunchTaken,
+        },
         calculationRules,
       );
       const next = this.timesheetsRepo.create({
@@ -140,18 +151,28 @@ export class TimesheetsService {
   ) {
     const workOrderId = stringValue(row.workOrderId) || opts?.workOrderId || '';
     const shiftId = stringValue(row.shiftId) || opts?.shiftId || '';
-    const scheduledStartTime =
+    const workerId = stringValue(row.workerId);
+    const scheduledTimes =
       (workOrderId && shiftId
-        ? await this.getScheduledStartTime(workOrderId, shiftId)
-        : '') || stringValue(row.scheduledStartTime);
+        ? await this.getScheduledShiftTimes(workOrderId, shiftId, workerId)
+        : { startTime: '', endTime: '' });
+    const scheduledStartTime =
+      scheduledTimes.startTime || stringValue(row.scheduledStartTime);
+    const scheduledEndTime =
+      scheduledTimes.endTime || stringValue(row.scheduledEndTime);
     const normalized = normalizeTimesheetSubmissionRow(
-      row,
+      { ...row, scheduledStartTime, scheduledEndTime },
       await this.getCalculationRules(),
     );
-    validateTimesheetStartTime(stringValue(normalized.startTime), scheduledStartTime);
+    validateTimesheetStartTime(
+      stringValue(normalized.startTime),
+      scheduledStartTime,
+      scheduledEndTime,
+    );
     return {
       ...normalized,
       scheduledStartTime,
+      scheduledEndTime,
     };
   }
 
@@ -162,7 +183,11 @@ export class TimesheetsService {
     return timesheetCalculationRules(settings?.overtimeRules);
   }
 
-  private async getScheduledStartTime(workOrderId: string, shiftId: string) {
+  private async getScheduledShiftTimes(
+    workOrderId: string,
+    shiftId: string,
+    workerId: string,
+  ) {
     const workOrder = await this.workOrdersRepo.findOne({
       where: { id: workOrderId },
       select: { id: true, shifts: true },
@@ -170,7 +195,22 @@ export class TimesheetsService {
     const shift = workOrder?.shifts.find(
       (entry) => stringValue(entry.id) === shiftId,
     );
-    return stringValue(shift?.startTime);
+    const roles = Array.isArray(shift?.roles)
+      ? (shift.roles as Record<string, unknown>[])
+      : [];
+    const role = roles.find((entry) => {
+      const assignedWorkers = Array.isArray(entry.assignedWorkers)
+        ? entry.assignedWorkers
+        : [];
+      return assignedWorkers.includes(workerId);
+    });
+    return {
+      startTime:
+        stringValue(role?.startTime) ||
+        stringValue(shift?.defaultRoleStartTime) ||
+        stringValue(shift?.startTime),
+      endTime: stringValue(shift?.endTime),
+    };
   }
 
   async removeShiftWorkerRows(
@@ -398,12 +438,20 @@ export function calculateTimesheetHours(row: {
   endTime?: string;
   clockIn?: string;
   clockOut?: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
   lunchTaken?: boolean;
 }, rules: TimesheetCalculationRules = timesheetCalculationRules()) {
   const startLabel = stringValue(row.startTime) || stringValue(row.clockIn);
   const endLabel = stringValue(row.endTime) || stringValue(row.clockOut);
-  const start = timeToMinutes(startLabel);
-  const end = timeToMinutes(endLabel);
+  const timeline = timesheetTimeline(
+    startLabel,
+    endLabel,
+    stringValue(row.scheduledStartTime),
+    stringValue(row.scheduledEndTime),
+  );
+  const start = timeline.adjustedStart;
+  const end = timeline.adjustedEnd;
   if (start === null || end === null) {
     throw new BadRequestException('Timesheet Start Time and End Time must use HH:mm format.');
   }
@@ -435,10 +483,17 @@ export function calculateTimesheetHours(row: {
 export function validateTimesheetStartTime(
   startTime: string,
   scheduledStartTime: string,
+  scheduledEndTime = '',
 ) {
   if (!scheduledStartTime) return;
-  const start = timeToMinutes(startTime);
-  const scheduledStart = timeToMinutes(scheduledStartTime);
+  const timeline = timesheetTimeline(
+    startTime,
+    scheduledEndTime || startTime,
+    scheduledStartTime,
+    scheduledEndTime,
+  );
+  const start = timeline.adjustedStart;
+  const scheduledStart = timeline.scheduledStart;
   if (start === null || scheduledStart === null) {
     throw new BadRequestException(
       'Timesheet Start Time and scheduled shift start must use HH:mm format.',
@@ -459,7 +514,13 @@ export function normalizeTimesheetSubmissionRow(
   const clockOut = stringValue(row.endTime) || stringValue(row.clockOut);
   const lunchTaken = booleanValue(row.lunchTaken, false);
   const hours = calculateTimesheetHours(
-    { startTime: clockIn, endTime: clockOut, lunchTaken },
+    {
+      startTime: clockIn,
+      endTime: clockOut,
+      scheduledStartTime: stringValue(row.scheduledStartTime),
+      scheduledEndTime: stringValue(row.scheduledEndTime),
+      lunchTaken,
+    },
     rules,
   );
   return {
@@ -472,6 +533,41 @@ export function normalizeTimesheetSubmissionRow(
     total: hours.total,
     lunchTaken,
   };
+}
+
+function timesheetTimeline(
+  startTime: string,
+  endTime: string,
+  scheduledStartTime: string,
+  scheduledEndTime: string,
+) {
+  const rawStart = timeToMinutes(startTime);
+  const rawEnd = timeToMinutes(endTime);
+  const scheduledStart = timeToMinutes(scheduledStartTime);
+  const scheduledEnd = timeToMinutes(scheduledEndTime);
+  const overnightShift =
+    scheduledStart !== null &&
+    scheduledEnd !== null &&
+    scheduledEnd <= scheduledStart;
+  let adjustedStart = rawStart;
+  let adjustedEnd = rawEnd;
+  if (
+    overnightShift &&
+    adjustedStart !== null &&
+    scheduledEnd !== null &&
+    adjustedStart <= scheduledEnd
+  ) {
+    adjustedStart += 24 * 60;
+  }
+  if (
+    overnightShift &&
+    adjustedEnd !== null &&
+    adjustedStart !== null &&
+    adjustedEnd <= adjustedStart
+  ) {
+    adjustedEnd += 24 * 60;
+  }
+  return { adjustedStart, adjustedEnd, scheduledStart };
 }
 
 function positiveNumber(value: unknown, fallback: number) {

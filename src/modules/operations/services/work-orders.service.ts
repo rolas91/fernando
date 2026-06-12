@@ -14,6 +14,7 @@ import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
 import { Material } from '../../../entities/material.entity';
 import { Project } from '../../../entities/project.entity';
+import { Shift as ShiftCatalog } from '../../../entities/shift.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
@@ -72,6 +73,8 @@ export class WorkOrdersService {
     private readonly workerRepo: Repository<Worker>,
     @InjectRepository(CompanySettings)
     private readonly companySettingsRepo: Repository<CompanySettings>,
+    @InjectRepository(ShiftCatalog)
+    private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
     private readonly realtime: RealtimeGateway,
     private readonly spacesStorage: SpacesStorageService,
   ) {}
@@ -100,6 +103,28 @@ export class WorkOrdersService {
         ? await this.projectsRepo.find({ where: { id: In(projectIds) } })
         : [];
     const projectById = new Map(projects.map((project) => [project.id, project]));
+    const shiftTemplateIds = [
+      ...new Set(
+        assigned.flatMap((workOrder) =>
+          (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
+            .map((shift) =>
+              typeof shift.shiftTemplateId === 'string'
+                ? shift.shiftTemplateId.trim()
+                : '',
+            )
+            .filter(Boolean),
+        ),
+      ),
+    ];
+    const shiftTemplates =
+      shiftTemplateIds.length > 0
+        ? await this.shiftCatalogRepo.find({
+            where: { id: In(shiftTemplateIds) },
+          })
+        : [];
+    const shiftTemplateById = new Map(
+      shiftTemplates.map((shiftTemplate) => [shiftTemplate.id, shiftTemplate]),
+    );
     const completedShiftKeys = await this.resolveCompletedMobileShiftKeys(assigned);
     const quickAccessMaps = await this.loadMobileQuickAccessMaps(assigned);
 
@@ -130,6 +155,7 @@ export class WorkOrdersService {
           projectById.get(wo.projectId),
           completedShiftKeys,
           quickAccessMaps,
+          shiftTemplateById,
         ),
       );
   }
@@ -393,6 +419,7 @@ export class WorkOrdersService {
       clientById: Map<string, Client>;
       pdfSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
     },
+    shiftTemplateById = new Map<string, ShiftCatalog>(),
   ) {
     const quickAccess = this.buildMobileQuickAccess(workOrder, project, quickAccessMaps);
     const workerShifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
@@ -412,10 +439,23 @@ export class WorkOrdersService {
           ? (role.workerConfirmations as Record<string, unknown>[])
           : [];
         const confirmation = confirmations.find((item) => item.workerId === workerId);
+        const shiftTemplateId =
+          typeof record.shiftTemplateId === 'string'
+            ? record.shiftTemplateId
+            : '';
+        const shiftTemplate = shiftTemplateById.get(shiftTemplateId);
         return {
           id: typeof record.id === 'string' ? record.id : '',
           date: typeof record.date === 'string' ? record.date : '',
-          startTime: typeof record.startTime === 'string' ? record.startTime : '',
+          shiftTypeName: shiftTemplate?.name || '',
+          startTime:
+            typeof role.startTime === 'string'
+              ? role.startTime
+              : typeof record.defaultRoleStartTime === 'string'
+                ? record.defaultRoleStartTime
+                : typeof record.startTime === 'string'
+                  ? record.startTime
+                  : '',
           endTime: typeof record.endTime === 'string' ? record.endTime : '',
           roleId: typeof role.id === 'string' ? role.id : '',
           roleName: typeof role.roleName === 'string' ? role.roleName : '',

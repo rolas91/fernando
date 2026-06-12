@@ -5,6 +5,7 @@ import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
 import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Timesheet } from '../../../entities/timesheet.entity';
+import { WorkOrder } from '../../../entities/work-order.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
 import { UpdateTimesheetDto } from '../dto/update-timesheet.dto';
@@ -20,6 +21,8 @@ export class TimesheetsService {
     private readonly formTemplatesRepo: Repository<FormTemplate>,
     @InjectRepository(CompanySettings)
     private readonly companySettingsRepo: Repository<CompanySettings>,
+    @InjectRepository(WorkOrder)
+    private readonly workOrdersRepo: Repository<WorkOrder>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -85,6 +88,11 @@ export class TimesheetsService {
       const status = operationalTimesheetStatus(row.status, existing?.status);
       const clockIn = stringValue(row.startTime) || stringValue(row.clockIn) || existing?.clockIn || '';
       const clockOut = stringValue(row.endTime) || stringValue(row.clockOut) || existing?.clockOut || '';
+      const scheduledStartTime = await this.getScheduledStartTime(
+        workOrderId,
+        shiftId,
+      );
+      validateTimesheetStartTime(clockIn, scheduledStartTime);
       const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
       const hours = calculateTimesheetHours(
         { startTime: clockIn, endTime: clockOut, lunchTaken },
@@ -126,8 +134,25 @@ export class TimesheetsService {
     return saved;
   }
 
-  async normalizeSubmissionRow(row: Record<string, unknown>) {
-    return normalizeTimesheetSubmissionRow(row, await this.getCalculationRules());
+  async normalizeSubmissionRow(
+    row: Record<string, unknown>,
+    opts?: { workOrderId?: string; shiftId?: string },
+  ) {
+    const workOrderId = stringValue(row.workOrderId) || opts?.workOrderId || '';
+    const shiftId = stringValue(row.shiftId) || opts?.shiftId || '';
+    const scheduledStartTime =
+      (workOrderId && shiftId
+        ? await this.getScheduledStartTime(workOrderId, shiftId)
+        : '') || stringValue(row.scheduledStartTime);
+    const normalized = normalizeTimesheetSubmissionRow(
+      row,
+      await this.getCalculationRules(),
+    );
+    validateTimesheetStartTime(stringValue(normalized.startTime), scheduledStartTime);
+    return {
+      ...normalized,
+      scheduledStartTime,
+    };
   }
 
   private async getCalculationRules(): Promise<TimesheetCalculationRules> {
@@ -135,6 +160,17 @@ export class TimesheetsService {
       where: { id: 'default' },
     });
     return timesheetCalculationRules(settings?.overtimeRules);
+  }
+
+  private async getScheduledStartTime(workOrderId: string, shiftId: string) {
+    const workOrder = await this.workOrdersRepo.findOne({
+      where: { id: workOrderId },
+      select: { id: true, shifts: true },
+    });
+    const shift = workOrder?.shifts.find(
+      (entry) => stringValue(entry.id) === shiftId,
+    );
+    return stringValue(shift?.startTime);
   }
 
   async removeShiftWorkerRows(
@@ -394,6 +430,25 @@ export function calculateTimesheetHours(row: {
     dt: roundHours(dt),
     total: roundHours(st + ot + dt),
   };
+}
+
+export function validateTimesheetStartTime(
+  startTime: string,
+  scheduledStartTime: string,
+) {
+  if (!scheduledStartTime) return;
+  const start = timeToMinutes(startTime);
+  const scheduledStart = timeToMinutes(scheduledStartTime);
+  if (start === null || scheduledStart === null) {
+    throw new BadRequestException(
+      'Timesheet Start Time and scheduled shift start must use HH:mm format.',
+    );
+  }
+  if (start < scheduledStart) {
+    throw new BadRequestException(
+      `Timesheet Start Time cannot be earlier than the scheduled shift start (${scheduledStartTime}).`,
+    );
+  }
 }
 
 export function normalizeTimesheetSubmissionRow(

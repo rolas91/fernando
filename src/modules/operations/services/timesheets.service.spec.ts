@@ -1,6 +1,7 @@
 import {
   calculateTimesheetHours,
   timesheetCalculationRules,
+  validateTimesheetStartTime,
 } from './timesheets.service';
 
 describe('calculateTimesheetHours', () => {
@@ -46,5 +47,21 @@ describe('calculateTimesheetHours', () => {
         { ...rules, noLunchCreditEnabled: false },
       ),
     ).toEqual({ st: 8, ot: 1, dt: 0, total: 9 });
+  });
+});
+
+describe('validateTimesheetStartTime', () => {
+  it('allows the scheduled start time', () => {
+    expect(() => validateTimesheetStartTime('07:00 AM', '07:00')).not.toThrow();
+  });
+
+  it('allows a later start time', () => {
+    expect(() => validateTimesheetStartTime('08:00 AM', '07:00')).not.toThrow();
+  });
+
+  it('rejects a start time before the scheduled shift start', () => {
+    expect(() => validateTimesheetStartTime('06:59 AM', '07:00')).toThrow(
+      'cannot be earlier',
+    );
   });
 });

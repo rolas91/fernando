@@ -1031,6 +1031,7 @@ export class FormSubmissionsService {
       normalizeSubmissionData(dto.data),
       template,
       actor,
+      { workOrderId: dto.workOrderId, shiftId: dto.shiftId },
     );
 
     if (template) {
@@ -1073,6 +1074,10 @@ export class FormSubmissionsService {
             normalizeSubmissionData(dto.data as Record<string, unknown>),
             template,
             actor,
+            {
+              workOrderId: dto.workOrderId || item.workOrderId,
+              shiftId: dto.shiftId || item.shiftId,
+            },
           )
         : item.data;
 
@@ -1108,6 +1113,7 @@ export class FormSubmissionsService {
     data: Record<string, unknown> | undefined,
     template: FormTemplate | null,
     actor?: UserAccessContext,
+    opts?: { workOrderId?: string; shiftId?: string },
   ) {
     const normalized = normalizeSubmissionData(data);
     if (!isTimesheetTemplate(template)) return normalized;
@@ -1130,7 +1136,9 @@ export class FormSubmissionsService {
                 isTimesheetRowLike(row) &&
                 (!isSelfTimesheet || row.workerId === workerId),
             )
-            .map((row) => this.timesheetsService.normalizeSubmissionRow(row)),
+            .map((row) =>
+              this.timesheetsService.normalizeSubmissionRow(row, opts),
+            ),
         );
       } else {
         next[key] = value;

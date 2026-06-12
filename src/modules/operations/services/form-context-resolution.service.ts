@@ -572,6 +572,9 @@ export class FormContextResolutionService {
     const timesheetByWorkerId = new Map(
       existingTimesheets.map((timesheet) => [timesheet.workerId, timesheet]),
     );
+    const scheduledStartTime = formatTimesheetClockLabel(
+      shiftString(shift, 'startTime'),
+    );
     return workerIds.map((workerId, index) => {
       const worker = workerById.get(workerId);
       const timesheet = timesheetByWorkerId.get(workerId);
@@ -589,7 +592,8 @@ export class FormContextResolutionService {
         workOrderTitle: workOrder.title ?? '',
         shiftId,
         shiftDate: timesheet?.date || shiftString(shift, 'date'),
-        startTime: timesheet?.clockIn || formatTimesheetClockLabel(shiftString(shift, 'startTime')),
+        scheduledStartTime,
+        startTime: timesheet?.clockIn || scheduledStartTime,
         endTime: timesheet?.clockOut || formatTimesheetClockLabel(shiftString(shift, 'endTime')),
         st: Number(timesheet?.regularHours ?? 0),
         ot: Number(timesheet?.overtimeHours ?? 0),

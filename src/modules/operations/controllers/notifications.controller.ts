@@ -30,6 +30,11 @@ export class NotificationsController {
     return this.service.findAll();
   }
 
+  @Get('web/me')
+  findWebMine(@Req() req: ReqWithOpsUser) {
+    return this.service.findWebForActor(req.user);
+  }
+
   @Get('mobile/me')
   findMobileMine(@Req() req: ReqWithOpsUser) {
     return this.service.findMobileForActor(req.user);

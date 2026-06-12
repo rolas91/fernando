@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { Notification } from '../../../entities/notification.entity';
 import { ShiftChatMessage } from '../../../entities/shift-chat-message.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
@@ -64,8 +64,13 @@ export class ShiftChatService {
       workOrderId: workOrder.id,
       shiftId,
       senderUserId: actor?.id || '',
-      senderWorkerId: worker.id,
-      senderName: `${worker.firstName} ${worker.lastName}`.trim() || worker.email,
+      senderWorkerId: worker?.id || '',
+      senderName:
+        worker
+          ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email
+          : `${actor?.firstName || ''} ${actor?.lastName || ''}`.trim() ||
+            actor?.email ||
+            'Scheduler',
       kind,
       body,
       mediaUrl,
@@ -78,12 +83,30 @@ export class ShiftChatService {
       replyToPreview: (dto.replyToPreview || '').trim(),
     });
     const serialized = this.serialize(saved);
-    await this.notifyShiftRecipients(workOrder, worker.id, serialized);
+    await this.notifyShiftRecipients(
+      workOrder,
+      worker?.id || '',
+      actor,
+      serialized,
+    );
     return serialized;
   }
 
   async unreadCount(actor: UserAccessContext | undefined, shiftId: string) {
     const { worker } = await this.assertActorCanAccessShift(actor, shiftId);
+    if (!worker) {
+      const count = await this.notificationsRepo.count({
+        where: {
+          workerId: IsNull(),
+          shiftId,
+          type: 'shift_chat_message',
+          channel: 'web',
+          read: false,
+          providerMessageId: Not(`chat-sender:${actor?.id || ''}`),
+        },
+      });
+      return { shiftId, unreadCount: count };
+    }
     const count = await this.notificationsRepo.count({
       where: {
         workerId: worker.id,
@@ -98,6 +121,20 @@ export class ShiftChatService {
 
   async markShiftRead(actor: UserAccessContext | undefined, shiftId: string) {
     const { worker } = await this.assertActorCanAccessShift(actor, shiftId);
+    if (!worker) {
+      await this.notificationsRepo.update(
+        {
+          workerId: IsNull(),
+          shiftId,
+          type: 'shift_chat_message',
+          channel: 'web',
+          read: false,
+        },
+        { read: true },
+      );
+      this.realtime.emitTableUpdated('notifications');
+      return { shiftId, unreadCount: 0 };
+    }
     await this.notificationsRepo.update(
       {
         workerId: worker.id,
@@ -117,14 +154,14 @@ export class ShiftChatService {
     shiftId: string,
     messageId: string,
   ) {
-    const { worker } = await this.assertActorCanAccessShift(actor, shiftId);
+    await this.assertActorCanAccessShift(actor, shiftId);
     const message = await this.chatRepo.findOne({
       where: { id: messageId, shiftId },
     });
     if (!message) {
       throw new NotFoundException('Chat message not found.');
     }
-    if (message.senderWorkerId !== worker.id) {
+    if (message.senderUserId !== actor?.id) {
       throw new ForbiddenException('Only the message sender can delete it.');
     }
 
@@ -136,9 +173,15 @@ export class ShiftChatService {
   }
 
   async assertActorCanAccessShift(actor: UserAccessContext | undefined, shiftId: string) {
-    const worker = await this.resolveWorkerForMobileUser(actor);
     const workOrder = await this.workOrdersRepo.findOne({ where: { id: await this.findWorkOrderIdForShift(shiftId) } });
     if (!workOrder) throw new NotFoundException(`Shift ${shiftId} not found.`);
+    const worker = await this.resolveWorkerForActor(actor);
+    if (this.isPrivilegedChatActor(actor)) {
+      return { worker, workOrder };
+    }
+    if (!worker) {
+      throw new ForbiddenException('No worker profile is linked to this user email.');
+    }
     if (!this.workerAssignedToShift(workOrder, shiftId, worker.id)) {
       throw new ForbiddenException('Worker is not assigned to this shift chat.');
     }
@@ -157,14 +200,14 @@ export class ShiftChatService {
     return found.id;
   }
 
-  private async resolveWorkerForMobileUser(actor: UserAccessContext | undefined) {
+  private async resolveWorkerForActor(actor: UserAccessContext | undefined) {
     const email = actor?.email?.trim().toLowerCase();
-    if (!email) throw new ForbiddenException('Authenticated user email is required.');
-    const worker = await this.workersRepo.findOne({ where: { email } });
-    if (!worker) {
-      throw new ForbiddenException('No worker profile is linked to this user email.');
-    }
-    return worker;
+    if (!email) return null;
+    return this.workersRepo.findOne({ where: { email } });
+  }
+
+  private isPrivilegedChatActor(actor: UserAccessContext | undefined) {
+    return actor?.role === 'admin' || actor?.role === 'manager' || actor?.role === 'scheduler';
   }
 
   private workerAssignedToShift(workOrder: WorkOrder, shiftId: string, workerId: string) {
@@ -209,15 +252,35 @@ export class ShiftChatService {
   private async notifyShiftRecipients(
     workOrder: WorkOrder,
     senderWorkerId: string,
+    actor: UserAccessContext | undefined,
     message: ReturnType<ShiftChatService['serialize']>,
   ) {
     const recipientIds = this.assignedWorkerIdsForShift(workOrder, message.shiftId)
       .filter((workerId) => workerId !== senderWorkerId);
-    if (recipientIds.length === 0) return;
-
     const body = this.notificationBody(message);
     const title = `${message.senderName || 'Shift chat'} sent a message`;
     const shiftDate = this.shiftDateForMessage(workOrder, message.shiftId);
+    await this.notificationsRepo.save(this.notificationsRepo.create({
+      id: `notif_${randomUUID()}`,
+      type: 'shift_chat_message',
+      channel: 'web',
+      title,
+      message: body,
+      timestamp: new Date(),
+      read: false,
+      link: 'shift-chat',
+      workerId: null,
+      workOrderId: message.workOrderId,
+      shiftId: message.shiftId,
+      roleId: null,
+      deliveryStatus: 'in_app',
+      providerMessageId: `chat-sender:${actor?.id || ''}`,
+    }));
+
+    if (recipientIds.length === 0) {
+      this.realtime.emitTableUpdated('notifications');
+      return;
+    }
     const notifications = await this.notificationsRepo.save(
       recipientIds.map((workerId) => this.notificationsRepo.create({
         id: `notif_${randomUUID()}`,

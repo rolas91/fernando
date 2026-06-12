@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Notification } from '../../../entities/notification.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
@@ -20,6 +20,18 @@ export class NotificationsService {
 
   findAll() {
     return this.repo.find({ order: { timestamp: 'DESC' } });
+  }
+
+  async findWebForActor(actor: UserAccessContext | undefined) {
+    const notifications = await this.repo.find({
+      where: { workerId: IsNull() },
+      order: { timestamp: 'DESC', createdAt: 'DESC' },
+      take: 100,
+    });
+    const ownChatMarker = `chat-sender:${actor?.id || ''}`;
+    return notifications.filter(
+      (notification) => notification.providerMessageId !== ownChatMarker,
+    );
   }
 
   async findOne(id: string) {

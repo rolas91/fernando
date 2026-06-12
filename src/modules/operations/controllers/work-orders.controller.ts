@@ -12,7 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateWorkOrderDto } from '../dto/create-work-order.dto';
@@ -41,6 +41,18 @@ export class WorkOrdersController {
   }
 
   @Get('mobile/assignments')
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Optional text to filter assignments.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['all', 'active', 'pending', 'at_risk', 'critical', 'completed'],
+    description: 'Optional assignment status filter. Defaults to active.',
+  })
   findMobileAssignments(
     @Req() req: ReqWithOpsUser,
     @Query('search') search?: string,

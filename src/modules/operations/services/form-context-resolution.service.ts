@@ -6,6 +6,7 @@ import { FormTemplate } from '../../../entities/form-template.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { Material } from '../../../entities/material.entity';
 import { Project } from '../../../entities/project.entity';
+import { Shift as ShiftCatalog } from '../../../entities/shift.entity';
 import { Timesheet } from '../../../entities/timesheet.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
@@ -184,6 +185,26 @@ function validExistingClockIn(
   return start >= scheduledStart;
 }
 
+function addMinutesToClock(value: string, minutesToAdd: number) {
+  const start = clockMinutes(value);
+  if (start === null) return '';
+  const normalized = (start + minutesToAdd) % (24 * 60);
+  const hours = String(Math.floor(normalized / 60)).padStart(2, '0');
+  const minutes = String(normalized % 60).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function shiftDurationMinutes(template: ShiftCatalog | null) {
+  if (template?.durationHours && template.durationHours > 0) {
+    return template.durationHours * 60;
+  }
+  const start = clockMinutes(template?.startTime || '');
+  const end = clockMinutes(template?.endTime || '');
+  if (start === null || end === null) return null;
+  const difference = end - start;
+  return difference > 0 ? difference : difference + 24 * 60;
+}
+
 function hasTimesheetSupervisorRole(roleNames: string[]) {
   return roleNames.some((roleName) =>
     /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(roleName),
@@ -264,6 +285,8 @@ export class FormContextResolutionService {
     private readonly materialRepo: Repository<Material>,
     @InjectRepository(Timesheet)
     private readonly timesheetRepo: Repository<Timesheet>,
+    @InjectRepository(ShiftCatalog)
+    private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
   ) {}
 
   /**
@@ -623,9 +646,11 @@ export class FormContextResolutionService {
     const timesheetByWorkerId = new Map(
       existingTimesheets.map((timesheet) => [timesheet.workerId, timesheet]),
     );
-    const scheduledEndTime = formatTimesheetClockLabel(
-      shiftString(shift, 'endTime'),
-    );
+    const shiftTemplateId = shiftString(shift, 'shiftTemplateId');
+    const shiftTemplate = shiftTemplateId
+      ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
+      : null;
+    const durationMinutes = shiftDurationMinutes(shiftTemplate);
     return workerIds.map((workerId, index) => {
       const worker = workerById.get(workerId);
       const timesheet = timesheetByWorkerId.get(workerId);
@@ -634,6 +659,11 @@ export class FormContextResolutionService {
         : workerId;
       const scheduledStartTime = formatTimesheetClockLabel(
         workerRoleStartTime(shift, workerId),
+      );
+      const scheduledEndTime = formatTimesheetClockLabel(
+        durationMinutes !== null
+          ? addMinutesToClock(workerRoleStartTime(shift, workerId), durationMinutes)
+          : shiftString(shift, 'endTime'),
       );
       const existingClockIn = validExistingClockIn(
         timesheet?.clockIn,
@@ -656,7 +686,10 @@ export class FormContextResolutionService {
         scheduledStartTime,
         scheduledEndTime,
         startTime: existingClockIn || scheduledStartTime,
-        endTime: timesheet?.clockOut || scheduledEndTime,
+        endTime:
+          timesheet?.status === 'completed' && timesheet.clockOut
+            ? timesheet.clockOut
+            : scheduledEndTime,
         st: Number(timesheet?.regularHours ?? 0),
         ot: Number(timesheet?.overtimeHours ?? 0),
         dt: Number(timesheet?.doubleTimeHours ?? 0),

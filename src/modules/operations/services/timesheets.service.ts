@@ -6,6 +6,7 @@ import { FormTemplate } from '../../../entities/form-template.entity';
 import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Timesheet } from '../../../entities/timesheet.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
+import { Shift as ShiftCatalog } from '../../../entities/shift.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
 import { UpdateTimesheetDto } from '../dto/update-timesheet.dto';
@@ -23,6 +24,8 @@ export class TimesheetsService {
     private readonly companySettingsRepo: Repository<CompanySettings>,
     @InjectRepository(WorkOrder)
     private readonly workOrdersRepo: Repository<WorkOrder>,
+    @InjectRepository(ShiftCatalog)
+    private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -204,12 +207,21 @@ export class TimesheetsService {
         : [];
       return assignedWorkers.includes(workerId);
     });
+    const shiftTemplateId = stringValue(shift?.shiftTemplateId);
+    const shiftTemplate = shiftTemplateId
+      ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
+      : null;
+    const startTime =
+      stringValue(role?.startTime) ||
+      stringValue(shift?.defaultRoleStartTime) ||
+      stringValue(shift?.startTime);
+    const durationMinutes = shiftCatalogDurationMinutes(shiftTemplate);
     return {
-      startTime:
-        stringValue(role?.startTime) ||
-        stringValue(shift?.defaultRoleStartTime) ||
-        stringValue(shift?.startTime),
-      endTime: stringValue(shift?.endTime),
+      startTime,
+      endTime:
+        durationMinutes !== null
+          ? addMinutesToClock(startTime, durationMinutes)
+          : stringValue(shift?.endTime),
     };
   }
 
@@ -568,6 +580,26 @@ function timesheetTimeline(
     adjustedEnd += 24 * 60;
   }
   return { adjustedStart, adjustedEnd, scheduledStart };
+}
+
+function addMinutesToClock(value: string, minutesToAdd: number) {
+  const start = timeToMinutes(value);
+  if (start === null) return '';
+  const normalized = (start + minutesToAdd) % (24 * 60);
+  const hours = String(Math.floor(normalized / 60)).padStart(2, '0');
+  const minutes = String(normalized % 60).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function shiftCatalogDurationMinutes(template: ShiftCatalog | null) {
+  if (template?.durationHours && template.durationHours > 0) {
+    return template.durationHours * 60;
+  }
+  const start = timeToMinutes(template?.startTime || '');
+  const end = timeToMinutes(template?.endTime || '');
+  if (start === null || end === null) return null;
+  const difference = end - start;
+  return difference > 0 ? difference : difference + 24 * 60;
 }
 
 function positiveNumber(value: unknown, fallback: number) {

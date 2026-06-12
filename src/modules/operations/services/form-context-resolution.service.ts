@@ -663,12 +663,14 @@ export class FormContextResolutionService {
       ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
       : null;
     if (!shiftTemplate) {
-      const catalogStartTime = catalogClock(shiftStartTime);
-      shiftTemplate = catalogStartTime
-        ? await this.shiftCatalogRepo.findOne({
-            where: { startTime: catalogStartTime, status: 'active' },
-          })
-        : null;
+      const targetStart = clockMinutes(catalogClock(shiftStartTime));
+      const activeTemplates = targetStart === null
+        ? []
+        : await this.shiftCatalogRepo.find({ where: { status: 'active' } });
+      shiftTemplate =
+        activeTemplates.find(
+          (candidate) => clockMinutes(candidate.startTime || '') === targetStart,
+        ) ?? null;
     }
     const durationMinutes = shiftDurationMinutes(shiftTemplate);
     return workerIds.map((workerId, index) => {

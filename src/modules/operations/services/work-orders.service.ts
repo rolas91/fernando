@@ -136,25 +136,9 @@ export class WorkOrdersService {
         ? await this.projectsRepo.find({ where: { id: In(projectIds) } })
         : [];
     const projectById = new Map(projects.map((project) => [project.id, project]));
-    const shiftTemplateIds = [
-      ...new Set(
-        assigned.flatMap((workOrder) =>
-          (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
-            .map((shift) =>
-              typeof shift.shiftTemplateId === 'string'
-                ? shift.shiftTemplateId.trim()
-                : '',
-            )
-            .filter(Boolean),
-        ),
-      ),
-    ];
-    const shiftTemplates =
-      shiftTemplateIds.length > 0
-        ? await this.shiftCatalogRepo.find({
-            where: { id: In(shiftTemplateIds) },
-          })
-        : [];
+    const shiftTemplates = await this.shiftCatalogRepo.find({
+      where: { status: 'active' },
+    });
     const shiftTemplateById = new Map(
       shiftTemplates.map((shiftTemplate) => [shiftTemplate.id, shiftTemplate]),
     );
@@ -485,13 +469,19 @@ export class WorkOrdersService {
               : typeof record.startTime === 'string'
                 ? record.startTime
                 : '';
+        const resolvedShiftTemplate =
+          shiftTemplate ??
+          [...shiftTemplateById.values()].find(
+            (candidate) =>
+              mobileClockMinutes(candidate.startTime) === mobileClockMinutes(startTime),
+          );
         return {
           id: typeof record.id === 'string' ? record.id : '',
           date: typeof record.date === 'string' ? record.date : '',
-          shiftTypeName: shiftTemplate?.name || '',
+          shiftTypeName: resolvedShiftTemplate?.name || '',
           startTime,
           endTime:
-            mobileShiftEndTime(startTime, shiftTemplate) ||
+            mobileShiftEndTime(startTime, resolvedShiftTemplate) ||
             (typeof record.endTime === 'string' ? record.endTime : ''),
           roleId: typeof role.id === 'string' ? role.id : '',
           roleName: typeof role.roleName === 'string' ? role.roleName : '',

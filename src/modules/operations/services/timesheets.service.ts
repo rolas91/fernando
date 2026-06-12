@@ -216,12 +216,14 @@ export class TimesheetsService {
       ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
       : null;
     if (!shiftTemplate) {
-      const catalogStartTime = catalogClock(startTime);
-      shiftTemplate = catalogStartTime
-        ? await this.shiftCatalogRepo.findOne({
-            where: { startTime: catalogStartTime, status: 'active' },
-          })
-        : null;
+      const targetStart = timeToMinutes(catalogClock(startTime));
+      const activeTemplates = targetStart === null
+        ? []
+        : await this.shiftCatalogRepo.find({ where: { status: 'active' } });
+      shiftTemplate =
+        activeTemplates.find(
+          (candidate) => timeToMinutes(candidate.startTime || '') === targetStart,
+        ) ?? null;
     }
     const durationMinutes = shiftCatalogDurationMinutes(shiftTemplate);
     return {

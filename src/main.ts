@@ -115,6 +115,7 @@ async function bootstrap() {
         },
         'bearer',
       )
+      .addSecurityRequirements('bearer')
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);

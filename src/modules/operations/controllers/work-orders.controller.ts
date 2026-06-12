@@ -155,13 +155,7 @@ export class WorkOrdersController {
   }
 
   @Delete(':id')
-  @ApiQuery({
-    name: 'recycle',
-    required: false,
-    type: Boolean,
-    description: 'Soft-delete the assignment so it can be restored from the Recycle Bin.',
-  })
-  remove(@Param('id') id: string, @Query('recycle') recycle?: string) {
-    return this.workOrdersService.remove(id, recycle === 'true');
+  remove(@Param('id') id: string) {
+    return this.workOrdersService.remove(id);
   }
 }

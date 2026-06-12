@@ -880,25 +880,11 @@ export class WorkOrdersService {
     return saved;
   }
 
-  async remove(id: string, recycle = false) {
+  async remove(id: string) {
     const workOrder = await this.findOne(id);
-    if (recycle || workOrder.status.trim().toLowerCase() === 'completed') {
-      await this.workOrdersRepo.softRemove(workOrder);
-      this.realtime.emitTableUpdated('work_orders');
-      return { success: true, trashed: true };
-    }
-    try {
-      await this.spacesStorage.deleteManyPublicFiles(workOrder.fileUploads || []);
-    } catch (error) {
-      this.logger.warn(
-        `Could not delete stored files for assignment ${id}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
-    await this.workOrdersRepo.remove(workOrder);
+    await this.workOrdersRepo.softRemove(workOrder);
     this.realtime.emitTableUpdated('work_orders');
-    return { success: true, trashed: false };
+    return { success: true, trashed: true };
   }
 
   findTrash() {

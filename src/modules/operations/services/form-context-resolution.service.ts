@@ -203,14 +203,16 @@ function catalogClock(value: string) {
 }
 
 function shiftDurationMinutes(template: ShiftCatalog | null) {
+  const start = clockMinutes(template?.startTime || '');
+  const end = clockMinutes(template?.endTime || '');
+  if (start !== null && end !== null) {
+    const difference = end - start;
+    return difference > 0 ? difference : difference + 24 * 60;
+  }
   if (template?.durationHours && template.durationHours > 0) {
     return template.durationHours * 60;
   }
-  const start = clockMinutes(template?.startTime || '');
-  const end = clockMinutes(template?.endTime || '');
-  if (start === null || end === null) return null;
-  const difference = end - start;
-  return difference > 0 ? difference : difference + 24 * 60;
+  return null;
 }
 
 function hasTimesheetSupervisorRole(roleNames: string[]) {

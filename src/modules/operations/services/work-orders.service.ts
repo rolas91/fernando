@@ -50,6 +50,39 @@ type MobileAssignmentQuery = {
   status?: MobileAssignmentStatusFilter | string;
 };
 
+function mobileClockMinutes(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  const twelveHour = normalized.match(/^(\d{1,2}):(\d{2})\s*([AP])\.?M\.?$/i);
+  if (twelveHour) {
+    let hours = Number(twelveHour[1]);
+    const minutes = Number(twelveHour[2]);
+    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
+    if (twelveHour[3].toUpperCase() === 'A' && hours === 12) hours = 0;
+    if (twelveHour[3].toUpperCase() === 'P' && hours !== 12) hours += 12;
+    return hours * 60 + minutes;
+  }
+  const twentyFourHour = normalized.match(/^(\d{1,2}):(\d{2})$/);
+  if (!twentyFourHour) return null;
+  const hours = Number(twentyFourHour[1]);
+  const minutes = Number(twentyFourHour[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function mobileShiftEndTime(startTime: string, template?: ShiftCatalog) {
+  const templateStart = mobileClockMinutes(template?.startTime);
+  const templateEnd = mobileClockMinutes(template?.endTime);
+  const shiftStart = mobileClockMinutes(startTime);
+  if (templateStart === null || templateEnd === null || shiftStart === null) return '';
+  const duration =
+    templateEnd > templateStart
+      ? templateEnd - templateStart
+      : templateEnd - templateStart + 24 * 60;
+  const end = (shiftStart + duration) % (24 * 60);
+  return `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+}
+
 @Injectable()
 export class WorkOrdersService {
   private readonly logger = new Logger(WorkOrdersService.name);
@@ -444,19 +477,22 @@ export class WorkOrdersService {
             ? record.shiftTemplateId
             : '';
         const shiftTemplate = shiftTemplateById.get(shiftTemplateId);
+        const startTime =
+          typeof role.startTime === 'string'
+            ? role.startTime
+            : typeof record.defaultRoleStartTime === 'string'
+              ? record.defaultRoleStartTime
+              : typeof record.startTime === 'string'
+                ? record.startTime
+                : '';
         return {
           id: typeof record.id === 'string' ? record.id : '',
           date: typeof record.date === 'string' ? record.date : '',
           shiftTypeName: shiftTemplate?.name || '',
-          startTime:
-            typeof role.startTime === 'string'
-              ? role.startTime
-              : typeof record.defaultRoleStartTime === 'string'
-                ? record.defaultRoleStartTime
-                : typeof record.startTime === 'string'
-                  ? record.startTime
-                  : '',
-          endTime: typeof record.endTime === 'string' ? record.endTime : '',
+          startTime,
+          endTime:
+            mobileShiftEndTime(startTime, shiftTemplate) ||
+            (typeof record.endTime === 'string' ? record.endTime : ''),
           roleId: typeof role.id === 'string' ? role.id : '',
           roleName: typeof role.roleName === 'string' ? role.roleName : '',
           confirmationStatus:

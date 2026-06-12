@@ -608,14 +608,16 @@ function catalogClock(value: string) {
 }
 
 function shiftCatalogDurationMinutes(template: ShiftCatalog | null) {
+  const start = timeToMinutes(template?.startTime || '');
+  const end = timeToMinutes(template?.endTime || '');
+  if (start !== null && end !== null) {
+    const difference = end - start;
+    return difference > 0 ? difference : difference + 24 * 60;
+  }
   if (template?.durationHours && template.durationHours > 0) {
     return template.durationHours * 60;
   }
-  const start = timeToMinutes(template?.startTime || '');
-  const end = timeToMinutes(template?.endTime || '');
-  if (start === null || end === null) return null;
-  const difference = end - start;
-  return difference > 0 ? difference : difference + 24 * 60;
+  return null;
 }
 
 function positiveNumber(value: unknown, fallback: number) {

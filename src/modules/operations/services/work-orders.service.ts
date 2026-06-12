@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { Client } from '../../../entities/client.entity';
 import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Equipment } from '../../../entities/equipment.entity';
@@ -882,6 +882,11 @@ export class WorkOrdersService {
 
   async remove(id: string) {
     const workOrder = await this.findOne(id);
+    if (workOrder.status === 'completed') {
+      await this.workOrdersRepo.softRemove(workOrder);
+      this.realtime.emitTableUpdated('work_orders');
+      return { success: true, trashed: true };
+    }
     try {
       await this.spacesStorage.deleteManyPublicFiles(workOrder.fileUploads || []);
     } catch (error) {
@@ -893,7 +898,29 @@ export class WorkOrdersService {
     }
     await this.workOrdersRepo.remove(workOrder);
     this.realtime.emitTableUpdated('work_orders');
-    return { success: true };
+    return { success: true, trashed: false };
+  }
+
+  findTrash() {
+    return this.workOrdersRepo.find({
+      withDeleted: true,
+      where: { deletedAt: Not(IsNull()) },
+      order: { deletedAt: 'DESC' },
+    });
+  }
+
+  async restore(id: string) {
+    const workOrder = await this.workOrdersRepo.findOne({
+      withDeleted: true,
+      where: { id },
+    });
+    if (!workOrder || !workOrder.deletedAt) {
+      throw new NotFoundException(`Deleted assignment ${id} not found`);
+    }
+    await this.workOrdersRepo.restore(id);
+    const restored = await this.findOne(id);
+    this.realtime.emitTableUpdated('work_orders');
+    return restored;
   }
 
   /**

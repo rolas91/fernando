@@ -40,6 +40,16 @@ export class WorkOrdersController {
     return this.workOrdersService.findAll();
   }
 
+  @Get('trash')
+  findTrash() {
+    return this.workOrdersService.findTrash();
+  }
+
+  @Patch('trash/:id/restore')
+  restore(@Param('id') id: string) {
+    return this.workOrdersService.restore(id);
+  }
+
   @Get('mobile/assignments')
   @ApiQuery({
     name: 'search',

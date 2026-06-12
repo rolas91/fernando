@@ -208,13 +208,21 @@ export class TimesheetsService {
       return assignedWorkers.includes(workerId);
     });
     const shiftTemplateId = stringValue(shift?.shiftTemplateId);
-    const shiftTemplate = shiftTemplateId
-      ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
-      : null;
     const startTime =
       stringValue(role?.startTime) ||
       stringValue(shift?.defaultRoleStartTime) ||
       stringValue(shift?.startTime);
+    let shiftTemplate = shiftTemplateId
+      ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
+      : null;
+    if (!shiftTemplate) {
+      const catalogStartTime = catalogClock(startTime);
+      shiftTemplate = catalogStartTime
+        ? await this.shiftCatalogRepo.findOne({
+            where: { startTime: catalogStartTime, status: 'active' },
+          })
+        : null;
+    }
     const durationMinutes = shiftCatalogDurationMinutes(shiftTemplate);
     return {
       startTime,
@@ -589,6 +597,14 @@ function addMinutesToClock(value: string, minutesToAdd: number) {
   const hours = String(Math.floor(normalized / 60)).padStart(2, '0');
   const minutes = String(normalized % 60).padStart(2, '0');
   return `${hours}:${minutes}`;
+}
+
+function catalogClock(value: string) {
+  const minutes = timeToMinutes(value);
+  if (minutes === null) return '';
+  const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const remainder = String(minutes % 60).padStart(2, '0');
+  return `${hours}:${remainder}`;
 }
 
 function shiftCatalogDurationMinutes(template: ShiftCatalog | null) {

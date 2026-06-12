@@ -194,6 +194,14 @@ function addMinutesToClock(value: string, minutesToAdd: number) {
   return `${hours}:${minutes}`;
 }
 
+function catalogClock(value: string) {
+  const minutes = clockMinutes(value);
+  if (minutes === null) return '';
+  const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const remainder = String(minutes % 60).padStart(2, '0');
+  return `${hours}:${remainder}`;
+}
+
 function shiftDurationMinutes(template: ShiftCatalog | null) {
   if (template?.durationHours && template.durationHours > 0) {
     return template.durationHours * 60;
@@ -647,9 +655,19 @@ export class FormContextResolutionService {
       existingTimesheets.map((timesheet) => [timesheet.workerId, timesheet]),
     );
     const shiftTemplateId = shiftString(shift, 'shiftTemplateId');
-    const shiftTemplate = shiftTemplateId
+    const shiftStartTime =
+      shiftString(shift, 'defaultRoleStartTime') || shiftString(shift, 'startTime');
+    let shiftTemplate = shiftTemplateId
       ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
       : null;
+    if (!shiftTemplate) {
+      const catalogStartTime = catalogClock(shiftStartTime);
+      shiftTemplate = catalogStartTime
+        ? await this.shiftCatalogRepo.findOne({
+            where: { startTime: catalogStartTime, status: 'active' },
+          })
+        : null;
+    }
     const durationMinutes = shiftDurationMinutes(shiftTemplate);
     return workerIds.map((workerId, index) => {
       const worker = workerById.get(workerId);

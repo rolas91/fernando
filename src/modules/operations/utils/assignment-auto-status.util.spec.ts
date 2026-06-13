@@ -137,6 +137,39 @@ describe('computeAssignmentStatus', () => {
     expect(r.signals.allShiftsFullyStaffed).toBe(true);
   });
 
+  it('ignores pending confirmations from shifts that already ended', () => {
+    const r = computeAssignmentStatus({
+      workOrderId: 'wo1',
+      startDate: '2026-05-09',
+      endDate: '2026-05-20',
+      shifts: [
+        {
+          id: 's1',
+          date: '2026-05-09',
+          startTime: '07:00',
+          endTime: '16:00',
+          roles: [
+            {
+              id: 'r1',
+              roleName: 'Flagger',
+              requiredCount: 1,
+              assignedWorkers: ['w1'],
+              assignedEquipment: [],
+              workerConfirmations: [{ workerId: 'w1', status: 'pending' }],
+            },
+          ],
+        },
+      ],
+      ...emptyCtx,
+      rules,
+      now,
+    });
+
+    expect(r.status).toBe('in_progress');
+    expect(r.signals.awaitingConfirmationWithFullStaff).toBe(false);
+    expect(r.signals.assignedWorkerWeeklyOvertimeRisk).toBe(false);
+  });
+
   it('does not mark at risk for hours scheduled outside the evaluated shift week', () => {
     const r = computeAssignmentStatus({
       workOrderId: 'wo_current',

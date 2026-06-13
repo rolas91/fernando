@@ -141,6 +141,21 @@ function shiftDurationHours(
   return diff > 0 ? diff : diff + 24;
 }
 
+function shiftEndOnDate(dateStr: string, start: string, end: string): Date {
+  const startDate = shiftTimeOnDate(dateStr, start);
+  const endDate = shiftTimeOnDate(dateStr, end);
+  if (endDate.getTime() <= startDate.getTime()) {
+    endDate.setDate(endDate.getDate() + 1);
+  }
+  return endDate;
+}
+
+function isOperationalShift(shift: Record<string, unknown>, now: Date): boolean {
+  const times = parseShiftTimes(shift);
+  if (!times) return false;
+  return shiftEndOnDate(times.date, times.start, times.end).getTime() > now.getTime();
+}
+
 type ConfirmationStatus = 'pending' | 'confirmed' | 'declined';
 
 function confirmationForWorker(
@@ -269,6 +284,7 @@ export function computeAssignmentSignals(
     rules,
     now,
   } = input;
+  const operationalShifts = shifts.filter((shift) => isOperationalShift(shift, now));
 
   let totalRequired = 0;
   let totalAssignedWorkers = 0;
@@ -282,7 +298,7 @@ export function computeAssignmentSignals(
 
   const msNow = now.getTime();
 
-  for (const shift of shifts) {
+  for (const shift of operationalShifts) {
     const times = parseShiftTimes(shift);
     if (times) {
       const startDt = shiftTimeOnDate(times.date, times.start);
@@ -335,11 +351,12 @@ export function computeAssignmentSignals(
       return Boolean(shiftId && completedWorkOrderShiftKeys?.has(`${workOrderId}:${shiftId}`));
     });
 
-  const assignedHere = collectAssignedWorkerIds(shifts);
+  const assignedHere = collectAssignedWorkerIds(operationalShifts);
 
   const hasScheduleConflict = detectConflictForWorkOrder(
     workOrderId,
     allWorkOrdersForScheduling,
+    now,
   );
 
   const activeWos = allWorkOrdersForScheduling.filter(
@@ -347,7 +364,7 @@ export function computeAssignmentSignals(
   );
 
   const weeklyHours = computeWorkerWeeklyHoursScheduled(activeWos);
-  const assignedWeeksHere = collectAssignedWorkerWeekKeys(shifts);
+  const assignedWeeksHere = collectAssignedWorkerWeekKeys(operationalShifts);
   let assignedWorkerWeeklyOvertimeRisk = false;
   assignedWeeksHere.forEach((weekKeys, wid) => {
     const workerHoursByWeek = weeklyHours.get(wid);
@@ -423,6 +440,7 @@ function computeWorkerWeeklyHoursScheduled(
 function detectConflictForWorkOrder(
   workOrderId: string,
   allWorkOrders: Array<{ id: string; status: string; shifts: unknown[] }>,
+  now: Date,
 ): boolean {
   const active = allWorkOrders.filter(
     (w) => w.status !== 'completed' && w.status !== 'cancelled',
@@ -435,6 +453,7 @@ function detectConflictForWorkOrder(
     for (const s of shifts) {
       if (!s || typeof s !== 'object') continue;
       const shift = s as Record<string, unknown>;
+      if (!isOperationalShift(shift, now)) continue;
       const times = parseShiftTimes(shift);
       if (!times) continue;
       for (const role of asRoleList(shift)) {

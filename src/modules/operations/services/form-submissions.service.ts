@@ -243,6 +243,15 @@ function canSubmitFinalMobileTimesheets(actor?: UserAccessContext) {
   );
 }
 
+export function shouldGenerateSubmissionPdf(
+  template: FormTemplate | null,
+  actor?: UserAccessContext,
+) {
+  if (!isTimesheetTemplate(template)) return true;
+  if (isViewerRole(actor)) return false;
+  return canSubmitFinalMobileTimesheets(actor);
+}
+
 type TimesheetScope = 'own' | 'all';
 
 function isTimesheetRowLike(value: unknown): value is Record<string, unknown> {
@@ -1043,17 +1052,19 @@ export class FormSubmissionsService {
     }
 
     const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(template, actor, data);
+    const generatePdf = shouldGenerateSubmissionPdf(template, actor);
     const saved = await this.repo.save(
       this.repo.create({
         ...dto,
         workerId: isSelfTimesheet && actor ? await this.resolveWorkerIdForActor(actor) : dto.workerId,
         data,
+        pdfUrl: generatePdf ? dto.pdfUrl : '',
         submittedAt: dto.submittedAt ? new Date(dto.submittedAt) : undefined,
       }),
     );
     await this.syncTimesheetsFromSubmission(saved);
     await this.syncIncidentFromSubmission(saved, template);
-    if (!isTimesheetTemplate(template) || canSubmitFinalMobileTimesheets(actor)) {
+    if (generatePdf) {
       saved.pdfUrl = await this.generatePdf(saved, template);
       await this.repo.save(saved);
     }
@@ -1090,20 +1101,24 @@ export class FormSubmissionsService {
     }
 
     const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(template, actor, data);
+    const generatePdf = shouldGenerateSubmissionPdf(template, actor);
     Object.assign(item, {
       ...dto,
       workerId: isSelfTimesheet && actor ? await this.resolveWorkerIdForActor(actor) : dto.workerId ?? item.workerId,
       data,
+      pdfUrl: generatePdf ? dto.pdfUrl ?? item.pdfUrl : '',
       submittedAt:
         dto.submittedAt !== undefined ? new Date(dto.submittedAt) : undefined,
     });
     const saved = await this.repo.save(item);
     await this.syncTimesheetsFromSubmission(saved);
     await this.syncIncidentFromSubmission(saved, template);
-    if (!isTimesheetTemplate(template) || canSubmitFinalMobileTimesheets(actor)) {
+    if (generatePdf) {
       await this.deleteGeneratedPdf(previousPdfUrl);
       saved.pdfUrl = await this.generatePdf(saved, template);
       await this.repo.save(saved);
+    } else {
+      await this.deleteGeneratedPdf(previousPdfUrl);
     }
     this.realtime.emitTableUpdated('form_submissions');
     return saved;

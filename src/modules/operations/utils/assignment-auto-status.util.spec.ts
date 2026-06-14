@@ -40,7 +40,7 @@ describe('computeAssignmentStatus', () => {
     expect(r.status).toBe('pending');
   });
 
-  it('does not complete from date and staffing alone', () => {
+  it('returns pending when every shift ended but required forms remain incomplete', () => {
     const r = computeAssignmentStatus({
       workOrderId: 'wo1',
       startDate: '2026-04-01',
@@ -69,7 +69,7 @@ describe('computeAssignmentStatus', () => {
       rules,
       now,
     });
-    expect(r.status).toBe('confirmed');
+    expect(r.status).toBe('pending');
     expect(r.signals.allWorkOrderShiftFormsSubmitted).toBe(false);
   });
 
@@ -137,7 +137,7 @@ describe('computeAssignmentStatus', () => {
     expect(r.signals.allShiftsFullyStaffed).toBe(true);
   });
 
-  it('ignores pending confirmations from shifts that already ended', () => {
+  it('returns pending when confirmations remain pending after every shift ended', () => {
     const r = computeAssignmentStatus({
       workOrderId: 'wo1',
       startDate: '2026-05-09',
@@ -165,9 +165,107 @@ describe('computeAssignmentStatus', () => {
       now,
     });
 
-    expect(r.status).toBe('in_progress');
+    expect(r.status).toBe('pending');
     expect(r.signals.awaitingConfirmationWithFullStaff).toBe(false);
     expect(r.signals.assignedWorkerWeeklyOvertimeRisk).toBe(false);
+    expect(r.signals.anyShiftInProgress).toBe(false);
+    expect(r.signals.operationalShiftCount).toBe(0);
+  });
+
+  it('returns in progress only while a confirmed shift is currently active', () => {
+    const r = computeAssignmentStatus({
+      workOrderId: 'wo1',
+      startDate: '2026-05-01',
+      endDate: '2026-05-31',
+      shifts: [
+        {
+          id: 's1',
+          date: '2026-05-10',
+          startTime: '07:00',
+          endTime: '16:00',
+          roles: [
+            {
+              id: 'r1',
+              roleName: 'Flagger',
+              requiredCount: 1,
+              assignedWorkers: ['w1'],
+              assignedEquipment: [],
+              workerConfirmations: [{ workerId: 'w1', status: 'confirmed' }],
+            },
+          ],
+        },
+      ],
+      ...emptyCtx,
+      rules,
+      now,
+    });
+
+    expect(r.status).toBe('in_progress');
+    expect(r.signals.anyShiftInProgress).toBe(true);
+  });
+
+  it('does not use the assignment date range to mark a future shift in progress', () => {
+    const r = computeAssignmentStatus({
+      workOrderId: 'wo1',
+      startDate: '2026-05-01',
+      endDate: '2026-05-31',
+      shifts: [
+        {
+          id: 's1',
+          date: '2026-05-15',
+          startTime: '07:00',
+          endTime: '16:00',
+          roles: [
+            {
+              id: 'r1',
+              roleName: 'Flagger',
+              requiredCount: 1,
+              assignedWorkers: ['w1'],
+              assignedEquipment: [],
+              workerConfirmations: [{ workerId: 'w1', status: 'confirmed' }],
+            },
+          ],
+        },
+      ],
+      ...emptyCtx,
+      rules,
+      now,
+    });
+
+    expect(r.status).toBe('confirmed');
+    expect(r.signals.anyShiftInProgress).toBe(false);
+  });
+
+  it('keeps an overnight shift in progress until its next-day end time', () => {
+    const r = computeAssignmentStatus({
+      workOrderId: 'wo1',
+      startDate: '2026-05-10',
+      endDate: '2026-05-11',
+      shifts: [
+        {
+          id: 's1',
+          date: '2026-05-10',
+          startTime: '19:00',
+          endTime: '04:00',
+          roles: [
+            {
+              id: 'r1',
+              roleName: 'Lead',
+              requiredCount: 1,
+              assignedWorkers: ['w1'],
+              assignedEquipment: [],
+              workerConfirmations: [{ workerId: 'w1', status: 'confirmed' }],
+            },
+          ],
+        },
+      ],
+      ...emptyCtx,
+      rules,
+      now: new Date('2026-05-11T02:00:00'),
+    });
+
+    expect(r.status).toBe('in_progress');
+    expect(r.signals.anyShiftInProgress).toBe(true);
   });
 
   it('does not mark at risk for hours scheduled outside the evaluated shift week', () => {

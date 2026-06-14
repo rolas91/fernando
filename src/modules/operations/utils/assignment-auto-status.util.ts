@@ -52,6 +52,8 @@ export interface AssignmentStatusSignals {
   assignedWorkerCertExpiringRisk: boolean;
   allWorkOrderShiftFormsSubmitted: boolean;
   minShiftStartInHours: number | null;
+  operationalShiftCount: number;
+  anyShiftInProgress: boolean;
 }
 
 export interface ComputeAssignmentStatusInput {
@@ -154,6 +156,15 @@ function isOperationalShift(shift: Record<string, unknown>, now: Date): boolean 
   const times = parseShiftTimes(shift);
   if (!times) return false;
   return shiftEndOnDate(times.date, times.start, times.end).getTime() > now.getTime();
+}
+
+function isShiftInProgress(shift: Record<string, unknown>, now: Date): boolean {
+  const times = parseShiftTimes(shift);
+  if (!times) return false;
+  const start = shiftTimeOnDate(times.date, times.start).getTime();
+  const end = shiftEndOnDate(times.date, times.start, times.end).getTime();
+  const current = now.getTime();
+  return start <= current && current < end;
 }
 
 type ConfirmationStatus = 'pending' | 'confirmed' | 'declined';
@@ -285,6 +296,7 @@ export function computeAssignmentSignals(
     now,
   } = input;
   const operationalShifts = shifts.filter((shift) => isOperationalShift(shift, now));
+  const anyShiftInProgress = shifts.some((shift) => isShiftInProgress(shift, now));
 
   let totalRequired = 0;
   let totalAssignedWorkers = 0;
@@ -412,6 +424,8 @@ export function computeAssignmentSignals(
     assignedWorkerCertExpiringRisk,
     allWorkOrderShiftFormsSubmitted,
     minShiftStartInHours,
+    operationalShiftCount: operationalShifts.length,
+    anyShiftInProgress,
   };
 }
 
@@ -537,15 +551,7 @@ export function resolveStickyCancelled(
 export function computeAssignmentStatus(
   input: ComputeAssignmentStatusInput,
 ): ComputeAssignmentStatusResult {
-  const {
-    previousStatus,
-    dtoStatus,
-    startDate,
-    endDate,
-    shifts,
-    rules,
-    now,
-  } = input;
+  const { previousStatus, dtoStatus, rules } = input;
 
   if (dtoStatus === 'cancelled') {
     const signals = computeAssignmentSignals(input);
@@ -558,10 +564,6 @@ export function computeAssignmentStatus(
   }
 
   const signals = computeAssignmentSignals(input);
-  const today = localDateISO(now);
-  const start = (startDate ?? '').toString().trim().split('T')[0] || '';
-  const end = (endDate ?? '').toString().trim().split('T')[0] || '';
-
   if (signals.allWorkOrderShiftFormsSubmitted) {
     return { status: 'completed', signals };
   }
@@ -596,14 +598,7 @@ export function computeAssignmentStatus(
     return { status: 'at_risk', signals };
   }
 
-  const inWindow =
-    start &&
-    end &&
-    today >= start &&
-    today <= end &&
-    shifts.length > 0;
-
-  if (inWindow) {
+  if (signals.anyShiftInProgress) {
     return { status: 'in_progress', signals };
   }
 
@@ -617,7 +612,7 @@ export function computeAssignmentStatus(
     signals.allShiftsFullyStaffed &&
     signals.allAssignedWorkersConfirmed &&
     signals.equipmentOk &&
-    shifts.length > 0
+    signals.operationalShiftCount > 0
   ) {
     return { status: 'confirmed', signals };
   }

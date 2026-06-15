@@ -1409,14 +1409,6 @@ export function buildWorkOrderPdf(
     );
     ops.push(
       pdfLine(
-        breakAreaX + breakParts[0],
-        blockTop - workerSubRowHeight,
-        breakAreaX + breakParts[0],
-        top,
-      ),
-    );
-    ops.push(
-      pdfLine(
         breakAreaX + breakParts[0] + breakParts[1],
         blockTop - workerSubRowHeight,
         breakAreaX + breakParts[0] + breakParts[1],
@@ -1458,7 +1450,7 @@ export function buildWorkOrderPdf(
         ops.push(pdfLine(breakAreaX + breakParts[0] / 2 - 1.5, signBaseline + 1, breakAreaX + breakParts[0] / 2 - 0.2, signBaseline));
         ops.push(pdfLine(breakAreaX + breakParts[0] / 2 - 0.2, signBaseline, breakAreaX + breakParts[0] / 2 + 2, signBaseline + 3.5));
       }
-      if (worker.breakMinutes > 0) {
+      if (worker.lunchTaken || worker.breakMinutes > 0) {
         const bx = breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2;
         ops.push(pdfLine(bx - 1.5, signBaseline + 1, bx - 0.2, signBaseline));
         ops.push(pdfLine(bx - 0.2, signBaseline, bx + 2, signBaseline + 3.5));

@@ -1150,7 +1150,10 @@ export function buildWorkOrderPdf(
 ): Buffer {
   const data = submission.data ?? {};
   const images: PdfImage[] = [];
-  const logo = loadCommercialPdfLogoImage('Logo');
+  const logo = loadCommercialPdfLogoImage(
+    'Logo',
+    'drtraffic-work-order-logo.png',
+  );
   if (logo) images.push(logo);
   const submittedAt = submission.submittedAt
     ? new Date(submission.submittedAt)
@@ -1206,448 +1209,346 @@ export function buildWorkOrderPdf(
     submission.workOrderId ||
     compactId(submission.id, 16);
   const shiftText = String(shift).toLowerCase();
-  const rowCount = Math.max(
-    7,
-    context.workers.length,
-    context.equipment.length,
-  );
-  const workerRowHeight = Math.max(17, Math.min(27, 189 / rowCount));
+  const left = 17.64;
+  const width = 576.72;
+  const accent: [number, number, number] = [0.929, 0.451, 0.463];
+  const ops: string[] = ['0.75 w', '0 0 0 RG', pdfRect(0.75, 0.75, 610.5, 790.5)];
 
-  const ops: string[] = [
-    '0.42 w',
-    '0 0 0 RG',
-    pdfRect(4, 4, 604, 784),
-    ...(logo ? ['q 156 0 0 49 43 686 cm /Logo Do Q'] : []),
-    pdfText('WORK ORDER', 341, 715, 13, 'F2'),
-    '0.82 0 0 rg',
-    pdfText(`No.  ${compactId(displayNumber, 20)}`, 480, 715, 12, 'F2'),
-    '0 0 0 rg',
-    '0.82 0 0 rg',
-    pdfText('DR Traffic Control, LLC', 228, 671, 14, 'F2'),
-    '0 0 0 rg',
-    pdfText('2285 Revere Ave, San Francisco, CA 94124, USA', 215, 657, 6.5),
-    pdfText('CSLB #1099211        www.drtrafficcontrol.com', 223, 647, 6.5),
-    pdfText('Phone: 415-441-4410     info@drtrafficcontrol.com', 216, 637, 6.5),
-  ];
+  // Exact geometry from the supplied HTML/CSS Letter template.
+  if (logo) ops.push('q 160.56 0 0 53.52 39.24 679.48 cm /Logo Do Q');
+  ops.push(pdfText('WORK ORDER', 320.4, 711.8, 12, 'F2'));
+  ops.push('0.835 0 0 rg');
+  ops.push(pdfText(`No.  ${compactId(displayNumber, 20)}`, 456, 711.8, 12, 'F2'));
+  ops.push('0 0 0 rg');
+  ops.push('0.835 0 0 rg');
+  ops.push(pdfText('DR Traffic Control, LLC', 226, 666.5, 12, 'F2'));
+  ops.push('0 0 0 rg');
+  ops.push(pdfText('2285 Revere Ave, San Francisco, CA 94124, USA', 218, 655, 6, 'F2'));
+  ops.push(pdfText('CSLB #1099211            www.drtrafficcontrol.com', 222, 646.5, 6, 'F2'));
+  ops.push(pdfText('Phone: 415-441-4410        info@drtrafficcontrol.com', 219, 638, 6, 'F2'));
 
-  const left = 24;
-  const width = 564;
-  let top = 620;
-  const cell = (
+  let top = 614.2;
+  const topWidths = [width * 0.354, width * 0.312, width * 0.334];
+  const drawTopCell = (
     label: string,
     value: unknown,
     x: number,
     y: number,
     w: number,
     h: number,
-    max = 42,
+    max: number,
   ) => {
     ops.push(pdfRect(x, y - h, w, h));
-    ops.push(pdfText(label, x + 3, y - 7, 5.2, 'F2'));
+    ops.push(pdfText(label, x + 2, y - 5.5, 5.25, 'F2'));
     const text = fitText(value, max);
-    if (text) ops.push(pdfText(text, x + 3, y - h + 5, 6.6));
+    if (text) ops.push(pdfText(text, x + 2, y - h + 3.5, 6));
   };
 
-  cell('DR TRAFFIC JOB#', jobNumber, left, top, 201, 18, 30);
-  cell('JOB NAME:', jobName, left + 201, top, 203, 18, 42);
-  cell('DATE:', dateValue, left + 404, top, 160, 18, 22);
-  top -= 18;
-  cell('DESCRIPTION OF WORK:', description, left, top, width, 22, 112);
-  top -= 22;
-  cell('CLIENT:', client, left, top, 315, 18, 52);
-  cell('CUSTOMER ORDER #:', customerOrder, left + 315, top, 249, 18, 38);
-  top -= 18;
-  cell('CONTACT:', contact, left, top, 315, 18, 52);
-  ops.push(pdfRect(left + 315, top - 18, 249, 18));
-  ops.push(pdfText('WORK SHIFT', left + 318, top - 7, 5.2, 'F2'));
-  pdfCheckbox(ops, 'DAY', shiftText.includes('day'), left + 380, top - 12, 5.2);
-  pdfCheckbox(
-    ops,
-    'SWING',
-    shiftText.includes('swing'),
-    left + 435,
-    top - 12,
-    5.2,
+  drawTopCell('DR TRAFFIC JOB#', jobNumber, left, top, topWidths[0], 15.75, 34);
+  drawTopCell('JOB NAME:', jobName, left + topWidths[0], top, topWidths[1], 15.75, 31);
+  drawTopCell('DATE:', dateValue, left + topWidths[0] + topWidths[1], top, topWidths[2], 15.75, 24);
+  top -= 15.75;
+  drawTopCell('DESCRIPTION OF WORK:', description, left, top, width, 16.5, 116);
+  top -= 16.5;
+  drawTopCell('CLIENT:', client, left, top, topWidths[0] + topWidths[1], 15.75, 72);
+  drawTopCell(
+    'CUSTOMER ORDER #',
+    customerOrder,
+    left + topWidths[0] + topWidths[1],
+    top,
+    topWidths[2],
+    15.75,
+    31,
   );
-  pdfCheckbox(
-    ops,
-    'NIGHT',
-    shiftText.includes('night'),
-    left + 505,
-    top - 12,
-    5.2,
-  );
-  top -= 18;
+  top -= 15.75;
+  drawTopCell('CONTACT:', contact, left, top, topWidths[0] + topWidths[1], 15.75, 72);
+  const shiftX = left + topWidths[0] + topWidths[1];
+  ops.push(pdfRect(shiftX, top - 15.75, topWidths[2], 15.75));
+  ops.push(pdfText('WORK SHIFT', shiftX + 2, top - 5.5, 5.25, 'F2'));
+  const drawShiftChoice = (
+    label: string,
+    checked: boolean,
+    x: number,
+  ) => {
+    ops.push(pdfRect(x, top - 12, 5, 5));
+    if (checked) {
+      ops.push(pdfLine(x + 1, top - 10, x + 2.2, top - 11.2));
+      ops.push(pdfLine(x + 2.2, top - 11.2, x + 4.4, top - 7.8));
+    }
+    ops.push(pdfText(label, x + 8, top - 11, 5.25, 'F2'));
+  };
+  drawShiftChoice('DAY', shiftText.includes('day'), shiftX + 65);
+  drawShiftChoice('SWING', shiftText.includes('swing'), shiftX + 111);
+  drawShiftChoice('NIGHT', shiftText.includes('night'), shiftX + 164);
+  top -= 15.75;
 
-  ops.push(pdfRect(left, top - 18, width, 18));
-  pdfCheckbox(ops, 'FIELD SERVICE', true, left + 24, top - 12, 6);
-  pdfCheckbox(ops, 'INTERNAL SALE', false, left + 142, top - 12, 6);
-  pdfCheckbox(ops, 'SALES', false, left + 279, top - 12, 6);
-  pdfCheckbox(ops, 'ON RENT', false, left + 376, top - 12, 6);
-  pdfCheckbox(ops, 'OFF RENT', false, left + 474, top - 12, 6);
-  top -= 18;
-
-  const laborX = left;
-  const employeeW = 184;
-  const startW = 36;
-  const endW = 38;
-  const hourW = 29;
-  const laborW = employeeW + startW + endW + hourW * 3;
-  const laborHeaderW = employeeW + startW + endW;
-  const hoursHeaderW = hourW * 3;
-  const equipX = laborX + laborW;
-  const equipIdW = 43;
-  const equipDescW = width - laborW - equipIdW - 30;
-  const equipHoursW = 30;
-  ops.push(pdfFillRect(laborX, top - 14, laborHeaderW, 14, [0.94, 0.36, 0.36]));
-  ops.push(
-    pdfFillRect(
-      laborX + laborHeaderW,
-      top - 14,
-      hoursHeaderW,
-      14,
-      [0.94, 0.36, 0.36],
-    ),
-  );
-  ops.push(
-    pdfFillRect(equipX, top - 14, width - laborW, 14, [0.94, 0.36, 0.36]),
-  );
-  ops.push(pdfRect(laborX, top - 14, laborHeaderW, 14));
-  ops.push(pdfRect(laborX + laborHeaderW, top - 14, hoursHeaderW, 14));
-  ops.push(pdfRect(equipX, top - 14, width - laborW, 14));
-  ops.push(
-    pdfText('LABOR', laborX + laborHeaderW / 2 - 14, top - 10, 7.5, 'F2'),
-  );
-  ops.push(
-    pdfText(
-      'HOURS',
-      laborX + laborHeaderW + hoursHeaderW / 2 - 15,
-      top - 10,
-      7.5,
-      'F2',
-    ),
-  );
-  ops.push(pdfText('EQUIPMENT', equipX + 78, top - 10, 7.5, 'F2'));
-  top -= 14;
-
-  const laborCols = [employeeW, startW, endW, hourW, hourW, hourW];
-  const headers = ['EMPLOYEE NAME', 'START', 'END', 'REG', 'OT', 'DT'];
-  let x = laborX;
-  headers.forEach((header, index) => {
-    ops.push(pdfRect(x, top - 13, laborCols[index], 13));
-    ops.push(pdfText(header, x + 3, top - 9, 5.4, 'F2'));
-    x += laborCols[index];
+  const checkWeights = [1.5, 1.35, 1.15, 1.25, 1.45];
+  const checkLabels = ['FIELD SERVICE', 'INTERNAL SALE', 'SALES', 'ON RENT', 'OFF RENT'];
+  const checkStates = [
+    true,
+    false,
+    false,
+    Boolean(fieldValue(data, ['on_rent', 'onRent'])),
+    Boolean(fieldValue(data, ['off_rent', 'offRent'])),
+  ];
+  let checkX = left;
+  checkWeights.forEach((weight, index) => {
+    const checkWidth = (width * weight) / 6.7;
+    ops.push(pdfRect(checkX, top - 16.5, checkWidth, 16.5));
+    const fontSize = 6.75;
+    const labelWidth = checkLabels[index].length * fontSize * 0.52;
+    const boxSize = 5;
+    const gap = 5;
+    const contentWidth = labelWidth + gap + boxSize;
+    const contentX = checkX + (checkWidth - contentWidth) / 2;
+    const boxX = contentX + labelWidth + gap;
+    const baselineY = top - 10.5;
+    ops.push(
+      pdfText(checkLabels[index], contentX, baselineY, fontSize, 'F2'),
+    );
+    ops.push(pdfRect(boxX, baselineY - 1, boxSize, boxSize));
+    if (checkStates[index]) {
+      ops.push(pdfLine(boxX + 1, baselineY + 1, boxX + 2.2, baselineY - 0.2));
+      ops.push(
+        pdfLine(boxX + 2.2, baselineY - 0.2, boxX + 4.4, baselineY + 3.4),
+      );
+    }
+    checkX += checkWidth;
   });
-  ops.push(pdfRect(equipX, top - 13, equipIdW, 13));
-  ops.push(pdfText('EQUIP ID', equipX + 3, top - 9, 5.4, 'F2'));
-  ops.push(pdfRect(equipX + equipIdW, top - 13, equipDescW, 13));
-  ops.push(
-    pdfText('EQUIP DESCRIPTION', equipX + equipIdW + 3, top - 9, 5.4, 'F2'),
-  );
-  ops.push(pdfRect(equipX + equipIdW + equipDescW, top - 13, equipHoursW, 13));
-  ops.push(
-    pdfText('HRS', equipX + equipIdW + equipDescW + 5, top - 9, 5.4, 'F2'),
-  );
-  top -= 13;
+  top -= 16.5;
 
+  const workPercentages = [32.1, 5.8, 6.8, 5.5, 5.3, 5.3, 7.6, 25.7, 5.9];
+  const workCols = workPercentages.map((percentage) => (width * percentage) / 100);
+  const workXs: number[] = [];
+  let workX = left;
+  workCols.forEach((columnWidth) => {
+    workXs.push(workX);
+    workX += columnWidth;
+  });
+
+  const sectionHeight = 14.25;
+  const laborWidth = workCols.slice(0, 3).reduce((sum, value) => sum + value, 0);
+  const hoursWidth = workCols.slice(3, 6).reduce((sum, value) => sum + value, 0);
+  const equipmentWidth = workCols.slice(6).reduce((sum, value) => sum + value, 0);
+  ops.push(pdfFillRect(left, top - sectionHeight, laborWidth, sectionHeight, accent));
+  ops.push(pdfFillRect(left + laborWidth, top - sectionHeight, hoursWidth, sectionHeight, accent));
+  ops.push(pdfFillRect(left + laborWidth + hoursWidth, top - sectionHeight, equipmentWidth, sectionHeight, accent));
+  ops.push(pdfRect(left, top - sectionHeight, laborWidth, sectionHeight));
+  ops.push(pdfRect(left + laborWidth, top - sectionHeight, hoursWidth, sectionHeight));
+  ops.push(pdfRect(left + laborWidth + hoursWidth, top - sectionHeight, equipmentWidth, sectionHeight));
+  ops.push(pdfText('LABOR', left + laborWidth / 2 - 13, top - 10, 6.75, 'F2'));
+  ops.push(pdfText('HOURS', left + laborWidth + hoursWidth / 2 - 14, top - 10, 6.75, 'F2'));
+  ops.push(pdfText('EQUIPMENT', left + laborWidth + hoursWidth + equipmentWidth / 2 - 20, top - 10, 6.75, 'F2'));
+  top -= sectionHeight;
+
+  const workHeaders = [
+    'EMPLOYEE NAME',
+    'START',
+    'END',
+    'REG',
+    'OT',
+    'DT',
+    'EQUIP ID',
+    'EQUIP DESCRIPTION',
+    'HRS',
+  ];
+  const columnHeight = 12.75;
+  workCols.forEach((columnWidth, index) => {
+    ops.push(pdfRect(workXs[index], top - columnHeight, columnWidth, columnHeight));
+    ops.push(
+      pdfText(
+        workHeaders[index],
+        workXs[index] + Math.max(2, columnWidth / 2 - workHeaders[index].length * 1.5),
+        top - 8.7,
+        5.25,
+      ),
+    );
+  });
+  top -= columnHeight;
+
+  const rowCount = Math.max(7, context.workers.length, Math.ceil(context.equipment.length / 2));
+  const workerBlockHeight = 157.5 / rowCount;
+  const workerSubRowHeight = workerBlockHeight / 2;
   for (let index = 0; index < rowCount; index += 1) {
     const worker = context.workers[index];
-    const equipment = context.equipment[index];
-    const rowTop = top;
-    const subRow = workerRowHeight / 2;
-    const employeeLabelW = 31;
-    const employeeShiftW = 66;
-    const employeeMainEnd = laborX + employeeW - employeeShiftW;
-    const colXs = [
-      laborX,
-      laborX + employeeW,
-      laborX + employeeW + startW,
-      laborX + employeeW + startW + endW,
-      laborX + employeeW + startW + endW + hourW,
-      laborX + employeeW + startW + endW + hourW * 2,
+    const equipmentTop = context.equipment[index * 2];
+    const equipmentBottom = context.equipment[index * 2 + 1];
+    const firstColumnSplit = workCols[0] * 0.821;
+    const breakAreaX = workXs[1];
+    const breakAreaWidth = workCols[1] + workCols[2];
+    const breakParts = [
+      breakAreaWidth * 0.253,
+      breakAreaWidth * 0.458,
+      breakAreaWidth * 0.289,
     ];
-    laborCols.forEach((colW, colIndex) => {
-      ops.push(
-        pdfRect(
-          colXs[colIndex],
-          rowTop - workerRowHeight,
-          colW,
-          workerRowHeight,
-        ),
-      );
-    });
+
+    for (let row = 0; row < 2; row += 1) {
+      workCols.forEach((columnWidth, columnIndex) => {
+        ops.push(
+          pdfRect(
+            workXs[columnIndex],
+            top - workerSubRowHeight,
+            columnWidth,
+            workerSubRowHeight,
+          ),
+        );
+      });
+      top -= workerSubRowHeight;
+    }
+
+    const blockTop = top + workerBlockHeight;
+    const personBaseline = blockTop - workerSubRowHeight + 2.5;
+    const signBaseline = top + 2.5;
+    ops.push(
+      pdfLine(
+        left + firstColumnSplit,
+        blockTop,
+        left + firstColumnSplit,
+        blockTop - workerBlockHeight,
+      ),
+    );
+    ops.push(
+      pdfLine(
+        breakAreaX + breakParts[0],
+        blockTop - workerSubRowHeight,
+        breakAreaX + breakParts[0],
+        top,
+      ),
+    );
+    ops.push(
+      pdfLine(
+        breakAreaX + breakParts[0] + breakParts[1],
+        blockTop - workerSubRowHeight,
+        breakAreaX + breakParts[0] + breakParts[1],
+        top,
+      ),
+    );
+
+    ops.push(pdfText('Name', left + 2, personBaseline, 5.25, 'F2'));
+    ops.push(pdfText('SHIFT', left + firstColumnSplit + 2, personBaseline, 5.25, 'F2'));
+    ops.push(pdfText('Sign', left + 2, signBaseline, 5.25, 'F2'));
+    ops.push(pdfText('Lunch:', left + firstColumnSplit + 2, signBaseline, 5.25, 'F2'));
+    ops.push(pdfRect(breakAreaX + breakParts[0] / 2 - 2.5, signBaseline - 1, 5, 5));
+    ops.push(pdfText('Breaks:', breakAreaX + breakParts[0] + 3, signBaseline, 5.25, 'F2'));
+    ops.push(
+      pdfRect(
+        breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2 - 2.5,
+        signBaseline - 1,
+        5,
+        5,
+      ),
+    );
+
     if (worker) {
       ops.push(
-        pdfLine(laborX, rowTop - subRow, laborX + employeeW, rowTop - subRow),
-      );
-      ops.push(
-        pdfLine(
-          laborX + employeeLabelW,
-          rowTop,
-          laborX + employeeLabelW,
-          rowTop - workerRowHeight,
-        ),
-      );
-      ops.push(
-        pdfLine(
-          employeeMainEnd,
-          rowTop,
-          employeeMainEnd,
-          rowTop - workerRowHeight,
-        ),
-      );
-      ops.push(pdfText('Name', laborX + 3, rowTop - subRow + 2, 4.8, 'F2'));
-      ops.push(
-        pdfText('Sign', laborX + 3, rowTop - workerRowHeight + 2, 4.8, 'F2'),
-      );
-      ops.push(
         pdfText(
-          fitText(worker.workerName, 23),
-          laborX + employeeLabelW + 3,
-          rowTop - subRow + 2,
-          5.3,
+          fitText(worker.workerName, 34),
+          left + 31,
+          personBaseline,
+          5.1,
           'F2',
         ),
       );
-      ops.push(
-        pdfText('SHIFT:', employeeMainEnd + 2, rowTop - subRow + 2, 4.8, 'F2'),
-      );
-      ops.push(
-        pdfText(
-          fitText(worker.roleName, 9),
-          employeeMainEnd + 26,
-          rowTop - subRow + 2,
-          4.6,
-        ),
-      );
-      pdfCheckbox(
-        ops,
-        'Lunch',
-        worker.lunchTaken,
-        employeeMainEnd + 2,
-        rowTop - workerRowHeight + 2,
-        4.2,
-      );
-      pdfCheckbox(
-        ops,
-        'Breaks',
-        worker.breakMinutes > 0,
-        employeeMainEnd + 34,
-        rowTop - workerRowHeight + 2,
-        4.2,
-      );
+      ops.push(pdfText(formatPdfClock(worker.startTime), workXs[1] + 2, personBaseline, 5.2));
+      ops.push(pdfText(formatPdfClock(worker.endTime), workXs[2] + 2, personBaseline, 5.2));
+      ops.push(pdfText(String(worker.regularHours), workXs[3] + 8, personBaseline, 5.5));
+      ops.push(pdfText(String(worker.overtimeHours), workXs[4] + 8, personBaseline, 5.5));
+      ops.push(pdfText(String(worker.doubleTimeHours), workXs[5] + 8, personBaseline, 5.5));
+      if (worker.lunchTaken) {
+        ops.push(pdfLine(breakAreaX + breakParts[0] / 2 - 1.5, signBaseline + 1, breakAreaX + breakParts[0] / 2 - 0.2, signBaseline));
+        ops.push(pdfLine(breakAreaX + breakParts[0] / 2 - 0.2, signBaseline, breakAreaX + breakParts[0] / 2 + 2, signBaseline + 3.5));
+      }
+      if (worker.breakMinutes > 0) {
+        const bx = breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2;
+        ops.push(pdfLine(bx - 1.5, signBaseline + 1, bx - 0.2, signBaseline));
+        ops.push(pdfLine(bx - 0.2, signBaseline, bx + 2, signBaseline + 3.5));
+      }
       if (worker.signature) {
         drawSignature(
           ops,
           images,
           worker.signature,
-          laborX + employeeLabelW + 2,
-          rowTop - workerRowHeight + 1,
-          employeeMainEnd - laborX - employeeLabelW - 4,
-          subRow - 2,
+          left + 28,
+          top + 0.5,
+          firstColumnSplit - 31,
+          workerSubRowHeight - 1,
         );
       }
-      ops.push(
-        pdfText(
-          formatPdfClock(worker.startTime),
-          colXs[1] + 3,
-          rowTop - workerRowHeight / 2,
-          5.6,
-        ),
-      );
-      ops.push(
-        pdfText(
-          formatPdfClock(worker.endTime),
-          colXs[2] + 3,
-          rowTop - workerRowHeight / 2,
-          5.6,
-        ),
-      );
-      ops.push(
-        pdfText(
-          String(worker.regularHours),
-          colXs[3] + 7,
-          rowTop - workerRowHeight / 2,
-          6,
-        ),
-      );
-      ops.push(
-        pdfText(
-          String(worker.overtimeHours),
-          colXs[4] + 7,
-          rowTop - workerRowHeight / 2,
-          6,
-        ),
-      );
-      ops.push(
-        pdfText(
-          String(worker.doubleTimeHours),
-          colXs[5] + 7,
-          rowTop - workerRowHeight / 2,
-          6,
-        ),
-      );
     }
 
-    ops.push(
-      pdfRect(equipX, rowTop - workerRowHeight, equipIdW, workerRowHeight),
-    );
-    ops.push(
-      pdfRect(
-        equipX + equipIdW,
-        rowTop - workerRowHeight,
-        equipDescW,
-        workerRowHeight,
-      ),
-    );
-    ops.push(
-      pdfRect(
-        equipX + equipIdW + equipDescW,
-        rowTop - workerRowHeight,
-        equipHoursW,
-        workerRowHeight,
-      ),
-    );
-    ops.push(
-      pdfLine(
-        equipX,
-        rowTop - subRow,
-        equipX + equipIdW + equipDescW + equipHoursW,
-        rowTop - subRow,
-      ),
-    );
-    if (equipment) {
-      ops.push(
-        pdfText(
-          fitText(equipment.identifier, 12),
-          equipX + 3,
-          rowTop - subRow + 2,
-          5.8,
-        ),
-      );
-      ops.push(
-        pdfText(
-          fitText(equipment.description, 25),
-          equipX + equipIdW + 3,
-          rowTop - subRow + 2,
-          5.8,
-        ),
-      );
-      ops.push(
-        pdfText(
-          fitText(equipment.hours || '', 5),
-          equipX + equipIdW + equipDescW + 5,
-          rowTop - subRow + 2,
-          5.8,
-        ),
-      );
-    }
-    top -= workerRowHeight;
+    const drawEquipment = (
+      equipment: WorkOrderPdfResource | undefined,
+      baseline: number,
+    ) => {
+      if (!equipment) return;
+      ops.push(pdfText(fitText(equipment.identifier, 11), workXs[6] + 2, baseline, 5.2));
+      ops.push(pdfText(fitText(equipment.description, 31), workXs[7] + 2, baseline, 5.2));
+      ops.push(pdfText(fitText(equipment.hours || '', 5), workXs[8] + 4, baseline, 5.2));
+    };
+    drawEquipment(equipmentTop, personBaseline);
+    drawEquipment(equipmentBottom, signBaseline);
   }
 
-  const materialW = 282;
-  ops.push(pdfFillRect(left, top - 14, materialW, 14, [0.94, 0.36, 0.36]));
-  ops.push(
-    pdfFillRect(
-      left + materialW,
-      top - 14,
-      width - materialW,
-      14,
-      [0.94, 0.36, 0.36],
-    ),
-  );
-  ops.push(pdfRect(left, top - 14, materialW, 14));
-  ops.push(pdfRect(left + materialW, top - 14, width - materialW, 14));
-  ops.push(pdfText('MATERIAL', left + 122, top - 10, 7.5, 'F2'));
-  ops.push(pdfText('NOTES', left + 410, top - 10, 7.5, 'F2'));
-  top -= 14;
-
-  const materialCols = [150, 50, 40, 42];
-  const materialHeaders = ['DESCRIPTION', 'SIZE', 'QTY', 'PRICE'];
+  const materialPercentages = [26.4, 8.9, 6.9, 8.4, 49.4];
+  const materialCols = materialPercentages.map((percentage) => (width * percentage) / 100);
+  const materialXs: number[] = [];
   let materialX = left;
-  materialHeaders.forEach((header, index) => {
-    ops.push(pdfRect(materialX, top - 13, materialCols[index], 13));
-    ops.push(pdfText(header, materialX + 3, top - 9, 5.2, 'F2'));
-    materialX += materialCols[index];
+  materialCols.forEach((columnWidth) => {
+    materialXs.push(materialX);
+    materialX += columnWidth;
   });
-  ops.push(pdfRect(left + materialW, top - 13, width - materialW, 13));
-  top -= 13;
+  const materialWidth = materialCols.slice(0, 4).reduce((sum, value) => sum + value, 0);
+  ops.push(pdfFillRect(left, top - sectionHeight, materialWidth, sectionHeight, accent));
+  ops.push(pdfFillRect(left + materialWidth, top - sectionHeight, materialCols[4], sectionHeight, accent));
+  ops.push(pdfRect(left, top - sectionHeight, materialWidth, sectionHeight));
+  ops.push(pdfRect(left + materialWidth, top - sectionHeight, materialCols[4], sectionHeight));
+  ops.push(pdfText('MATERIAL', left + materialWidth / 2 - 16, top - 10, 6.75, 'F2'));
+  ops.push(pdfText('NOTES', left + materialWidth + materialCols[4] / 2 - 11, top - 10, 6.75, 'F2'));
+  top -= sectionHeight;
 
-  const materialRowCount = Math.max(7, context.materials.length);
-  const availableMaterialHeight = Math.max(72, top - 104);
-  const materialRowHeight = Math.max(
-    10,
-    Math.min(16, availableMaterialHeight / materialRowCount),
-  );
-  const noteLines = wrapText(stringifyFieldValue(notes), 62);
-  for (let index = 0; index < materialRowCount; index += 1) {
-    const material = context.materials[index];
-    let colX = left;
-    materialCols.forEach((colW) => {
-      ops.push(pdfRect(colX, top - materialRowHeight, colW, materialRowHeight));
-      colX += colW;
-    });
-    ops.push(
-      pdfRect(
-        left + materialW,
-        top - materialRowHeight,
-        width - materialW,
-        materialRowHeight,
-      ),
-    );
-    if (material) {
+  const materialHeaders = ['DESCRIPTION', 'SIZE', 'QTY', 'PRICE', ''];
+  materialCols.forEach((columnWidth, index) => {
+    ops.push(pdfRect(materialXs[index], top - columnHeight, columnWidth, columnHeight));
+    if (materialHeaders[index]) {
       ops.push(
         pdfText(
-          fitText(material.description, 34),
-          left + 3,
-          top - materialRowHeight + 4,
-          5.8,
-        ),
-      );
-      ops.push(
-        pdfText(
-          fitText(material.size || '', 10),
-          left + 153,
-          top - materialRowHeight + 4,
-          5.8,
-        ),
-      );
-      ops.push(
-        pdfText(
-          fitText(material.quantity || '1', 6),
-          left + 205,
-          top - materialRowHeight + 4,
-          5.8,
-        ),
-      );
-      ops.push(
-        pdfText(
-          fitText(material.price || '', 8),
-          left + 245,
-          top - materialRowHeight + 4,
-          5.8,
+          materialHeaders[index],
+          materialXs[index] + Math.max(2, columnWidth / 2 - materialHeaders[index].length * 1.4),
+          top - 8.7,
+          5.25,
         ),
       );
     }
+  });
+  top -= columnHeight;
+
+  const noteLines = wrapText(stringifyFieldValue(notes), 72);
+  const materialRowHeight = 12.75;
+  for (let index = 0; index < 13; index += 1) {
+    const material = context.materials[index];
+    materialCols.forEach((columnWidth, columnIndex) => {
+      ops.push(pdfRect(materialXs[columnIndex], top - materialRowHeight, columnWidth, materialRowHeight));
+    });
+    if (material) {
+      ops.push(pdfText(fitText(material.description, 34), materialXs[0] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(fitText(material.size || '', 10), materialXs[1] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(fitText(material.quantity || '1', 6), materialXs[2] + 4, top - 8.7, 5.2));
+      ops.push(pdfText(fitText(material.price || '', 8), materialXs[3] + 2, top - 8.7, 5.2));
+    }
     if (noteLines[index]) {
-      ops.push(
-        pdfText(
-          noteLines[index],
-          left + materialW + 4,
-          top - materialRowHeight + 4,
-          5.8,
-        ),
-      );
+      ops.push(pdfText(noteLines[index], materialXs[4] + 2, top - 8.7, 5.2));
     }
     top -= materialRowHeight;
   }
 
-  const foremanSignature = findSignatureValue(data, template, [
-    /foreman/,
-    /employee/,
-    /dr.?traffic/,
-    /rep/,
-  ]);
+  const foremanSignature =
+    findSignatureValue(data, template, [/foreman/, /employee/, /dr.?traffic/, /rep/]) ||
+    context.workers.find(
+      (worker) =>
+        /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(
+          worker.roleName,
+        ) && worker.signature,
+    )?.signature;
   const customerSignature = findSignatureValue(data, template, [
     /customer/,
     /contract/,
@@ -1656,33 +1557,34 @@ export function buildWorkOrderPdf(
     /approval/,
   ]);
 
-  ops.push(pdfText('DR TRAFFIC REP. (NAME)', left, 76, 5.8, 'F2'));
-  ops.push(pdfLine(left + 96, 74, left + 245, 74));
+  const footerY = 88;
+  ops.push(pdfText('DR TRAFFIC REP. (NAME)', left + 2, footerY, 5.6, 'F2'));
+  ops.push(pdfLine(left + 101, footerY - 1, left + 247, footerY - 1));
   ops.push(
     pdfText(
       'OWNER / GENERAL CONTRACTOR REP. (NAME)',
-      left + 282,
-      76,
-      5.8,
+      left + 288,
+      footerY,
+      5.6,
       'F2',
     ),
   );
-  ops.push(pdfLine(left + 448, 74, left + 564, 74));
+  ops.push(pdfLine(left + 464, footerY - 1, left + 574, footerY - 1));
   if (foremanSignature) {
-    drawSignature(ops, images, foremanSignature, left + 98, 76, 145, 27);
+    drawSignature(ops, images, foremanSignature, left + 103, footerY, 142, 28);
   }
   if (customerSignature) {
-    drawSignature(ops, images, customerSignature, left + 450, 76, 112, 27);
+    drawSignature(ops, images, customerSignature, left + 466, footerY, 106, 28);
   }
   ops.push(
     pdfText(
       'I hereby acknowledge the satisfactory completion of the above described work and accept the Terms &',
-      left + 282,
-      63,
+      left + 288,
+      footerY - 10,
       4.6,
     ),
   );
-  ops.push(pdfText('Conditions on the reverse side.', left + 282, 56, 4.6));
+  ops.push(pdfText('Conditions on the reverse side.', left + 288, footerY - 16, 4.6));
 
   return buildPdfContentPdf(ops.join('\n'), images);
 }
@@ -1805,6 +1707,7 @@ export class FormSubmissionsService {
       await this.repo.save(saved);
     }
     this.realtime.emitTableUpdated('form_submissions');
+    this.realtime.emitTableUpdated('work_orders');
     return saved;
   }
 
@@ -1868,6 +1771,7 @@ export class FormSubmissionsService {
       await this.deleteGeneratedPdf(previousPdfUrl);
     }
     this.realtime.emitTableUpdated('form_submissions');
+    this.realtime.emitTableUpdated('work_orders');
     return saved;
   }
 
@@ -2133,6 +2037,7 @@ export class FormSubmissionsService {
     await this.deleteGeneratedPdf(item.pdfUrl);
     this.realtime.emitTableUpdated('incidents');
     this.realtime.emitTableUpdated('form_submissions');
+    this.realtime.emitTableUpdated('work_orders');
     return { success: true };
   }
 

@@ -170,8 +170,11 @@ function decodePngForPdf(path: string, name: string): EmbeddedPdfImage | null {
   };
 }
 
-export function loadCommercialPdfLogoImage(name = 'Logo') {
-  return decodePngForPdf(join(process.cwd(), 'public', 'drtraffic-logo-horizontal.png'), name);
+export function loadCommercialPdfLogoImage(
+  name = 'Logo',
+  fileName = 'drtraffic-logo-horizontal.png',
+) {
+  return decodePngForPdf(join(process.cwd(), 'public', fileName), name);
 }
 
 function buildPdf(content: string, images: EmbeddedPdfImage[] = []): Buffer {

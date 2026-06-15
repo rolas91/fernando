@@ -55,6 +55,12 @@ type MobileShiftCompletion = {
   completedTemplateIdsByShift: Map<string, Set<string>>;
 };
 
+export function countsTowardShiftCompletion(
+  submission: Pick<FormSubmission, 'shiftId' | 'status' | 'pdfUrl'>,
+) {
+  return submission.status === 'submitted' && Boolean(submission.shiftId);
+}
+
 function mobileClockMinutes(value: unknown) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
@@ -408,9 +414,7 @@ export class WorkOrdersService {
       }),
       this.formTemplatesRepo.find(),
     ]);
-    const eligibleSubmissions = submissions.filter((submission) =>
-      Boolean(submission.shiftId && submission.pdfUrl?.trim()),
-    );
+    const eligibleSubmissions = submissions.filter(countsTowardShiftCompletion);
     const submittedKeys = new Set(
       eligibleSubmissions
         .map((submission) => `${submission.workOrderId}:${submission.shiftId}:${submission.templateId}`),

@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { basename, resolve } from 'path';
+import { deflateSync, inflateSync } from 'zlib';
 import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
@@ -322,6 +323,121 @@ function jpegFromSignature(value: unknown) {
   return Buffer.from(match[1], 'base64');
 }
 
+function pngFromSignature(value: unknown) {
+  if (!isSignatureImage(value)) return null;
+  const match = /^data:image\/png;base64,(.+)$/i.exec(value.dataUrl);
+  if (!match) return null;
+  return Buffer.from(match[1], 'base64');
+}
+
+function paethPredictor(a: number, b: number, c: number) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+
+function pdfImageFromPng(data: Buffer, name: string): PdfImage | null {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (data.length < 33 || !data.subarray(0, 8).equals(signature)) return null;
+
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = -1;
+  let interlace = 0;
+  const idat: Buffer[] = [];
+  let offset = 8;
+  while (offset + 12 <= data.length) {
+    const length = data.readUInt32BE(offset);
+    const type = data.toString('ascii', offset + 4, offset + 8);
+    const chunk = data.subarray(offset + 8, offset + 8 + length);
+    if (type === 'IHDR' && chunk.length >= 13) {
+      width = chunk.readUInt32BE(0);
+      height = chunk.readUInt32BE(4);
+      bitDepth = chunk[8];
+      colorType = chunk[9];
+      interlace = chunk[12];
+    } else if (type === 'IDAT') {
+      idat.push(chunk);
+    } else if (type === 'IEND') {
+      break;
+    }
+    offset += length + 12;
+  }
+
+  const channelCount = colorType === 6 ? 4 : colorType === 2 ? 3 : 0;
+  if (
+    !width ||
+    !height ||
+    bitDepth !== 8 ||
+    interlace !== 0 ||
+    channelCount === 0 ||
+    idat.length === 0
+  ) {
+    return null;
+  }
+
+  const decoded = inflateSync(Buffer.concat(idat));
+  const stride = width * channelCount;
+  const expectedLength = height * (stride + 1);
+  if (decoded.length < expectedLength) return null;
+  const scanlines = Buffer.alloc(height * stride);
+  let sourceOffset = 0;
+  for (let y = 0; y < height; y += 1) {
+    const filter = decoded[sourceOffset];
+    sourceOffset += 1;
+    const rowOffset = y * stride;
+    const previousOffset = (y - 1) * stride;
+    for (let x = 0; x < stride; x += 1) {
+      const raw = decoded[sourceOffset + x];
+      const left =
+        x >= channelCount ? scanlines[rowOffset + x - channelCount] : 0;
+      const up = y > 0 ? scanlines[previousOffset + x] : 0;
+      const upperLeft =
+        y > 0 && x >= channelCount
+          ? scanlines[previousOffset + x - channelCount]
+          : 0;
+      const reconstructed =
+        filter === 0
+          ? raw
+          : filter === 1
+            ? raw + left
+            : filter === 2
+              ? raw + up
+              : filter === 3
+                ? raw + Math.floor((left + up) / 2)
+                : filter === 4
+                  ? raw + paethPredictor(left, up, upperLeft)
+                  : raw;
+      scanlines[rowOffset + x] = reconstructed & 0xff;
+    }
+    sourceOffset += stride;
+  }
+
+  const rgb = Buffer.alloc(width * height * 3);
+  for (let pixel = 0; pixel < width * height; pixel += 1) {
+    const source = pixel * channelCount;
+    const target = pixel * 3;
+    const alpha = channelCount === 4 ? scanlines[source + 3] / 255 : 1;
+    rgb[target] = Math.round(scanlines[source] * alpha + 255 * (1 - alpha));
+    rgb[target + 1] = Math.round(
+      scanlines[source + 1] * alpha + 255 * (1 - alpha),
+    );
+    rgb[target + 2] = Math.round(
+      scanlines[source + 2] * alpha + 255 * (1 - alpha),
+    );
+  }
+  return {
+    name,
+    width,
+    height,
+    data: deflateSync(rgb),
+    filter: 'FlateDecode',
+  };
+}
+
 function jpegDimensions(
   data: Buffer,
 ): { width: number; height: number } | null {
@@ -417,8 +533,14 @@ function addSignatureImage(
   value: unknown,
 ): PdfImage | null {
   const signatureImage = jpegFromSignature(value);
-  if (!signatureImage) return null;
   const imageName = `Sig${images.length + 1}`;
+  const pngImage = pngFromSignature(value);
+  if (pngImage) {
+    const image = pdfImageFromPng(pngImage, imageName);
+    if (image) images.push(image);
+    return image;
+  }
+  if (!signatureImage) return null;
   const dimensions = jpegDimensions(signatureImage);
   const image = {
     name: imageName,
@@ -1089,10 +1211,10 @@ export function buildWorkOrderPdf(
     context.workers.length,
     context.equipment.length,
   );
-  const workerRowHeight = Math.max(18, Math.min(27, 189 / rowCount));
+  const workerRowHeight = Math.max(17, Math.min(27, 189 / rowCount));
 
   const ops: string[] = [
-    '0.18 w',
+    '0.42 w',
     '0 0 0 RG',
     pdfRect(4, 4, 604, 784),
     ...(logo ? ['q 156 0 0 49 43 686 cm /Logo Do Q'] : []),
@@ -1166,23 +1288,45 @@ export function buildWorkOrderPdf(
   top -= 18;
 
   const laborX = left;
-  const employeeW = 174;
-  const startW = 38;
+  const employeeW = 184;
+  const startW = 36;
   const endW = 38;
-  const hourW = 25;
+  const hourW = 29;
   const laborW = employeeW + startW + endW + hourW * 3;
+  const laborHeaderW = employeeW + startW + endW;
+  const hoursHeaderW = hourW * 3;
   const equipX = laborX + laborW;
-  const equipIdW = 54;
+  const equipIdW = 43;
   const equipDescW = width - laborW - equipIdW - 30;
   const equipHoursW = 30;
-  ops.push(pdfFillRect(laborX, top - 14, laborW, 14, [0.94, 0.36, 0.36]));
+  ops.push(pdfFillRect(laborX, top - 14, laborHeaderW, 14, [0.94, 0.36, 0.36]));
+  ops.push(
+    pdfFillRect(
+      laborX + laborHeaderW,
+      top - 14,
+      hoursHeaderW,
+      14,
+      [0.94, 0.36, 0.36],
+    ),
+  );
   ops.push(
     pdfFillRect(equipX, top - 14, width - laborW, 14, [0.94, 0.36, 0.36]),
   );
-  ops.push(pdfRect(laborX, top - 14, laborW, 14));
+  ops.push(pdfRect(laborX, top - 14, laborHeaderW, 14));
+  ops.push(pdfRect(laborX + laborHeaderW, top - 14, hoursHeaderW, 14));
   ops.push(pdfRect(equipX, top - 14, width - laborW, 14));
-  ops.push(pdfText('LABOR', laborX + laborW / 2 - 14, top - 10, 7.5, 'F2'));
-  ops.push(pdfText('HOURS', laborX + employeeW + 66, top - 10, 7.5, 'F2'));
+  ops.push(
+    pdfText('LABOR', laborX + laborHeaderW / 2 - 14, top - 10, 7.5, 'F2'),
+  );
+  ops.push(
+    pdfText(
+      'HOURS',
+      laborX + laborHeaderW + hoursHeaderW / 2 - 15,
+      top - 10,
+      7.5,
+      'F2',
+    ),
+  );
   ops.push(pdfText('EQUIPMENT', equipX + 78, top - 10, 7.5, 'F2'));
   top -= 14;
 
@@ -1210,7 +1354,10 @@ export function buildWorkOrderPdf(
     const worker = context.workers[index];
     const equipment = context.equipment[index];
     const rowTop = top;
-    const subRow = workerRowHeight / 3;
+    const subRow = workerRowHeight / 2;
+    const employeeLabelW = 31;
+    const employeeShiftW = 66;
+    const employeeMainEnd = laborX + employeeW - employeeShiftW;
     const colXs = [
       laborX,
       laborX + employeeW,
@@ -1235,55 +1382,68 @@ export function buildWorkOrderPdf(
       );
       ops.push(
         pdfLine(
-          laborX,
-          rowTop - subRow * 2,
-          laborX + employeeW,
-          rowTop - subRow * 2,
+          laborX + employeeLabelW,
+          rowTop,
+          laborX + employeeLabelW,
+          rowTop - workerRowHeight,
         ),
       );
       ops.push(
+        pdfLine(
+          employeeMainEnd,
+          rowTop,
+          employeeMainEnd,
+          rowTop - workerRowHeight,
+        ),
+      );
+      ops.push(pdfText('Name', laborX + 3, rowTop - subRow + 2, 4.8, 'F2'));
+      ops.push(
+        pdfText('Sign', laborX + 3, rowTop - workerRowHeight + 2, 4.8, 'F2'),
+      );
+      ops.push(
         pdfText(
-          fitText(worker.workerName, 30),
-          laborX + 3,
+          fitText(worker.workerName, 23),
+          laborX + employeeLabelW + 3,
           rowTop - subRow + 2,
-          5.8,
+          5.3,
           'F2',
         ),
       );
-      ops.push(pdfText('Sign', laborX + 3, rowTop - subRow * 2 + 2, 4.8, 'F2'));
+      ops.push(
+        pdfText('SHIFT:', employeeMainEnd + 2, rowTop - subRow + 2, 4.8, 'F2'),
+      );
       ops.push(
         pdfText(
-          `SHIFT: ${fitText(worker.roleName, 16)}`,
-          laborX + 84,
-          rowTop - subRow * 2 + 2,
-          4.8,
-          'F2',
+          fitText(worker.roleName, 9),
+          employeeMainEnd + 26,
+          rowTop - subRow + 2,
+          4.6,
         ),
       );
       pdfCheckbox(
         ops,
         'Lunch',
         worker.lunchTaken,
-        laborX + 84,
+        employeeMainEnd + 2,
         rowTop - workerRowHeight + 2,
-        4.6,
+        4.2,
       );
       pdfCheckbox(
         ops,
         'Breaks',
         worker.breakMinutes > 0,
-        laborX + 130,
+        employeeMainEnd + 34,
         rowTop - workerRowHeight + 2,
-        4.6,
+        4.2,
       );
       if (worker.signature) {
         drawSignature(
           ops,
           images,
           worker.signature,
-          laborX + 25,
-          rowTop - subRow * 2 + 1,
-          54,
+          laborX + employeeLabelW + 2,
+          rowTop - workerRowHeight + 1,
+          employeeMainEnd - laborX - employeeLabelW - 4,
           subRow - 2,
         );
       }
@@ -1348,12 +1508,20 @@ export function buildWorkOrderPdf(
         workerRowHeight,
       ),
     );
+    ops.push(
+      pdfLine(
+        equipX,
+        rowTop - subRow,
+        equipX + equipIdW + equipDescW + equipHoursW,
+        rowTop - subRow,
+      ),
+    );
     if (equipment) {
       ops.push(
         pdfText(
           fitText(equipment.identifier, 12),
           equipX + 3,
-          rowTop - workerRowHeight / 2,
+          rowTop - subRow + 2,
           5.8,
         ),
       );
@@ -1361,7 +1529,7 @@ export function buildWorkOrderPdf(
         pdfText(
           fitText(equipment.description, 25),
           equipX + equipIdW + 3,
-          rowTop - workerRowHeight / 2,
+          rowTop - subRow + 2,
           5.8,
         ),
       );
@@ -1369,7 +1537,7 @@ export function buildWorkOrderPdf(
         pdfText(
           fitText(equipment.hours || '', 5),
           equipX + equipIdW + equipDescW + 5,
-          rowTop - workerRowHeight / 2,
+          rowTop - subRow + 2,
           5.8,
         ),
       );

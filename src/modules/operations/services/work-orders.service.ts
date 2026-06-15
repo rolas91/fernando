@@ -50,6 +50,11 @@ type MobileAssignmentQuery = {
   status?: MobileAssignmentStatusFilter | string;
 };
 
+type MobileShiftCompletion = {
+  completedShiftKeys: Set<string>;
+  completedTemplateIdsByShift: Map<string, Set<string>>;
+};
+
 function mobileClockMinutes(value: unknown) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim();
@@ -142,7 +147,7 @@ export class WorkOrdersService {
     const shiftTemplateById = new Map(
       shiftTemplates.map((shiftTemplate) => [shiftTemplate.id, shiftTemplate]),
     );
-    const completedShiftKeys = await this.resolveCompletedMobileShiftKeys(assigned);
+    const shiftCompletion = await this.resolveMobileShiftCompletion(assigned);
     const quickAccessMaps = await this.loadMobileQuickAccessMaps(assigned);
 
     return assigned
@@ -170,7 +175,8 @@ export class WorkOrdersService {
           wo,
           worker.id,
           projectById.get(wo.projectId),
-          completedShiftKeys,
+          shiftCompletion.completedShiftKeys,
+          shiftCompletion.completedTemplateIdsByShift,
           quickAccessMaps,
           shiftTemplateById,
         ),
@@ -382,9 +388,16 @@ export class WorkOrdersService {
     return status === filter;
   }
 
-  private async resolveCompletedMobileShiftKeys(workOrders: WorkOrder[]) {
+  private async resolveMobileShiftCompletion(
+    workOrders: WorkOrder[],
+  ): Promise<MobileShiftCompletion> {
     const workOrderIds = [...new Set(workOrders.map((wo) => wo.id).filter(Boolean))];
-    if (workOrderIds.length === 0) return new Set<string>();
+    if (workOrderIds.length === 0) {
+      return {
+        completedShiftKeys: new Set<string>(),
+        completedTemplateIdsByShift: new Map<string, Set<string>>(),
+      };
+    }
 
     const [submissions, templates] = await Promise.all([
       this.formSubmissionsRepo.find({
@@ -395,12 +408,35 @@ export class WorkOrdersService {
       }),
       this.formTemplatesRepo.find(),
     ]);
+    const eligibleSubmissions = submissions.filter((submission) =>
+      Boolean(submission.shiftId && submission.pdfUrl?.trim()),
+    );
     const submittedKeys = new Set(
-      submissions
-        .filter((submission) => submission.shiftId && submission.pdfUrl?.trim())
+      eligibleSubmissions
         .map((submission) => `${submission.workOrderId}:${submission.shiftId}:${submission.templateId}`),
     );
     const completedShiftKeys = new Set<string>();
+    const completedTemplateIdsByShift = new Map<string, Set<string>>();
+    const completedTimesheetWorkersByShift = new Map<string, Set<string>>();
+
+    for (const submission of eligibleSubmissions) {
+      const shiftKey = `${submission.workOrderId}:${submission.shiftId}`;
+      const completedWorkers =
+        completedTimesheetWorkersByShift.get(shiftKey) ?? new Set<string>();
+      for (const row of this.findTimesheetRows(submission.data ?? {})) {
+        const workerId =
+          typeof row.workerId === 'string' ? row.workerId.trim() : '';
+        const rowStatus =
+          typeof row.status === 'string' ? row.status.trim().toLowerCase() : '';
+        if (
+          workerId &&
+          ['completed', 'submitted', 'done', 'approved'].includes(rowStatus)
+        ) {
+          completedWorkers.add(workerId);
+        }
+      }
+      completedTimesheetWorkersByShift.set(shiftKey, completedWorkers);
+    }
 
     for (const workOrder of workOrders) {
       const pickedTemplateIds = new Set((workOrder.formTemplateIds || []).filter(Boolean));
@@ -414,14 +450,81 @@ export class WorkOrdersService {
         const record = shift as Record<string, unknown>;
         const shiftId = typeof record.id === 'string' ? record.id : '';
         if (!shiftId) continue;
+        const shiftKey = `${workOrder.id}:${shiftId}`;
+        const assignedWorkerIds = this.assignedWorkerIdsForShift(record);
+        const completedTimesheetWorkers =
+          completedTimesheetWorkersByShift.get(shiftKey) ?? new Set<string>();
+        const completedTemplateIds = new Set<string>();
+        for (const template of requiredTemplates) {
+          const hasDirectSubmission = submittedKeys.has(
+            `${shiftKey}:${template.id}`,
+          );
+          const hasSharedTimesheets =
+            this.isTimesheetTemplate(template) &&
+            assignedWorkerIds.size > 0 &&
+            [...assignedWorkerIds].every((workerId) =>
+              completedTimesheetWorkers.has(workerId),
+            );
+          if (hasDirectSubmission || hasSharedTimesheets) {
+            completedTemplateIds.add(template.id);
+          }
+        }
+        completedTemplateIdsByShift.set(shiftKey, completedTemplateIds);
         const hasEveryRequired = requiredTemplates.every((template) =>
-          submittedKeys.has(`${workOrder.id}:${shiftId}:${template.id}`),
+          completedTemplateIds.has(template.id),
         );
         if (hasEveryRequired) completedShiftKeys.add(`${workOrder.id}:${shiftId}`);
       }
     }
 
-    return completedShiftKeys;
+    return { completedShiftKeys, completedTemplateIdsByShift };
+  }
+
+  private async resolveCompletedMobileShiftKeys(workOrders: WorkOrder[]) {
+    return (await this.resolveMobileShiftCompletion(workOrders)).completedShiftKeys;
+  }
+
+  private isTimesheetTemplate(template: FormTemplate) {
+    return [template.category, template.name]
+      .filter(Boolean)
+      .some((value) =>
+        String(value).toLowerCase().replace(/\s+/g, '').includes('timesheet'),
+      );
+  }
+
+  private findTimesheetRows(data: Record<string, unknown>) {
+    const rows: Record<string, unknown>[] = [];
+    for (const value of Object.values(data)) {
+      if (!Array.isArray(value)) continue;
+      for (const entry of value) {
+        if (
+          typeof entry === 'object' &&
+          entry !== null &&
+          typeof (entry as Record<string, unknown>).workerId === 'string'
+        ) {
+          rows.push(entry as Record<string, unknown>);
+        }
+      }
+    }
+    return rows;
+  }
+
+  private assignedWorkerIdsForShift(shift: Record<string, unknown>) {
+    const workerIds = new Set<string>();
+    const roles = Array.isArray(shift.roles) ? shift.roles : [];
+    for (const rawRole of roles) {
+      if (!rawRole || typeof rawRole !== 'object') continue;
+      const role = rawRole as Record<string, unknown>;
+      const assignedWorkers = Array.isArray(role.assignedWorkers)
+        ? role.assignedWorkers
+        : [];
+      for (const workerId of assignedWorkers) {
+        if (typeof workerId === 'string' && workerId.trim()) {
+          workerIds.add(workerId.trim());
+        }
+      }
+    }
+    return workerIds;
   }
 
   private serializeMobileAssignment(
@@ -429,6 +532,7 @@ export class WorkOrdersService {
     workerId: string,
     project?: Project,
     completedShiftKeys = new Set<string>(),
+    completedTemplateIdsByShift = new Map<string, Set<string>>(),
     quickAccessMaps?: {
       workerById: Map<string, Worker>;
       equipmentById: Map<string, Equipment>;
@@ -492,6 +596,11 @@ export class WorkOrdersService {
           completed: completedShiftKeys.has(
             `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
           ),
+          completedFormTemplateIds: [
+            ...(completedTemplateIdsByShift.get(
+              `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
+            ) ?? new Set<string>()),
+          ],
         };
       })
       .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))

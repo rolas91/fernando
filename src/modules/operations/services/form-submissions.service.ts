@@ -416,23 +416,56 @@ function pdfImageFromPng(data: Buffer, name: string): PdfImage | null {
     sourceOffset += stride;
   }
 
-  const rgb = Buffer.alloc(width * height * 3);
-  for (let pixel = 0; pixel < width * height; pixel += 1) {
-    const source = pixel * channelCount;
-    const target = pixel * 3;
-    const alpha = channelCount === 4 ? scanlines[source + 3] / 255 : 1;
-    rgb[target] = Math.round(scanlines[source] * alpha + 255 * (1 - alpha));
-    rgb[target + 1] = Math.round(
-      scanlines[source + 1] * alpha + 255 * (1 - alpha),
-    );
-    rgb[target + 2] = Math.round(
-      scanlines[source + 2] * alpha + 255 * (1 - alpha),
-    );
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const source = (y * width + x) * channelCount;
+      const alpha = channelCount === 4 ? scanlines[source + 3] : 255;
+      const isVisible =
+        alpha > 12 &&
+        (scanlines[source] < 245 ||
+          scanlines[source + 1] < 245 ||
+          scanlines[source + 2] < 245);
+      if (!isVisible) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  const cropPadding = 4;
+  const cropLeft = maxX >= 0 ? Math.max(0, minX - cropPadding) : 0;
+  const cropTop = maxY >= 0 ? Math.max(0, minY - cropPadding) : 0;
+  const cropRight = maxX >= 0 ? Math.min(width - 1, maxX + cropPadding) : width - 1;
+  const cropBottom = maxY >= 0 ? Math.min(height - 1, maxY + cropPadding) : height - 1;
+  const croppedWidth = cropRight - cropLeft + 1;
+  const croppedHeight = cropBottom - cropTop + 1;
+  const rgb = Buffer.alloc(croppedWidth * croppedHeight * 3);
+  for (let y = 0; y < croppedHeight; y += 1) {
+    for (let x = 0; x < croppedWidth; x += 1) {
+      const source =
+        ((cropTop + y) * width + cropLeft + x) * channelCount;
+      const target = (y * croppedWidth + x) * 3;
+      const alpha = channelCount === 4 ? scanlines[source + 3] / 255 : 1;
+      rgb[target] = Math.round(
+        scanlines[source] * alpha + 255 * (1 - alpha),
+      );
+      rgb[target + 1] = Math.round(
+        scanlines[source + 1] * alpha + 255 * (1 - alpha),
+      );
+      rgb[target + 2] = Math.round(
+        scanlines[source + 2] * alpha + 255 * (1 - alpha),
+      );
+    }
   }
   return {
     name,
-    width,
-    height,
+    width: croppedWidth,
+    height: croppedHeight,
     data: deflateSync(rgb),
     filter: 'FlateDecode',
   };
@@ -476,21 +509,30 @@ function pdfSignature(
   y: number,
   width: number,
   height: number,
+  contentScale = 1,
 ) {
   if (!isSignaturePath(value)) return '';
-  const sourceWidth = Number(value.width) || 1;
-  const sourceHeight = Number(value.height) || 1;
-  const pad = 4;
-  const availableWidth = Math.max(1, width - pad * 2);
-  const availableHeight = Math.max(1, height - pad * 2);
+  const allPoints = value.strokes.flat().filter(
+    (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+  );
+  if (allPoints.length < 2) return '';
+  const minX = Math.min(...allPoints.map((point) => point.x));
+  const maxX = Math.max(...allPoints.map((point) => point.x));
+  const minY = Math.min(...allPoints.map((point) => point.y));
+  const maxY = Math.max(...allPoints.map((point) => point.y));
+  const sourceWidth = Math.max(1, maxX - minX);
+  const sourceHeight = Math.max(1, maxY - minY);
+  const scaleFactor = Math.max(0.1, Math.min(1, contentScale));
+  const availableWidth = Math.max(1, width * scaleFactor);
+  const availableHeight = Math.max(1, height * scaleFactor);
   const scale = Math.min(
     availableWidth / sourceWidth,
     availableHeight / sourceHeight,
   );
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
-  const offsetX = x + pad + (availableWidth - drawWidth) / 2;
-  const offsetY = y + pad + (availableHeight - drawHeight) / 2;
+  const offsetX = x + (width - drawWidth) / 2;
+  const offsetY = y + (height - drawHeight) / 2;
   const ops: string[] = ['q', '0 0 0 RG', '0.55 w'];
   for (const stroke of value.strokes) {
     const points = stroke.filter(
@@ -499,11 +541,11 @@ function pdfSignature(
     if (points.length < 2) continue;
     const first = points[0];
     ops.push(
-      `${offsetX + first.x * scale} ${offsetY + drawHeight - first.y * scale} m`,
+      `${offsetX + (first.x - minX) * scale} ${offsetY + drawHeight - (first.y - minY) * scale} m`,
     );
     for (const point of points.slice(1)) {
       ops.push(
-        `${offsetX + point.x * scale} ${offsetY + drawHeight - point.y * scale} l`,
+        `${offsetX + (point.x - minX) * scale} ${offsetY + drawHeight - (point.y - minY) * scale} l`,
       );
     }
     ops.push('S');
@@ -518,13 +560,21 @@ function pdfSignatureImage(
   y: number,
   width: number,
   height: number,
+  contentScale = 1,
 ) {
+  const scaleFactor = Math.max(0.1, Math.min(1, contentScale));
+  const scaledWidth = width * scaleFactor;
+  const scaledHeight = height * scaleFactor;
+  const scaledX = x + (width - scaledWidth) / 2;
+  const scaledY = y + (height - scaledHeight) / 2;
   const imageRatio = image.width / image.height;
-  const boxRatio = width / height;
-  const drawWidth = imageRatio > boxRatio ? width : height * imageRatio;
-  const drawHeight = imageRatio > boxRatio ? width / imageRatio : height;
-  const drawX = x + (width - drawWidth) / 2;
-  const drawY = y + (height - drawHeight) / 2;
+  const boxRatio = scaledWidth / scaledHeight;
+  const drawWidth =
+    imageRatio > boxRatio ? scaledWidth : scaledHeight * imageRatio;
+  const drawHeight =
+    imageRatio > boxRatio ? scaledWidth / imageRatio : scaledHeight;
+  const drawX = scaledX + (scaledWidth - drawWidth) / 2;
+  const drawY = scaledY + (scaledHeight - drawHeight) / 2;
   return `q ${drawWidth} 0 0 ${drawHeight} ${drawX} ${drawY} cm /${image.name} Do Q`;
 }
 
@@ -560,12 +610,13 @@ function drawSignature(
   y: number,
   width: number,
   height: number,
+  contentScale = 1,
 ) {
   const image = addSignatureImage(images, value);
   if (image) {
-    ops.push(pdfSignatureImage(image, x, y, width, height));
+    ops.push(pdfSignatureImage(image, x, y, width, height, contentScale));
   } else {
-    ops.push(pdfSignature(value, x, y, width, height));
+    ops.push(pdfSignature(value, x, y, width, height, contentScale));
   }
 }
 
@@ -1464,6 +1515,7 @@ export function buildWorkOrderPdf(
           top + 0.5,
           firstColumnSplit - 31,
           workerSubRowHeight - 1,
+          0.7,
         );
       }
     }
@@ -1563,10 +1615,28 @@ export function buildWorkOrderPdf(
   );
   ops.push(pdfLine(left + 464, footerY - 1, left + 574, footerY - 1));
   if (foremanSignature) {
-    drawSignature(ops, images, foremanSignature, left + 103, footerY, 142, 28);
+    drawSignature(
+      ops,
+      images,
+      foremanSignature,
+      left + 103,
+      footerY,
+      142,
+      28,
+      0.7,
+    );
   }
   if (customerSignature) {
-    drawSignature(ops, images, customerSignature, left + 466, footerY, 106, 28);
+    drawSignature(
+      ops,
+      images,
+      customerSignature,
+      left + 466,
+      footerY,
+      106,
+      28,
+      0.7,
+    );
   }
   ops.push(
     pdfText(
@@ -2176,7 +2246,11 @@ export class FormSubmissionsService {
         .map(recordValue)
         .find((entry) => entry?.id === submission.shiftId) ?? null;
     const roles = Array.isArray(shift?.roles)
-      ? shift.roles.map(recordValue).filter(Boolean)
+      ? shift.roles
+          .map(recordValue)
+          .filter(
+            (role): role is Record<string, unknown> => role !== null,
+          )
       : [];
 
     const workerIds: string[] = [];
@@ -2184,6 +2258,18 @@ export class FormSubmissionsService {
     const materialIds: string[] = [];
     const workerRole = new Map<string, string>();
     const workerStart = new Map<string, string>();
+    const addEquipmentIdsFromRoles = (
+      shiftRoles: Record<string, unknown>[],
+    ) => {
+      for (const role of shiftRoles) {
+        for (const equipmentId of this.stringArray(role.assignedEquipment)) {
+          if (!equipmentIds.includes(equipmentId)) {
+            equipmentIds.push(equipmentId);
+          }
+        }
+      }
+    };
+
     for (const role of roles) {
       if (!role) continue;
       const roleName = String(role.roleName ?? role.name ?? '').trim();
@@ -2199,12 +2285,23 @@ export class FormSubmissionsService {
           workerStart.set(workerId, roleStart);
         }
       }
-      for (const equipmentId of this.stringArray(role.assignedEquipment)) {
-        if (!equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
-      }
       for (const materialId of this.stringArray(role.assignedMaterials)) {
         if (!materialIds.includes(materialId)) materialIds.push(materialId);
       }
+    }
+    addEquipmentIdsFromRoles(roles);
+
+    for (const assignmentShiftValue of workOrder?.shifts ?? []) {
+      const assignmentShift = recordValue(assignmentShiftValue);
+      if (!assignmentShift || assignmentShift.id === shift?.id) continue;
+      const assignmentRoles = Array.isArray(assignmentShift.roles)
+        ? assignmentShift.roles
+            .map(recordValue)
+            .filter(
+              (role): role is Record<string, unknown> => role !== null,
+            )
+        : [];
+      addEquipmentIdsFromRoles(assignmentRoles);
     }
 
     const [workerRecords, equipmentRecords, materialRecords, timesheets] =
@@ -2317,13 +2414,26 @@ export class FormSubmissionsService {
         'equipmentHours',
       ]) ?? '',
     ).trim();
+    const computedEquipmentHours = (() => {
+      const totals = workers
+        .map(
+          (worker) =>
+            Number(worker.regularHours || 0) +
+            Number(worker.overtimeHours || 0) +
+            Number(worker.doubleTimeHours || 0),
+        )
+        .filter((total) => Number.isFinite(total) && total > 0);
+      if (totals.length === 0) return '';
+      const total = Math.max(...totals);
+      return Number.isInteger(total) ? String(total) : total.toFixed(2);
+    })();
     const equipment = equipmentIds.map((equipmentId) => {
       const item = equipmentById.get(equipmentId);
       return {
         identifier: item?.identifier || equipmentId,
         description:
           [item?.name, item?.type].filter(Boolean).join(' - ') || equipmentId,
-        hours: equipmentHours,
+        hours: equipmentHours || computedEquipmentHours,
       };
     });
 

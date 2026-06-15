@@ -6,7 +6,13 @@ import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
 import { Incident } from '../../../entities/incident.entity';
+import { Client } from '../../../entities/client.entity';
+import { Equipment } from '../../../entities/equipment.entity';
+import { Material } from '../../../entities/material.entity';
+import { Project } from '../../../entities/project.entity';
+import { Timesheet } from '../../../entities/timesheet.entity';
 import { Worker } from '../../../entities/worker.entity';
+import { WorkOrder } from '../../../entities/work-order.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
@@ -83,7 +89,9 @@ function buildPdfContentPdf(content: string, images: PdfImage[] = []): Buffer {
   );
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
-  objects.push(`<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}\nendstream`);
+  objects.push(
+    `<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}\nendstream`,
+  );
   images.forEach((image) => {
     objects.push(
       Buffer.concat([
@@ -130,9 +138,7 @@ function buildSimplePdf(lines: string[]): Buffer {
     '50 742 Td',
     '14 TL',
     ...lines.map((line, index) =>
-      index === 0
-        ? `(${pdfEscape(line)}) Tj`
-        : `T* (${pdfEscape(line)}) Tj`,
+      index === 0 ? `(${pdfEscape(line)}) Tj` : `T* (${pdfEscape(line)}) Tj`,
     ),
     'ET',
   ].join('\n');
@@ -216,15 +222,24 @@ function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {
 }
 
 function normalizedTemplateText(value: string | undefined) {
-  return (value || '').trim().toLowerCase().replace(/[_\s-]+/g, ' ');
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s-]+/g, ' ');
 }
 
 function isTimesheetTemplate(template: FormTemplate | null) {
   if (!template) return false;
   const category = normalizedTemplateText(template.category);
   const name = normalizedTemplateText(template.name);
-  if (category.includes('work order') || category.includes('workorder')) return false;
-  return category.includes('timesheet') || category.includes('time sheet') || name.includes('timesheet') || name.includes('time sheet');
+  if (category.includes('work order') || category.includes('workorder'))
+    return false;
+  return (
+    category.includes('timesheet') ||
+    category.includes('time sheet') ||
+    name.includes('timesheet') ||
+    name.includes('time sheet')
+  );
 }
 
 function isViewerRole(actor?: UserAccessContext) {
@@ -245,11 +260,9 @@ function canSubmitFinalMobileTimesheets(actor?: UserAccessContext) {
 
 export function shouldGenerateSubmissionPdf(
   template: FormTemplate | null,
-  actor?: UserAccessContext,
+  _actor?: UserAccessContext,
 ) {
-  if (!isTimesheetTemplate(template)) return true;
-  if (isViewerRole(actor)) return false;
-  return canSubmitFinalMobileTimesheets(actor);
+  return !isTimesheetTemplate(template);
 }
 
 type TimesheetScope = 'own' | 'all';
@@ -309,7 +322,9 @@ function jpegFromSignature(value: unknown) {
   return Buffer.from(match[1], 'base64');
 }
 
-function jpegDimensions(data: Buffer): { width: number; height: number } | null {
+function jpegDimensions(
+  data: Buffer,
+): { width: number; height: number } | null {
   let offset = 2;
   if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
 
@@ -352,7 +367,10 @@ function pdfSignature(
   const pad = 4;
   const availableWidth = Math.max(1, width - pad * 2);
   const availableHeight = Math.max(1, height - pad * 2);
-  const scale = Math.min(availableWidth / sourceWidth, availableHeight / sourceHeight);
+  const scale = Math.min(
+    availableWidth / sourceWidth,
+    availableHeight / sourceHeight,
+  );
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
   const offsetX = x + pad + (availableWidth - drawWidth) / 2;
@@ -364,9 +382,13 @@ function pdfSignature(
     );
     if (points.length < 2) continue;
     const first = points[0];
-    ops.push(`${offsetX + first.x * scale} ${offsetY + drawHeight - first.y * scale} m`);
+    ops.push(
+      `${offsetX + first.x * scale} ${offsetY + drawHeight - first.y * scale} m`,
+    );
     for (const point of points.slice(1)) {
-      ops.push(`${offsetX + point.x * scale} ${offsetY + drawHeight - point.y * scale} l`);
+      ops.push(
+        `${offsetX + point.x * scale} ${offsetY + drawHeight - point.y * scale} l`,
+      );
     }
     ops.push('S');
   }
@@ -433,7 +455,8 @@ function findSignatureValue(
   const fields = template ? normalizeFormFields(template.fields) : [];
   for (const field of fields) {
     if (field.type !== 'signature') continue;
-    const haystack = `${field.id} ${field.key ?? ''} ${field.label}`.toLowerCase();
+    const haystack =
+      `${field.id} ${field.key ?? ''} ${field.label}`.toLowerCase();
     if (patterns.some((pattern) => pattern.test(haystack))) {
       const value = data[field.id] ?? (field.key ? data[field.key] : undefined);
       if (value) return value;
@@ -441,9 +464,89 @@ function findSignatureValue(
   }
   for (const [key, value] of Object.entries(data)) {
     const haystack = key.toLowerCase();
-    if (patterns.some((pattern) => pattern.test(haystack)) && value) return value;
+    if (patterns.some((pattern) => pattern.test(haystack)) && value)
+      return value;
   }
   return null;
+}
+
+type WorkOrderPdfWorker = {
+  workerId: string;
+  workerName: string;
+  roleName: string;
+  startTime: string;
+  endTime: string;
+  regularHours: number;
+  overtimeHours: number;
+  doubleTimeHours: number;
+  lunchTaken: boolean;
+  breakMinutes: number;
+  signature: unknown;
+};
+
+type WorkOrderPdfResource = {
+  identifier: string;
+  description: string;
+  hours?: string;
+  size?: string;
+  quantity?: string;
+  price?: string;
+};
+
+type WorkOrderPdfContext = {
+  workOrder?: WorkOrder | null;
+  project?: Project | null;
+  client?: Client | null;
+  workers: WorkOrderPdfWorker[];
+  equipment: WorkOrderPdfResource[];
+  materials: WorkOrderPdfResource[];
+  shift?: Record<string, unknown> | null;
+};
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function parseStoredJson(value: string | null | undefined): unknown {
+  if (!value) return '';
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function formatPdfClock(value: unknown): string {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  if (/[ap]\.?m\.?$/i.test(text)) return text.toUpperCase().replace(/\./g, '');
+  const match = /^(\d{1,2}):(\d{2})/.exec(text);
+  if (!match) return text;
+  let hour = Number(match[1]);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return text;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  if (hour === 0) hour = 12;
+  if (hour > 12) hour -= 12;
+  return `${hour}:${match[2]} ${period}`;
+}
+
+function pdfCheckbox(
+  ops: string[],
+  label: string,
+  checked: boolean,
+  x: number,
+  y: number,
+  size = 6,
+) {
+  ops.push(pdfText(label, x, y, size, 'F2'));
+  const boxX = x + Math.max(24, label.length * (size * 0.55)) + 3;
+  ops.push(pdfRect(boxX, y - 1, 5, 5));
+  if (checked) {
+    ops.push(pdfLine(boxX + 1, y + 1, boxX + 2.2, y - 0.2));
+    ops.push(pdfLine(boxX + 2.2, y - 0.2, boxX + 4.4, y + 3.4));
+  }
 }
 
 function buildTimesheetPdf(
@@ -461,7 +564,12 @@ function buildTimesheetPdf(
     firstRow.shiftDate ||
     submittedAt.toISOString().slice(0, 10);
   const jobNumber =
-    fieldValue(data, ['job_number', 'jobNumber', 'dr_traffic_job_number', 'drTrafficJobNumber']) ||
+    fieldValue(data, [
+      'job_number',
+      'jobNumber',
+      'dr_traffic_job_number',
+      'drTrafficJobNumber',
+    ]) ||
     firstRow.workOrderNumber ||
     submission.workOrderId;
   const jobName =
@@ -550,7 +658,14 @@ function buildTimesheetPdf(
     ops.push(`q 0 0 0 RG ${sx + 22} ${sy - 4} 4 4 re S Q`);
   }
   ops.push(pdfText('PM', sx + 28, sy, 5.5));
-  ops.push(pdfText(`${fitText(firstRow.startTime || '', 8)}-${fitText(firstRow.endTime || '', 8)}`, left + 215, y - 20, 6));
+  ops.push(
+    pdfText(
+      `${fitText(firstRow.startTime || '', 8)}-${fitText(firstRow.endTime || '', 8)}`,
+      left + 215,
+      y - 20,
+      6,
+    ),
+  );
 
   // Lunch? with Yes/No checkbox
   ops.push(pdfFillRect(left + 313, y - 24, 60, 24, yellow));
@@ -577,13 +692,43 @@ function buildTimesheetPdf(
 
   y -= 24;
   cell('Job Name', jobName, left, y, 240, 34, 42, yellow);
-  cell('Description', fieldValue(data, ['description', 'description_of_work', 'descriptionOfWork']) || jobName, left + 240, y, 225, 34, 42, yellow);
-  cell('Address / Weather / City', [address, city].filter(Boolean).join(' - '), left + 465, y, 87, 34, 18, yellow);
+  cell(
+    'Description',
+    fieldValue(data, [
+      'description',
+      'description_of_work',
+      'descriptionOfWork',
+    ]) || jobName,
+    left + 240,
+    y,
+    225,
+    34,
+    42,
+    yellow,
+  );
+  cell(
+    'Address / Weather / City',
+    [address, city].filter(Boolean).join(' - '),
+    left + 465,
+    y,
+    87,
+    34,
+    18,
+    yellow,
+  );
 
   y -= 42;
   ops.push(pdfFillRect(left, y - 16, pageW, 16, yellow));
   ops.push(pdfRect(left, y - 16, pageW, 16));
-  ops.push(pdfText('Employees Name (Signature all boxes were filled & checked is accurate)', left + 92, y - 11, 7, 'F2'));
+  ops.push(
+    pdfText(
+      'Employees Name (Signature all boxes were filled & checked is accurate)',
+      left + 92,
+      y - 11,
+      7,
+      'F2',
+    ),
+  );
   y -= 16;
 
   const employeeRows = [...rows].slice(0, 10);
@@ -627,40 +772,86 @@ function buildTimesheetPdf(
       row.lunchTaken === false && row.workerId ? 'No lunch' : '',
       row.lunchTaken === true && row.workerId ? 'Lunch taken' : '',
       row.employeeNote || row.notes || notes || '',
-    ].filter(Boolean).join(' / ');
+    ]
+      .filter(Boolean)
+      .join(' / ');
 
     const rowH = subH * 3;
     const rowY = y;
-    const nameText = fitText(row.workerName || row.name || row.workerId || '', 24);
-    const sigText = isSignaturePath(row.signature) || isSignatureImage(row.signature) ? '' : row.signature ? 'Captured' : '';
-    const dayNight = fitText(row.dayOrNight || row.dayNight || row.shiftPeriod || '', 4);
+    const nameText = fitText(
+      row.workerName || row.name || row.workerId || '',
+      24,
+    );
+    const sigText =
+      isSignaturePath(row.signature) || isSignatureImage(row.signature)
+        ? ''
+        : row.signature
+          ? 'Captured'
+          : '';
+    const dayNight = fitText(
+      row.dayOrNight || row.dayNight || row.shiftPeriod || '',
+      4,
+    );
 
     // Alternating background for employee column
     if (index % 2 === 1) {
-      ops.push(pdfFillRect(tableX, rowY - rowH, colEnds[1], rowH, [0.98, 0.96, 0.78]));
+      ops.push(
+        pdfFillRect(tableX, rowY - rowH, colEnds[1], rowH, [0.98, 0.96, 0.78]),
+      );
     }
 
     // Col 0: Employee (spans 3 sub-rows)
     ops.push(pdfRect(tableX, rowY - rowH, colEnds[1], rowH));
     if (row.workerId) {
       ops.push(pdfText(nameText, tableX + 3, rowY - 18, 8));
-      ops.push(pdfText(firstString(row.roleNames || row.employeeLabel || ''), tableX + 3, rowY - 30, 6));
+      ops.push(
+        pdfText(
+          firstString(row.roleNames || row.employeeLabel || ''),
+          tableX + 3,
+          rowY - 30,
+          6,
+        ),
+      );
     }
 
     // Col 1: Signature (spans 3 sub-rows)
-    ops.push(pdfRect(tableX + colEnds[1], rowY - rowH, colEnds[2] - colEnds[1], rowH));
+    ops.push(
+      pdfRect(tableX + colEnds[1], rowY - rowH, colEnds[2] - colEnds[1], rowH),
+    );
     ops.push(pdfText(sigText, tableX + colEnds[1] + 3, rowY - 18, 8));
     if (row.signature) {
-      drawSignature(ops, images, row.signature, tableX + colEnds[1] + 2, rowY - rowH + 1, colEnds[2] - colEnds[1] - 4, rowH - 2);
+      drawSignature(
+        ops,
+        images,
+        row.signature,
+        tableX + colEnds[1] + 2,
+        rowY - rowH + 1,
+        colEnds[2] - colEnds[1] - 4,
+        rowH - 2,
+      );
     }
 
     // Col 6: D/N (spans 3 sub-rows)
-    ops.push(pdfRect(tableX + colEnds[6], rowY - rowH, colEnds[7] - colEnds[6], rowH));
-    ops.push(pdfText(dayNight, tableX + colEnds[6] + (colEnds[7] - colEnds[6]) / 2 - 4, rowY - 20, 8, 'F2'));
+    ops.push(
+      pdfRect(tableX + colEnds[6], rowY - rowH, colEnds[7] - colEnds[6], rowH),
+    );
+    ops.push(
+      pdfText(
+        dayNight,
+        tableX + colEnds[6] + (colEnds[7] - colEnds[6]) / 2 - 4,
+        rowY - 20,
+        8,
+        'F2',
+      ),
+    );
 
     // Col 7: Notes (spans 3 sub-rows)
-    ops.push(pdfRect(tableX + colEnds[7], rowY - rowH, colEnds[8] - colEnds[7], rowH));
-    ops.push(pdfText(fitText(rowNotes, 28), tableX + colEnds[7] + 3, rowY - 18, 7));
+    ops.push(
+      pdfRect(tableX + colEnds[7], rowY - rowH, colEnds[8] - colEnds[7], rowH),
+    );
+    ops.push(
+      pdfText(fitText(rowNotes, 28), tableX + colEnds[7] + 3, rowY - 18, 7),
+    );
 
     // Per-sub-row columns: 1st Job#, 2nd Job#, 3rd Job#, Total
     const subValues = [st, ot, dt];
@@ -670,26 +861,78 @@ function buildTimesheetPdf(
       const label = subLabels[si];
 
       // Col 2: 1st Job #
-      ops.push(pdfRect(tableX + colEnds[2], subY - subH, colEnds[3] - colEnds[2], subH));
+      ops.push(
+        pdfRect(
+          tableX + colEnds[2],
+          subY - subH,
+          colEnds[3] - colEnds[2],
+          subH,
+        ),
+      );
       if (si === 0) {
-        ops.push(pdfText(fitText(jobNumber, 10), tableX + colEnds[2] + 3, subY - 9, 7));
+        ops.push(
+          pdfText(fitText(jobNumber, 10), tableX + colEnds[2] + 3, subY - 9, 7),
+        );
       }
 
       // Col 3: 2nd Job #
-      ops.push(pdfRect(tableX + colEnds[3], subY - subH, colEnds[4] - colEnds[3], subH));
+      ops.push(
+        pdfRect(
+          tableX + colEnds[3],
+          subY - subH,
+          colEnds[4] - colEnds[3],
+          subH,
+        ),
+      );
       if (si === 0) {
-        ops.push(pdfText(fitText(row.secondJobHours || '', 10), tableX + colEnds[3] + 3, subY - 9, 7));
+        ops.push(
+          pdfText(
+            fitText(row.secondJobHours || '', 10),
+            tableX + colEnds[3] + 3,
+            subY - 9,
+            7,
+          ),
+        );
       }
 
       // Col 4: 3rd Job #
-      ops.push(pdfRect(tableX + colEnds[4], subY - subH, colEnds[5] - colEnds[4], subH));
+      ops.push(
+        pdfRect(
+          tableX + colEnds[4],
+          subY - subH,
+          colEnds[5] - colEnds[4],
+          subH,
+        ),
+      );
       if (si === 0) {
-        ops.push(pdfText(fitText(row.thirdJobHours || '', 10), tableX + colEnds[4] + 3, subY - 9, 7));
+        ops.push(
+          pdfText(
+            fitText(row.thirdJobHours || '', 10),
+            tableX + colEnds[4] + 3,
+            subY - 9,
+            7,
+          ),
+        );
       }
 
       // Col 5: Total
-      ops.push(pdfRect(tableX + colEnds[5], subY - subH, colEnds[6] - colEnds[5], subH));
-      ops.push(pdfText(`${label} ${fitText(val, 3)}`, tableX + colEnds[5] + 2, subY - 9, 6.5, 'F2'));
+      ops.push(
+        pdfRect(
+          tableX + colEnds[5],
+          subY - subH,
+          colEnds[6] - colEnds[5],
+          subH,
+        ),
+      );
+      ops.push(
+        pdfText(
+          `${label} ${fitText(val, 3)}`,
+          tableX + colEnds[5] + 2,
+          subY - 9,
+          6.5,
+          'F2',
+        ),
+      );
     }
     y -= rowH;
   });
@@ -698,7 +941,10 @@ function buildTimesheetPdf(
   let totalX = tableX;
   [
     { text: 'Hours Worked', w: 176 },
-    { text: `ST ${fitText(grandSt, 5)}  OT ${fitText(grandOt, 5)}  DT ${fitText(grandDt, 5)}`, w: 62 },
+    {
+      text: `ST ${fitText(grandSt, 5)}  OT ${fitText(grandOt, 5)}  DT ${fitText(grandDt, 5)}`,
+      w: 62,
+    },
     { text: '', w: 62 },
     { text: '', w: 62 },
     { text: fitText(grandTotal, 6), w: 38 },
@@ -745,63 +991,126 @@ function buildTimesheetPdf(
   ops.push(pdfLine(left, y - 14, left + 190, y - 14));
   ops.push(pdfText('Employee / Foreman Signature', left, y - 24, 6, 'F2'));
   ops.push(pdfLine(left + 270, y - 14, left + 520, y - 14));
-  ops.push(pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'));
+  ops.push(
+    pdfText('Customer Contract / Approval', left + 270, y - 24, 6, 'F2'),
+  );
   if (employeeForemanSignature) {
-    drawSignature(ops, images, employeeForemanSignature, left + 4, y - 12, 178, 25);
+    drawSignature(
+      ops,
+      images,
+      employeeForemanSignature,
+      left + 4,
+      y - 12,
+      178,
+      25,
+    );
   }
   if (customerApprovalSignature) {
-    drawSignature(ops, images, customerApprovalSignature, left + 274, y - 12, 238, 25);
+    drawSignature(
+      ops,
+      images,
+      customerApprovalSignature,
+      left + 274,
+      y - 12,
+      238,
+      25,
+    );
   }
   ops.push(pdfText(`Submission ${compactId(submission.id, 24)}`, left, 28, 6));
 
   return buildPdfContentPdf(ops.join('\n'), images);
 }
 
-function buildWorkOrderPdf(
+export function buildWorkOrderPdf(
   submission: FormSubmission,
   template: FormTemplate | null,
+  context: WorkOrderPdfContext,
 ): Buffer {
   const data = submission.data ?? {};
-  const rows = findTimesheetRows(data);
   const images: PdfImage[] = [];
   const logo = loadCommercialPdfLogoImage('Logo');
   if (logo) images.push(logo);
   const submittedAt = submission.submittedAt
     ? new Date(submission.submittedAt)
     : new Date();
+  const workOrder = context.workOrder;
+  const project = context.project;
+  const clientRecord = context.client;
+  const shiftRecord = context.shift ?? {};
   const dateValue =
     fieldValue(data, ['work_date', 'workDate', 'date']) ||
+    shiftRecord.date ||
     submittedAt.toISOString().slice(0, 10);
-  const jobNumber = fieldValue(data, ['dr_traffic_job_number', 'drTrafficJobNumber']);
-  const jobName = fieldValue(data, ['job_name', 'jobName']);
-  const description = fieldValue(data, ['description_of_work', 'descriptionOfWork']);
-  const client = fieldValue(data, ['client']);
-  const contact = fieldValue(data, ['contact']);
-  const shift = fieldValue(data, ['work_shift', 'workShift']);
-  const equipmentId = fieldValue(data, ['equipment_id', 'equipmentId']);
-  const equipmentHours = fieldValue(data, ['equipment_hours', 'equipmentHours']);
-  const notes = fieldValue(data, ['notes', 'extra_work_details', 'extraWorkDetails']);
-  const displayNumber = jobNumber || submission.workOrderId || compactId(submission.id, 16);
+  const jobNumber =
+    fieldValue(data, ['dr_traffic_job_number', 'drTrafficJobNumber']) ||
+    project?.number ||
+    workOrder?.orderNumber ||
+    submission.projectId;
+  const jobName =
+    fieldValue(data, ['job_name', 'jobName']) ||
+    project?.name ||
+    workOrder?.title ||
+    submission.workOrderId;
+  const description =
+    fieldValue(data, ['description_of_work', 'descriptionOfWork']) ||
+    project?.description ||
+    workOrder?.dispatchNote ||
+    workOrder?.notes;
+  const client = fieldValue(data, ['client']) || clientRecord?.name || '';
+  const contact =
+    fieldValue(data, ['contact']) ||
+    clientRecord?.contactName ||
+    workOrder?.requesterName ||
+    '';
+  const customerOrder =
+    fieldValue(data, ['customer_order_number', 'customerOrderNumber']) ||
+    project?.purchaseOrder ||
+    '';
+  const shift =
+    fieldValue(data, ['work_shift', 'workShift']) ||
+    shiftRecord.shiftTypeName ||
+    shiftRecord.shiftName ||
+    '';
+  const notes = [
+    fieldValue(data, ['extra_work_details', 'extraWorkDetails']),
+    fieldValue(data, ['notes']),
+    workOrder?.notes,
+  ]
+    .filter((value) => String(value ?? '').trim())
+    .join(' | ');
+  const displayNumber =
+    workOrder?.orderNumber ||
+    fieldValue(data, ['work_order_number', 'workOrderNumber']) ||
+    submission.workOrderId ||
+    compactId(submission.id, 16);
+  const shiftText = String(shift).toLowerCase();
+  const rowCount = Math.max(
+    7,
+    context.workers.length,
+    context.equipment.length,
+  );
+  const workerRowHeight = Math.max(18, Math.min(27, 189 / rowCount));
 
   const ops: string[] = [
     '0.18 w',
     '0 0 0 RG',
-    ...(logo ? ['q 130 0 0 41 45 719 cm /Logo Do Q'] : []),
-    pdfText('WORK ORDER', 350, 736, 16, 'F2'),
+    pdfRect(4, 4, 604, 784),
+    ...(logo ? ['q 156 0 0 49 43 686 cm /Logo Do Q'] : []),
+    pdfText('WORK ORDER', 341, 715, 13, 'F2'),
     '0.82 0 0 rg',
-    pdfText(`No. ${compactId(displayNumber, 18)}`, 472, 736, 12, 'F2'),
+    pdfText(`No.  ${compactId(displayNumber, 20)}`, 480, 715, 12, 'F2'),
     '0 0 0 rg',
     '0.82 0 0 rg',
-    pdfText('DR Traffic Control, LLC', 228, 690, 15, 'F2'),
+    pdfText('DR Traffic Control, LLC', 228, 671, 14, 'F2'),
     '0 0 0 rg',
-    pdfText('2285 Revere Ave, San Francisco, CA 94124, USA', 214, 675, 8),
-    pdfText('CSLB #1099211        www.drtrafficcontrol.com', 217, 663, 8),
-    pdfText('Phone: 415-441-4410     info@drtrafficcontrol.com', 210, 651, 8),
+    pdfText('2285 Revere Ave, San Francisco, CA 94124, USA', 215, 657, 6.5),
+    pdfText('CSLB #1099211        www.drtrafficcontrol.com', 223, 647, 6.5),
+    pdfText('Phone: 415-441-4410     info@drtrafficcontrol.com', 216, 637, 6.5),
   ];
 
   const left = 24;
   const width = 564;
-  let top = 626;
+  let top = 620;
   const cell = (
     label: string,
     value: unknown,
@@ -812,131 +1121,358 @@ function buildWorkOrderPdf(
     max = 42,
   ) => {
     ops.push(pdfRect(x, y - h, w, h));
-    ops.push(pdfText(label, x + 3, y - 7, 5.5, 'F2'));
-    ops.push(pdfText(fitText(value, max) || '-', x + 3, y - h + 5, 7));
+    ops.push(pdfText(label, x + 3, y - 7, 5.2, 'F2'));
+    const text = fitText(value, max);
+    if (text) ops.push(pdfText(text, x + 3, y - h + 5, 6.6));
   };
 
-  cell('DR TRAFFIC JOB#', jobNumber || submission.projectId || '-', left, top, 198, 21, 24);
-  cell('JOB NAME:', jobName || submission.workOrderId || '-', left + 198, top, 198, 21, 38);
-  cell('DATE:', dateValue, left + 396, top, 168, 21, 20);
-  top -= 21;
-  cell('DESCRIPTION OF WORK:', description, left, top, width, 26, 104);
-  top -= 26;
-  cell('CLIENT:', client, left, top, 337, 21, 48);
-  cell('CUSTOMER ORDER #:', compactId(submission.workOrderId, 26), left + 337, top, 227, 21, 32);
-  top -= 21;
-  cell('CONTACT:', contact || submission.workerId || '-', left, top, 337, 21, 48);
-  cell('WORK SHIFT:', shift || '-', left + 337, top, 227, 21, 28);
-  top -= 21;
+  cell('DR TRAFFIC JOB#', jobNumber, left, top, 201, 18, 30);
+  cell('JOB NAME:', jobName, left + 201, top, 203, 18, 42);
+  cell('DATE:', dateValue, left + 404, top, 160, 18, 22);
+  top -= 18;
+  cell('DESCRIPTION OF WORK:', description, left, top, width, 22, 112);
+  top -= 22;
+  cell('CLIENT:', client, left, top, 315, 18, 52);
+  cell('CUSTOMER ORDER #:', customerOrder, left + 315, top, 249, 18, 38);
+  top -= 18;
+  cell('CONTACT:', contact, left, top, 315, 18, 52);
+  ops.push(pdfRect(left + 315, top - 18, 249, 18));
+  ops.push(pdfText('WORK SHIFT', left + 318, top - 7, 5.2, 'F2'));
+  pdfCheckbox(ops, 'DAY', shiftText.includes('day'), left + 380, top - 12, 5.2);
+  pdfCheckbox(
+    ops,
+    'SWING',
+    shiftText.includes('swing'),
+    left + 435,
+    top - 12,
+    5.2,
+  );
+  pdfCheckbox(
+    ops,
+    'NIGHT',
+    shiftText.includes('night'),
+    left + 505,
+    top - 12,
+    5.2,
+  );
+  top -= 18;
 
-  ops.push(pdfRect(left, top - 20, width, 20));
-  ops.push(pdfText('FIELD SERVICE  [ ]', left + 55, top - 13, 8, 'F2'));
-  ops.push(pdfText('INTERNAL SALE  [ ]', left + 180, top - 13, 8, 'F2'));
-  ops.push(pdfText('SALES  [ ]', left + 320, top - 13, 8, 'F2'));
-  ops.push(pdfText('ON RENT  [ ]', left + 430, top - 13, 8, 'F2'));
-  top -= 20;
+  ops.push(pdfRect(left, top - 18, width, 18));
+  pdfCheckbox(ops, 'FIELD SERVICE', true, left + 24, top - 12, 6);
+  pdfCheckbox(ops, 'INTERNAL SALE', false, left + 142, top - 12, 6);
+  pdfCheckbox(ops, 'SALES', false, left + 279, top - 12, 6);
+  pdfCheckbox(ops, 'ON RENT', false, left + 376, top - 12, 6);
+  pdfCheckbox(ops, 'OFF RENT', false, left + 474, top - 12, 6);
+  top -= 18;
 
   const laborX = left;
-  const laborW = 345;
-  const equipX = left + laborW;
-  const equipW = width - laborW;
-  ops.push(pdfFillRect(laborX, top - 16, laborW, 16, [0.94, 0.36, 0.36]));
-  ops.push(pdfFillRect(equipX, top - 16, equipW, 16, [0.94, 0.36, 0.36]));
-  ops.push(pdfRect(laborX, top - 16, laborW, 16));
-  ops.push(pdfRect(equipX, top - 16, equipW, 16));
-  ops.push(pdfText('LABOR', laborX + 150, top - 11, 8, 'F2'));
-  ops.push(pdfText('EQUIPMENT', equipX + 78, top - 11, 8, 'F2'));
-  top -= 16;
+  const employeeW = 174;
+  const startW = 38;
+  const endW = 38;
+  const hourW = 25;
+  const laborW = employeeW + startW + endW + hourW * 3;
+  const equipX = laborX + laborW;
+  const equipIdW = 54;
+  const equipDescW = width - laborW - equipIdW - 30;
+  const equipHoursW = 30;
+  ops.push(pdfFillRect(laborX, top - 14, laborW, 14, [0.94, 0.36, 0.36]));
+  ops.push(
+    pdfFillRect(equipX, top - 14, width - laborW, 14, [0.94, 0.36, 0.36]),
+  );
+  ops.push(pdfRect(laborX, top - 14, laborW, 14));
+  ops.push(pdfRect(equipX, top - 14, width - laborW, 14));
+  ops.push(pdfText('LABOR', laborX + laborW / 2 - 14, top - 10, 7.5, 'F2'));
+  ops.push(pdfText('HOURS', laborX + employeeW + 66, top - 10, 7.5, 'F2'));
+  ops.push(pdfText('EQUIPMENT', equipX + 78, top - 10, 7.5, 'F2'));
+  top -= 14;
 
-  const laborCols = [150, 40, 34, 34, 34, 34, 19];
-  const headers = ['EMPLOYEE NAME', 'SHIFT', 'START', 'END', 'REG', 'OT', 'DT'];
+  const laborCols = [employeeW, startW, endW, hourW, hourW, hourW];
+  const headers = ['EMPLOYEE NAME', 'START', 'END', 'REG', 'OT', 'DT'];
   let x = laborX;
   headers.forEach((header, index) => {
-    ops.push(pdfRect(x, top - 15, laborCols[index], 15));
-    ops.push(pdfText(header, x + 3, top - 10, 6, 'F2'));
+    ops.push(pdfRect(x, top - 13, laborCols[index], 13));
+    ops.push(pdfText(header, x + 3, top - 9, 5.4, 'F2'));
     x += laborCols[index];
   });
-  ops.push(pdfRect(equipX, top - 15, 62, 15));
-  ops.push(pdfText('EQUIP ID', equipX + 4, top - 10, 6, 'F2'));
-  ops.push(pdfRect(equipX + 62, top - 15, 122, 15));
-  ops.push(pdfText('EQUIP DESCRIPTION', equipX + 66, top - 10, 6, 'F2'));
-  ops.push(pdfRect(equipX + 184, top - 15, 35, 15));
-  ops.push(pdfText('HRS', equipX + 190, top - 10, 6, 'F2'));
-  top -= 15;
+  ops.push(pdfRect(equipX, top - 13, equipIdW, 13));
+  ops.push(pdfText('EQUIP ID', equipX + 3, top - 9, 5.4, 'F2'));
+  ops.push(pdfRect(equipX + equipIdW, top - 13, equipDescW, 13));
+  ops.push(
+    pdfText('EQUIP DESCRIPTION', equipX + equipIdW + 3, top - 9, 5.4, 'F2'),
+  );
+  ops.push(pdfRect(equipX + equipIdW + equipDescW, top - 13, equipHoursW, 13));
+  ops.push(
+    pdfText('HRS', equipX + equipIdW + equipDescW + 5, top - 9, 5.4, 'F2'),
+  );
+  top -= 13;
 
-  const laborRows = [...rows].slice(0, 6);
-  while (laborRows.length < 7) laborRows.push({});
-  laborRows.forEach((row, index) => {
-    const rowH = 22;
-    const values = [
-      fitText(row.workerName || row.name || '', 26) || '',
-      firstString(row.roleNames || row.employeeLabel || shift || ''),
-      fitText(row.startTime || '', 6),
-      fitText(row.endTime || '', 6),
-      row.workerId ? fitText(row.st ?? 0, 5) : '',
-      row.workerId ? fitText(row.ot ?? 0, 5) : '',
-      row.workerId ? fitText(row.dt ?? 0, 5) : '',
+  for (let index = 0; index < rowCount; index += 1) {
+    const worker = context.workers[index];
+    const equipment = context.equipment[index];
+    const rowTop = top;
+    const subRow = workerRowHeight / 3;
+    const colXs = [
+      laborX,
+      laborX + employeeW,
+      laborX + employeeW + startW,
+      laborX + employeeW + startW + endW,
+      laborX + employeeW + startW + endW + hourW,
+      laborX + employeeW + startW + endW + hourW * 2,
     ];
-    let colX = laborX;
     laborCols.forEach((colW, colIndex) => {
-      ops.push(pdfRect(colX, top - rowH, colW, rowH));
-      ops.push(pdfText(values[colIndex], colX + 3, top - 9, 7));
-      if (colIndex === 0) {
-        if (row.workerId && row.signature) {
-          if (isSignaturePath(row.signature) || isSignatureImage(row.signature)) {
-            drawSignature(ops, images, row.signature, colX + 58, top - rowH + 3, colW - 62, rowH - 6);
-          } else {
-            ops.push(pdfText('Sign: Captured', colX + 3, top - 18, 6));
-          }
-        } else {
-          ops.push(pdfText(row.workerId ? 'Sign:' : '', colX + 3, top - 18, 6));
-        }
+      ops.push(
+        pdfRect(
+          colXs[colIndex],
+          rowTop - workerRowHeight,
+          colW,
+          workerRowHeight,
+        ),
+      );
+    });
+    if (worker) {
+      ops.push(
+        pdfLine(laborX, rowTop - subRow, laborX + employeeW, rowTop - subRow),
+      );
+      ops.push(
+        pdfLine(
+          laborX,
+          rowTop - subRow * 2,
+          laborX + employeeW,
+          rowTop - subRow * 2,
+        ),
+      );
+      ops.push(
+        pdfText(
+          fitText(worker.workerName, 30),
+          laborX + 3,
+          rowTop - subRow + 2,
+          5.8,
+          'F2',
+        ),
+      );
+      ops.push(pdfText('Sign', laborX + 3, rowTop - subRow * 2 + 2, 4.8, 'F2'));
+      ops.push(
+        pdfText(
+          `SHIFT: ${fitText(worker.roleName, 16)}`,
+          laborX + 84,
+          rowTop - subRow * 2 + 2,
+          4.8,
+          'F2',
+        ),
+      );
+      pdfCheckbox(
+        ops,
+        'Lunch',
+        worker.lunchTaken,
+        laborX + 84,
+        rowTop - workerRowHeight + 2,
+        4.6,
+      );
+      pdfCheckbox(
+        ops,
+        'Breaks',
+        worker.breakMinutes > 0,
+        laborX + 130,
+        rowTop - workerRowHeight + 2,
+        4.6,
+      );
+      if (worker.signature) {
+        drawSignature(
+          ops,
+          images,
+          worker.signature,
+          laborX + 25,
+          rowTop - subRow * 2 + 1,
+          54,
+          subRow - 2,
+        );
       }
+      ops.push(
+        pdfText(
+          formatPdfClock(worker.startTime),
+          colXs[1] + 3,
+          rowTop - workerRowHeight / 2,
+          5.6,
+        ),
+      );
+      ops.push(
+        pdfText(
+          formatPdfClock(worker.endTime),
+          colXs[2] + 3,
+          rowTop - workerRowHeight / 2,
+          5.6,
+        ),
+      );
+      ops.push(
+        pdfText(
+          String(worker.regularHours),
+          colXs[3] + 7,
+          rowTop - workerRowHeight / 2,
+          6,
+        ),
+      );
+      ops.push(
+        pdfText(
+          String(worker.overtimeHours),
+          colXs[4] + 7,
+          rowTop - workerRowHeight / 2,
+          6,
+        ),
+      );
+      ops.push(
+        pdfText(
+          String(worker.doubleTimeHours),
+          colXs[5] + 7,
+          rowTop - workerRowHeight / 2,
+          6,
+        ),
+      );
+    }
+
+    ops.push(
+      pdfRect(equipX, rowTop - workerRowHeight, equipIdW, workerRowHeight),
+    );
+    ops.push(
+      pdfRect(
+        equipX + equipIdW,
+        rowTop - workerRowHeight,
+        equipDescW,
+        workerRowHeight,
+      ),
+    );
+    ops.push(
+      pdfRect(
+        equipX + equipIdW + equipDescW,
+        rowTop - workerRowHeight,
+        equipHoursW,
+        workerRowHeight,
+      ),
+    );
+    if (equipment) {
+      ops.push(
+        pdfText(
+          fitText(equipment.identifier, 12),
+          equipX + 3,
+          rowTop - workerRowHeight / 2,
+          5.8,
+        ),
+      );
+      ops.push(
+        pdfText(
+          fitText(equipment.description, 25),
+          equipX + equipIdW + 3,
+          rowTop - workerRowHeight / 2,
+          5.8,
+        ),
+      );
+      ops.push(
+        pdfText(
+          fitText(equipment.hours || '', 5),
+          equipX + equipIdW + equipDescW + 5,
+          rowTop - workerRowHeight / 2,
+          5.8,
+        ),
+      );
+    }
+    top -= workerRowHeight;
+  }
+
+  const materialW = 282;
+  ops.push(pdfFillRect(left, top - 14, materialW, 14, [0.94, 0.36, 0.36]));
+  ops.push(
+    pdfFillRect(
+      left + materialW,
+      top - 14,
+      width - materialW,
+      14,
+      [0.94, 0.36, 0.36],
+    ),
+  );
+  ops.push(pdfRect(left, top - 14, materialW, 14));
+  ops.push(pdfRect(left + materialW, top - 14, width - materialW, 14));
+  ops.push(pdfText('MATERIAL', left + 122, top - 10, 7.5, 'F2'));
+  ops.push(pdfText('NOTES', left + 410, top - 10, 7.5, 'F2'));
+  top -= 14;
+
+  const materialCols = [150, 50, 40, 42];
+  const materialHeaders = ['DESCRIPTION', 'SIZE', 'QTY', 'PRICE'];
+  let materialX = left;
+  materialHeaders.forEach((header, index) => {
+    ops.push(pdfRect(materialX, top - 13, materialCols[index], 13));
+    ops.push(pdfText(header, materialX + 3, top - 9, 5.2, 'F2'));
+    materialX += materialCols[index];
+  });
+  ops.push(pdfRect(left + materialW, top - 13, width - materialW, 13));
+  top -= 13;
+
+  const materialRowCount = Math.max(7, context.materials.length);
+  const availableMaterialHeight = Math.max(72, top - 104);
+  const materialRowHeight = Math.max(
+    10,
+    Math.min(16, availableMaterialHeight / materialRowCount),
+  );
+  const noteLines = wrapText(stringifyFieldValue(notes), 62);
+  for (let index = 0; index < materialRowCount; index += 1) {
+    const material = context.materials[index];
+    let colX = left;
+    materialCols.forEach((colW) => {
+      ops.push(pdfRect(colX, top - materialRowHeight, colW, materialRowHeight));
       colX += colW;
     });
-    ops.push(pdfRect(equipX, top - rowH, 62, rowH));
-    ops.push(pdfText(index === 0 ? fitText(equipmentId, 14) : '', equipX + 4, top - 12, 7));
-    ops.push(pdfRect(equipX + 62, top - rowH, 122, rowH));
-    ops.push(pdfText(index === 0 ? 'Assigned equipment' : '', equipX + 66, top - 12, 7));
-    ops.push(pdfRect(equipX + 184, top - rowH, 35, rowH));
-    ops.push(pdfText(index === 0 ? fitText(equipmentHours, 5) : '', equipX + 190, top - 12, 7));
-    top -= rowH;
-  });
-
-  ops.push(pdfFillRect(left, top - 16, 282, 16, [0.94, 0.36, 0.36]));
-  ops.push(pdfFillRect(left + 282, top - 16, 282, 16, [0.94, 0.36, 0.36]));
-  ops.push(pdfRect(left, top - 16, 282, 16));
-  ops.push(pdfRect(left + 282, top - 16, 282, 16));
-  ops.push(pdfText('MATERIAL', left + 122, top - 11, 8, 'F2'));
-  ops.push(pdfText('NOTES', left + 410, top - 11, 8, 'F2'));
-  top -= 16;
-
-  const materialRows = [
-    'CONES:',
-    'STANDS - LIGHT / HEAVY DUTY:',
-    'TYPE 1 BARRICADES:',
-    'TYPE 3 BARRICADES:',
-    'VINYL SIGNS:',
-    'ALUMINUM SIGNS:',
-    'TEMP TAPE:',
-  ];
-  materialRows.forEach((label, index) => {
-    ops.push(pdfRect(left, top - 18, 150, 18));
-    ops.push(pdfText(label, left + 3, top - 11, 6));
-    ops.push(pdfRect(left + 150, top - 18, 50, 18));
-    ops.push(pdfText(index === 6 ? `4" / 8"` : '', left + 158, top - 11, 6));
-    ops.push(pdfRect(left + 200, top - 18, 40, 18));
-    ops.push(pdfRect(left + 240, top - 18, 42, 18));
-    ops.push(pdfRect(left + 282, top - 18, 282, 18));
-    if (index === 0) {
-      wrapText(stringifyFieldValue(notes), 54)
-        .slice(0, 3)
-        .forEach((line, lineIndex) => {
-          ops.push(pdfText(line, left + 287, top - 10 - lineIndex * 6, 6));
-        });
+    ops.push(
+      pdfRect(
+        left + materialW,
+        top - materialRowHeight,
+        width - materialW,
+        materialRowHeight,
+      ),
+    );
+    if (material) {
+      ops.push(
+        pdfText(
+          fitText(material.description, 34),
+          left + 3,
+          top - materialRowHeight + 4,
+          5.8,
+        ),
+      );
+      ops.push(
+        pdfText(
+          fitText(material.size || '', 10),
+          left + 153,
+          top - materialRowHeight + 4,
+          5.8,
+        ),
+      );
+      ops.push(
+        pdfText(
+          fitText(material.quantity || '1', 6),
+          left + 205,
+          top - materialRowHeight + 4,
+          5.8,
+        ),
+      );
+      ops.push(
+        pdfText(
+          fitText(material.price || '', 8),
+          left + 245,
+          top - materialRowHeight + 4,
+          5.8,
+        ),
+      );
     }
-    top -= 18;
-  });
+    if (noteLines[index]) {
+      ops.push(
+        pdfText(
+          noteLines[index],
+          left + materialW + 4,
+          top - materialRowHeight + 4,
+          5.8,
+        ),
+      );
+    }
+    top -= materialRowHeight;
+  }
 
   const foremanSignature = findSignatureValue(data, template, [
     /foreman/,
@@ -952,25 +1488,33 @@ function buildWorkOrderPdf(
     /approval/,
   ]);
 
-  ops.push(pdfText('DR TRAFFIC REP. (NAME)', left, 62, 7, 'F2'));
-  ops.push(pdfLine(left + 105, 60, left + 245, 60));
-  ops.push(pdfText('OWNER / GENERAL CONTRACTOR REP. (NAME)', left + 282, 62, 7, 'F2'));
-  ops.push(pdfLine(left + 448, 60, left + 564, 60));
+  ops.push(pdfText('DR TRAFFIC REP. (NAME)', left, 76, 5.8, 'F2'));
+  ops.push(pdfLine(left + 96, 74, left + 245, 74));
+  ops.push(
+    pdfText(
+      'OWNER / GENERAL CONTRACTOR REP. (NAME)',
+      left + 282,
+      76,
+      5.8,
+      'F2',
+    ),
+  );
+  ops.push(pdfLine(left + 448, 74, left + 564, 74));
   if (foremanSignature) {
-    drawSignature(ops, images, foremanSignature, left + 107, 62, 136, 30);
+    drawSignature(ops, images, foremanSignature, left + 98, 76, 145, 27);
   }
   if (customerSignature) {
-    drawSignature(ops, images, customerSignature, left + 450, 62, 112, 30);
+    drawSignature(ops, images, customerSignature, left + 450, 76, 112, 27);
   }
   ops.push(
     pdfText(
-      'I hereby acknowledge the satisfactory completion of the above described work.',
+      'I hereby acknowledge the satisfactory completion of the above described work and accept the Terms &',
       left + 282,
-      48,
-      6,
+      63,
+      4.6,
     ),
   );
-  ops.push(pdfText(template?.name || 'Work Order Form', left, 36, 6));
+  ops.push(pdfText('Conditions on the reverse side.', left + 282, 56, 4.6));
 
   return buildPdfContentPdf(ops.join('\n'), images);
 }
@@ -988,24 +1532,41 @@ export class FormSubmissionsService {
     private readonly incidentsRepo: Repository<Incident>,
     @InjectRepository(Worker)
     private readonly workersRepo: Repository<Worker>,
+    @InjectRepository(WorkOrder)
+    private readonly workOrdersRepo: Repository<WorkOrder>,
+    @InjectRepository(Project)
+    private readonly projectsRepo: Repository<Project>,
+    @InjectRepository(Client)
+    private readonly clientsRepo: Repository<Client>,
+    @InjectRepository(Equipment)
+    private readonly equipmentRepo: Repository<Equipment>,
+    @InjectRepository(Material)
+    private readonly materialsRepo: Repository<Material>,
+    @InjectRepository(Timesheet)
+    private readonly timesheetsRepo: Repository<Timesheet>,
     private readonly realtime: RealtimeGateway,
     private readonly spacesStorage: SpacesStorageService,
     private readonly timesheetsService: TimesheetsService,
   ) {}
 
-  findAll(filters?: {
-    projectId?: string;
-    workOrderId?: string;
-    templateId?: string;
-    shiftId?: string;
-    timesheetScope?: TimesheetScope;
-  }, actor?: UserAccessContext) {
+  findAll(
+    filters?: {
+      projectId?: string;
+      workOrderId?: string;
+      templateId?: string;
+      shiftId?: string;
+      timesheetScope?: TimesheetScope;
+    },
+    actor?: UserAccessContext,
+  ) {
     const projectId = filters?.projectId?.trim();
     const workOrderId = filters?.workOrderId?.trim();
     const templateId = filters?.templateId?.trim();
     const shiftId = filters?.shiftId?.trim();
     const timesheetScope = filters?.timesheetScope;
-    const hasFilters = Boolean(projectId || workOrderId || templateId || shiftId);
+    const hasFilters = Boolean(
+      projectId || workOrderId || templateId || shiftId,
+    );
     const filterForActor = async (rows: FormSubmission[]) =>
       this.filterSubmissionsForActor(rows, actor, timesheetScope);
     if (!hasFilters) {
@@ -1051,12 +1612,19 @@ export class FormSubmissionsService {
       );
     }
 
-    const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(template, actor, data);
+    const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(
+      template,
+      actor,
+      data,
+    );
     const generatePdf = shouldGenerateSubmissionPdf(template, actor);
     const saved = await this.repo.save(
       this.repo.create({
         ...dto,
-        workerId: isSelfTimesheet && actor ? await this.resolveWorkerIdForActor(actor) : dto.workerId,
+        workerId:
+          isSelfTimesheet && actor
+            ? await this.resolveWorkerIdForActor(actor)
+            : dto.workerId,
         data,
         pdfUrl: generatePdf ? dto.pdfUrl : '',
         submittedAt: dto.submittedAt ? new Date(dto.submittedAt) : undefined,
@@ -1072,7 +1640,11 @@ export class FormSubmissionsService {
     return saved;
   }
 
-  async update(id: string, dto: UpdateFormSubmissionDto, actor?: UserAccessContext) {
+  async update(
+    id: string,
+    dto: UpdateFormSubmissionDto,
+    actor?: UserAccessContext,
+  ) {
     const item = await this.findOne(id);
     const previousPdfUrl = item.pdfUrl;
     const templateId = dto.templateId || item.templateId;
@@ -1100,13 +1672,20 @@ export class FormSubmissionsService {
       );
     }
 
-    const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(template, actor, data);
+    const isSelfTimesheet = await this.isMobileSelfTimesheetSubmission(
+      template,
+      actor,
+      data,
+    );
     const generatePdf = shouldGenerateSubmissionPdf(template, actor);
     Object.assign(item, {
       ...dto,
-      workerId: isSelfTimesheet && actor ? await this.resolveWorkerIdForActor(actor) : dto.workerId ?? item.workerId,
+      workerId:
+        isSelfTimesheet && actor
+          ? await this.resolveWorkerIdForActor(actor)
+          : (dto.workerId ?? item.workerId),
       data,
-      pdfUrl: generatePdf ? dto.pdfUrl ?? item.pdfUrl : '',
+      pdfUrl: generatePdf ? (dto.pdfUrl ?? item.pdfUrl) : '',
       submittedAt:
         dto.submittedAt !== undefined ? new Date(dto.submittedAt) : undefined,
     });
@@ -1195,7 +1774,9 @@ export class FormSubmissionsService {
     template: FormTemplate | null,
     actor?: UserAccessContext,
   ) {
-    return this.isMobileTimesheetRequest(template, actor) ? actor?.role : undefined;
+    return this.isMobileTimesheetRequest(template, actor)
+      ? actor?.role
+      : undefined;
   }
 
   private async resolveWorkerIdForActor(actor?: UserAccessContext) {
@@ -1226,12 +1807,17 @@ export class FormSubmissionsService {
     for (const key of keys) {
       const value = data[key];
       if (typeof value === 'string' && value.trim()) return value.trim();
-      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      if (typeof value === 'number' || typeof value === 'boolean')
+        return String(value);
     }
     return '';
   }
 
-  private dataDate(data: Record<string, unknown>, keys: string[], fallback?: Date | null) {
+  private dataDate(
+    data: Record<string, unknown>,
+    keys: string[],
+    fallback?: Date | null,
+  ) {
     const raw = this.dataString(data, keys);
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
     if (fallback instanceof Date && !Number.isNaN(fallback.getTime())) {
@@ -1256,10 +1842,16 @@ export class FormSubmissionsService {
     const data = submission.data ?? {};
     const id = `inc_${submission.id}`.slice(0, 64);
     const existing = await this.incidentsRepo.findOne({ where: { id } });
-    const incidentType = this.dataString(data, ['incident_type', 'incidentType', 'type']);
+    const incidentType = this.dataString(data, [
+      'incident_type',
+      'incidentType',
+      'type',
+    ]);
     const title =
       this.dataString(data, ['title', 'incident_title', 'incidentTitle']) ||
-      (incidentType ? `${incidentType} Incident` : template?.name || 'Incident Report');
+      (incidentType
+        ? `${incidentType} Incident`
+        : template?.name || 'Incident Report');
     const description = this.dataString(data, [
       'what_happened',
       'whatHappened',
@@ -1270,7 +1862,9 @@ export class FormSubmissionsService {
     ]);
     const status =
       existing?.status ||
-      this.dataString(data, ['incident_status', 'incidentStatus', 'status']).trim().toLowerCase() ||
+      this.dataString(data, ['incident_status', 'incidentStatus', 'status'])
+        .trim()
+        .toLowerCase() ||
       'open';
 
     const incident = this.incidentsRepo.create({
@@ -1279,15 +1873,30 @@ export class FormSubmissionsService {
       projectId: submission.projectId || existing?.projectId || '',
       reportedBy:
         submission.workerId ||
-        this.dataString(data, ['reported_by', 'reportedBy', 'person_reporting', 'personReporting']) ||
+        this.dataString(data, [
+          'reported_by',
+          'reportedBy',
+          'person_reporting',
+          'personReporting',
+        ]) ||
         existing?.reportedBy ||
         '',
-      date: this.dataDate(data, ['incident_date', 'incidentDate', 'report_date', 'reportDate'], submission.submittedAt),
-      severity: this.normalizeIncidentSeverity(this.dataString(data, ['severity', 'severity_level', 'severityLevel'])),
+      date: this.dataDate(
+        data,
+        ['incident_date', 'incidentDate', 'report_date', 'reportDate'],
+        submission.submittedAt,
+      ),
+      severity: this.normalizeIncidentSeverity(
+        this.dataString(data, ['severity', 'severity_level', 'severityLevel']),
+      ),
       status,
       title: title.slice(0, 255),
       description,
-      location: this.dataString(data, ['incident_location', 'incidentLocation', 'location']),
+      location: this.dataString(data, [
+        'incident_location',
+        'incidentLocation',
+        'location',
+      ]),
       actions: this.dataString(data, [
         'immediate_actions_taken',
         'immediateActionsTaken',
@@ -1297,7 +1906,7 @@ export class FormSubmissionsService {
       ]),
       photos: Array.isArray(data.photos_evidence)
         ? data.photos_evidence.map((item) => String(item)).filter(Boolean)
-        : existing?.photos ?? [],
+        : (existing?.photos ?? []),
     });
     await this.incidentsRepo.save(incident);
     this.realtime.emitTableUpdated('incidents');
@@ -1316,14 +1925,18 @@ export class FormSubmissionsService {
     if (actor.role !== 'viewer') return rows;
 
     const workerId = await this.resolveWorkerIdForActor(actor);
-    const templateIds = [...new Set(rows.map((row) => row.templateId).filter(Boolean))];
+    const templateIds = [
+      ...new Set(rows.map((row) => row.templateId).filter(Boolean)),
+    ];
     const templates =
       templateIds.length > 0
         ? await this.templatesRepo.find({ where: { id: In(templateIds) } })
         : [];
     const timesheetTemplateIds = new Set(
       templates
-        .filter((template) => (template.category || '').toLowerCase().includes('timesheet'))
+        .filter((template) =>
+          (template.category || '').toLowerCase().includes('timesheet'),
+        )
         .map((template) => template.id),
     );
 
@@ -1333,7 +1946,9 @@ export class FormSubmissionsService {
       if (row.workerId) return row.workerId === workerId;
       const timesheetRows = findTimesheetRows(row.data ?? {});
       if (timesheetRows.length === 0) return true;
-      return timesheetRows.some((timesheetRow) => timesheetRow.workerId === workerId);
+      return timesheetRows.some(
+        (timesheetRow) => timesheetRow.workerId === workerId,
+      );
     });
   }
 
@@ -1468,6 +2083,212 @@ export class FormSubmissionsService {
     }
   }
 
+  private stringArray(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  private async loadWorkOrderPdfContext(
+    submission: FormSubmission,
+  ): Promise<WorkOrderPdfContext> {
+    const workOrder = submission.workOrderId
+      ? await this.workOrdersRepo.findOne({
+          where: { id: submission.workOrderId },
+        })
+      : null;
+    const projectId = workOrder?.projectId || submission.projectId;
+    const project = projectId
+      ? await this.projectsRepo.findOne({ where: { id: projectId } })
+      : null;
+    const client = project?.clientId
+      ? await this.clientsRepo.findOne({ where: { id: project.clientId } })
+      : null;
+    const shift =
+      workOrder?.shifts
+        .map(recordValue)
+        .find((entry) => entry?.id === submission.shiftId) ?? null;
+    const roles = Array.isArray(shift?.roles)
+      ? shift.roles.map(recordValue).filter(Boolean)
+      : [];
+
+    const workerIds: string[] = [];
+    const equipmentIds: string[] = [];
+    const materialIds: string[] = [];
+    const workerRole = new Map<string, string>();
+    const workerStart = new Map<string, string>();
+    for (const role of roles) {
+      if (!role) continue;
+      const roleName = String(role.roleName ?? role.name ?? '').trim();
+      const roleStart = String(
+        role.startTime ?? shift?.defaultRoleStartTime ?? shift?.startTime ?? '',
+      ).trim();
+      for (const workerId of this.stringArray(role.assignedWorkers)) {
+        if (!workerIds.includes(workerId)) workerIds.push(workerId);
+        if (roleName && !workerRole.has(workerId)) {
+          workerRole.set(workerId, roleName);
+        }
+        if (roleStart && !workerStart.has(workerId)) {
+          workerStart.set(workerId, roleStart);
+        }
+      }
+      for (const equipmentId of this.stringArray(role.assignedEquipment)) {
+        if (!equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
+      }
+      for (const materialId of this.stringArray(role.assignedMaterials)) {
+        if (!materialIds.includes(materialId)) materialIds.push(materialId);
+      }
+    }
+
+    const [workerRecords, equipmentRecords, materialRecords, timesheets] =
+      await Promise.all([
+        workerIds.length
+          ? this.workersRepo.find({ where: { id: In(workerIds) } })
+          : Promise.resolve([]),
+        equipmentIds.length
+          ? this.equipmentRepo.find({ where: { id: In(equipmentIds) } })
+          : Promise.resolve([]),
+        materialIds.length
+          ? this.materialsRepo.find({ where: { id: In(materialIds) } })
+          : Promise.resolve([]),
+        workOrder?.id && submission.shiftId
+          ? this.timesheetsRepo.find({
+              where: {
+                workOrderId: workOrder.id,
+                shiftId: submission.shiftId,
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+
+    const submittedRows = findTimesheetRows(submission.data ?? {});
+    const submittedByWorker = new Map(
+      submittedRows.map((row) => [String(row.workerId ?? ''), row]),
+    );
+    const workersById = new Map(
+      workerRecords.map((worker) => [worker.id, worker]),
+    );
+    const timesheetByWorker = new Map(
+      timesheets.map((timesheet) => [timesheet.workerId, timesheet]),
+    );
+    const shiftEnd = String(shift?.endTime ?? '').trim();
+    const workers = workerIds.map((workerId) => {
+      const worker = workersById.get(workerId);
+      const timesheet = timesheetByWorker.get(workerId);
+      const submitted = submittedByWorker.get(workerId) ?? {};
+      const submittedRoles = Array.isArray(submitted.roleNames)
+        ? submitted.roleNames.filter(
+            (value): value is string => typeof value === 'string',
+          )
+        : [];
+      return {
+        workerId,
+        workerName:
+          String(submitted.workerName ?? submitted.name ?? '').trim() ||
+          [worker?.firstName, worker?.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim() ||
+          workerId,
+        roleName:
+          submittedRoles.join(', ') ||
+          String(submitted.roleName ?? '').trim() ||
+          workerRole.get(workerId) ||
+          worker?.role ||
+          '',
+        startTime:
+          timesheet?.clockIn ||
+          String(
+            submitted.startTime ?? submitted.scheduledStartTime ?? '',
+          ).trim() ||
+          workerStart.get(workerId) ||
+          '',
+        endTime:
+          timesheet?.clockOut ||
+          String(
+            submitted.endTime ?? submitted.scheduledEndTime ?? '',
+          ).trim() ||
+          shiftEnd,
+        regularHours: Number(
+          timesheet?.regularHours ??
+            submitted.st ??
+            submitted.regularHours ??
+            0,
+        ),
+        overtimeHours: Number(
+          timesheet?.overtimeHours ??
+            submitted.ot ??
+            submitted.overtimeHours ??
+            0,
+        ),
+        doubleTimeHours: Number(
+          timesheet?.doubleTimeHours ??
+            submitted.dt ??
+            submitted.doubleTimeHours ??
+            0,
+        ),
+        lunchTaken:
+          timesheet?.lunchTaken ??
+          Boolean(submitted.lunchTaken ?? submitted.lunchAndBreakTaken),
+        breakMinutes: Number(
+          timesheet?.breakMinutes ?? submitted.breakMinutes ?? 0,
+        ),
+        signature:
+          parseStoredJson(timesheet?.signature) ||
+          submitted.signature ||
+          submitted.workerSignature ||
+          '',
+      } satisfies WorkOrderPdfWorker;
+    });
+
+    const equipmentById = new Map(
+      equipmentRecords.map((equipment) => [equipment.id, equipment]),
+    );
+    const equipmentHours = String(
+      fieldValue(submission.data ?? {}, [
+        'equipment_hours',
+        'equipmentHours',
+      ]) ?? '',
+    ).trim();
+    const equipment = equipmentIds.map((equipmentId) => {
+      const item = equipmentById.get(equipmentId);
+      return {
+        identifier: item?.identifier || equipmentId,
+        description:
+          [item?.name, item?.type].filter(Boolean).join(' - ') || equipmentId,
+        hours: equipmentHours,
+      };
+    });
+
+    const materialsById = new Map(
+      materialRecords.map((material) => [material.id, material]),
+    );
+    const materials = materialIds.map((materialId) => {
+      const item = materialsById.get(materialId);
+      return {
+        identifier: item?.identifier || materialId,
+        description:
+          [item?.identifier, item?.name].filter(Boolean).join(' - ') ||
+          materialId,
+        size: item?.type || '',
+        quantity: '1',
+        price: '',
+      };
+    });
+
+    return {
+      workOrder,
+      project,
+      client,
+      workers,
+      equipment,
+      materials,
+      shift,
+    };
+  }
+
   private async generatePdf(
     submission: FormSubmission,
     template: FormTemplate | null,
@@ -1506,7 +2327,9 @@ export class FormSubmissionsService {
       for (const field of fields) {
         const value = data[field.id] ?? data[field.label];
         const label = `${field.label}${field.required ? ' *' : ''}`;
-        for (const line of wrapText(`${label}: ${stringifyFieldValue(value)}`)) {
+        for (const line of wrapText(
+          `${label}: ${stringifyFieldValue(value)}`,
+        )) {
           lines.push(line);
         }
       }
@@ -1514,11 +2337,14 @@ export class FormSubmissionsService {
 
     const safeId = basename(submission.id).replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `${safeId}.pdf`;
+    const isWorkOrder =
+      category.includes('work order') || templateName.includes('work order');
+    const workOrderContext = isWorkOrder
+      ? await this.loadWorkOrderPdfContext(submission)
+      : null;
     const pdf =
-      category.includes('timesheet') || templateName.includes('timesheet')
-        ? buildTimesheetPdf(submission, template)
-        : category.includes('work order') || templateName.includes('work order')
-        ? buildWorkOrderPdf(submission, template)
+      isWorkOrder && workOrderContext
+        ? buildWorkOrderPdf(submission, template, workOrderContext)
         : buildSimplePdf(lines.slice(0, 48));
 
     if (this.spacesStorage.isConfigured()) {

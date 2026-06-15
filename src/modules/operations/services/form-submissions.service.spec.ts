@@ -33,13 +33,13 @@ describe('shouldGenerateSubmissionPdf', () => {
     ).toBe(false);
   });
 
-  it('generates the general timesheet PDF for scheduler roles', () => {
+  it('does not generate a timesheet PDF for scheduler roles', () => {
     expect(
       shouldGenerateSubmissionPdf(
         template('timesheet'),
         actor('scheduler', ['mobile.timesheets.submit']),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('does not change PDF generation for other form categories', () => {

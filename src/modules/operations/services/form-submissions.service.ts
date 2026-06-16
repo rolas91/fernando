@@ -1228,10 +1228,7 @@ export function buildWorkOrderPdf(
 ): Buffer {
   const data = submission.data ?? {};
   const images: PdfImage[] = [];
-  const logo = loadCommercialPdfLogoImage(
-    'Logo',
-    'drtraffic-work-order-logo.png',
-  );
+  const logo = loadCommercialPdfLogoImage('Logo', 'drtraffic-logo-horizontal.png');
   if (logo) images.push(logo);
   const submittedAt = submission.submittedAt
     ? new Date(submission.submittedAt)
@@ -1538,11 +1535,11 @@ export function buildWorkOrderPdf(
           ops,
           images,
           worker.signature,
-          left + 28,
-          top + 0.5,
-          firstColumnSplit - 31,
-          workerSubRowHeight - 1,
-          0.7,
+          left + 20,
+          top + 0.2,
+          firstColumnSplit - 22,
+          workerSubRowHeight - 0.4,
+          0.95,
         );
       }
     }
@@ -2278,18 +2275,6 @@ export class FormSubmissionsService {
     const materialIds: string[] = [];
     const workerRole = new Map<string, string>();
     const workerStart = new Map<string, string>();
-    const addEquipmentIdsFromRoles = (
-      shiftRoles: Record<string, unknown>[],
-    ) => {
-      for (const role of shiftRoles) {
-        for (const equipmentId of this.stringArray(role.assignedEquipment)) {
-          if (!equipmentIds.includes(equipmentId)) {
-            equipmentIds.push(equipmentId);
-          }
-        }
-      }
-    };
-
     for (const role of roles) {
       if (!role) continue;
       const roleName = String(role.roleName ?? role.name ?? '').trim();
@@ -2308,20 +2293,9 @@ export class FormSubmissionsService {
       for (const materialId of this.stringArray(role.assignedMaterials)) {
         if (!materialIds.includes(materialId)) materialIds.push(materialId);
       }
-    }
-    addEquipmentIdsFromRoles(roles);
-
-    for (const assignmentShiftValue of workOrder?.shifts ?? []) {
-      const assignmentShift = recordValue(assignmentShiftValue);
-      if (!assignmentShift || assignmentShift.id === shift?.id) continue;
-      const assignmentRoles = Array.isArray(assignmentShift.roles)
-        ? assignmentShift.roles
-            .map(recordValue)
-            .filter(
-              (role): role is Record<string, unknown> => role !== null,
-            )
-        : [];
-      addEquipmentIdsFromRoles(assignmentRoles);
+      for (const equipmentId of this.stringArray(role.assignedEquipment)) {
+        if (!equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
+      }
     }
 
     const [workerRecords, equipmentRecords, materialRecords, timesheets] =
@@ -2450,33 +2424,11 @@ export class FormSubmissionsService {
     const equipment = equipmentIds.map((equipmentId) => {
       const item = equipmentById.get(equipmentId);
       return {
-        identifier: item?.identifier || equipmentId,
-        description:
-          [item?.name, item?.type].filter(Boolean).join(' - ') || equipmentId,
+        identifier: item?.identifier || '',
+        description: item?.name || item?.type || '',
         hours: computedEquipmentHours || equipmentHours,
       };
     });
-    const equipmentSeen = new Set(
-      equipment.map((item) => normalizeResourceIdentifier(item.identifier)),
-    );
-    for (const resource of splitResourceSummary(
-      fieldValue(submission.data ?? {}, [
-        'equipment_id',
-        'equipmentId',
-        'equip_id',
-        'equipId',
-        'equipment_summary',
-        'equipmentSummary',
-      ]),
-    )) {
-      const identifierKey = normalizeResourceIdentifier(resource.identifier);
-      if (!identifierKey || equipmentSeen.has(identifierKey)) continue;
-      equipmentSeen.add(identifierKey);
-      equipment.push({
-        ...resource,
-        hours: computedEquipmentHours || equipmentHours,
-      });
-    }
 
     const materialsById = new Map(
       materialRecords.map((material) => [material.id, material]),

@@ -446,6 +446,7 @@ export class WorkOrdersService {
       const pickedTemplateIds = new Set((workOrder.formTemplateIds || []).filter(Boolean));
       const requiredTemplates = templates.filter((template) => {
         if (template.isRequired === false) return false;
+        if (this.isIncidentTemplate(template)) return false;
         return pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id);
       });
       if (requiredTemplates.length === 0) continue;
@@ -493,6 +494,14 @@ export class WorkOrdersService {
       .filter(Boolean)
       .some((value) =>
         String(value).toLowerCase().replace(/\s+/g, '').includes('timesheet'),
+      );
+  }
+
+  private isIncidentTemplate(template: FormTemplate) {
+    return [template.category, template.name]
+      .filter(Boolean)
+      .some((value) =>
+        String(value).toLowerCase().replace(/\s+/g, '').includes('incident'),
       );
   }
 

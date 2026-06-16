@@ -546,7 +546,6 @@ export class WorkOrdersService {
     },
     shiftTemplateById = new Map<string, ShiftCatalog>(),
   ) {
-    const quickAccess = this.buildMobileQuickAccess(workOrder, project, quickAccessMaps);
     const workerShifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
       .map((shift) => {
         const record = shift as Record<string, unknown>;
@@ -609,6 +608,13 @@ export class WorkOrdersService {
       })
       .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))
       .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+    const visibleShiftIds = new Set(workerShifts.map((shift) => shift.id).filter(Boolean));
+    const quickAccess = this.buildMobileQuickAccess(
+      workOrder,
+      project,
+      quickAccessMaps,
+      visibleShiftIds,
+    );
 
     return {
       id: workOrder.id,
@@ -680,11 +686,15 @@ export class WorkOrdersService {
     };
   }
 
-  private collectMobileQuickAccessIds(workOrder: WorkOrder) {
+  private collectMobileQuickAccessIds(workOrder: WorkOrder, visibleShiftIds?: Set<string>) {
     const workerIds = new Set<string>();
     const equipmentIds = new Set<string>();
     const materialIds = new Set<string>();
     for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+      const shiftId = typeof (shift as Record<string, unknown>).id === 'string'
+        ? String((shift as Record<string, unknown>).id)
+        : '';
+      if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId))) continue;
       const roles = Array.isArray(shift.roles)
         ? (shift.roles as Record<string, unknown>[])
         : [];
@@ -720,20 +730,32 @@ export class WorkOrdersService {
       clientById: Map<string, Client>;
       pdfSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
     },
+    visibleShiftIds?: Set<string>,
   ) {
-    const { workerIds, equipmentIds, materialIds } = this.collectMobileQuickAccessIds(workOrder);
+    const { workerIds, equipmentIds, materialIds } = this.collectMobileQuickAccessIds(
+      workOrder,
+      visibleShiftIds,
+    );
     const crew = [...workerIds].map((id) => {
       const worker = maps?.workerById.get(id);
       const name = worker
         ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
         : id;
-      const shiftRoles = this.shiftRolesForWorker(workOrder, id);
+      const allShiftRoles = this.shiftRolesForWorker(workOrder, id);
+      const shiftRoles = visibleShiftIds
+        ? Object.fromEntries(
+            Object.entries(allShiftRoles).filter(([shiftId]) =>
+              visibleShiftIds.has(shiftId),
+            ),
+          )
+        : allShiftRoles;
       const shiftIds = Object.keys(shiftRoles);
+      const roleNames = [...new Set(Object.values(shiftRoles).flat())];
       return {
         id,
         name,
         initials: this.initialsFromName(name),
-        roleLine: this.roleNamesForWorker(workOrder, id).join(', ') || worker?.role || worker?.type || 'Assigned crew',
+        roleLine: roleNames.join(', ') || worker?.role || worker?.type || 'Assigned crew',
         badge: worker?.type || worker?.role || 'Crew',
         phone: worker?.phone || '',
         shiftIds,

@@ -258,7 +258,7 @@ function renderBrandHeader(ops: string[], title: string, number: string, date: s
 
 export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buffer {
   const ops: string[] = [];
-  const logo = loadCommercialPdfLogoImage();
+  const logo = loadCommercialPdfLogoImage('Logo', 'drtraffic-work-order-logo.png');
   const isSale = workOrder.type === 'sale';
   renderBrandHeader(
     ops,

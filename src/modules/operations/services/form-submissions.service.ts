@@ -676,6 +676,33 @@ type WorkOrderPdfContext = {
   shift?: Record<string, unknown> | null;
 };
 
+function normalizeResourceIdentifier(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function splitResourceSummary(value: unknown): WorkOrderPdfResource[] {
+  const text = stringifyFieldValue(value).trim();
+  if (!text || text === '-') return [];
+
+  return text
+    .split(/\r?\n|;|,(?=\s*[A-Za-z0-9_-]+\s*(?:[-–—:]|$))/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const match = /^(.+?)\s*(?:[-–—:])\s*(.+)$/.exec(part);
+      if (!match) {
+        return {
+          identifier: part,
+          description: part,
+        };
+      }
+      return {
+        identifier: match[1].trim(),
+        description: match[2].trim(),
+      };
+    });
+}
+
 function recordValue(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -1566,7 +1593,6 @@ export function buildWorkOrderPdf(
   });
   top -= columnHeight;
 
-  const noteLines = wrapText(stringifyFieldValue(notes), 72);
   const materialRowHeight = 12.75;
   for (let index = 0; index < 13; index += 1) {
     const material = context.materials[index];
@@ -1575,12 +1601,6 @@ export function buildWorkOrderPdf(
     });
     if (material) {
       ops.push(pdfText(fitText(material.description, 34), materialXs[0] + 2, top - 8.7, 5.2));
-      ops.push(pdfText(fitText(material.size || '', 10), materialXs[1] + 2, top - 8.7, 5.2));
-      ops.push(pdfText(fitText(material.quantity || '1', 6), materialXs[2] + 4, top - 8.7, 5.2));
-      ops.push(pdfText(fitText(material.price || '', 8), materialXs[3] + 2, top - 8.7, 5.2));
-    }
-    if (noteLines[index]) {
-      ops.push(pdfText(noteLines[index], materialXs[4] + 2, top - 8.7, 5.2));
     }
     top -= materialRowHeight;
   }
@@ -1619,11 +1639,11 @@ export function buildWorkOrderPdf(
       ops,
       images,
       foremanSignature,
-      left + 103,
-      footerY,
-      142,
-      28,
-      0.7,
+      left + 93,
+      footerY + 1,
+      165,
+      34,
+      0.88,
     );
   }
   if (customerSignature) {
@@ -1631,11 +1651,11 @@ export function buildWorkOrderPdf(
       ops,
       images,
       customerSignature,
-      left + 466,
-      footerY,
-      106,
-      28,
-      0.7,
+      left + 453,
+      footerY + 1,
+      126,
+      34,
+      0.88,
     );
   }
   ops.push(
@@ -2433,9 +2453,30 @@ export class FormSubmissionsService {
         identifier: item?.identifier || equipmentId,
         description:
           [item?.name, item?.type].filter(Boolean).join(' - ') || equipmentId,
-        hours: equipmentHours || computedEquipmentHours,
+        hours: computedEquipmentHours || equipmentHours,
       };
     });
+    const equipmentSeen = new Set(
+      equipment.map((item) => normalizeResourceIdentifier(item.identifier)),
+    );
+    for (const resource of splitResourceSummary(
+      fieldValue(submission.data ?? {}, [
+        'equipment_id',
+        'equipmentId',
+        'equip_id',
+        'equipId',
+        'equipment_summary',
+        'equipmentSummary',
+      ]),
+    )) {
+      const identifierKey = normalizeResourceIdentifier(resource.identifier);
+      if (!identifierKey || equipmentSeen.has(identifierKey)) continue;
+      equipmentSeen.add(identifierKey);
+      equipment.push({
+        ...resource,
+        hours: computedEquipmentHours || equipmentHours,
+      });
+    }
 
     const materialsById = new Map(
       materialRecords.map((material) => [material.id, material]),

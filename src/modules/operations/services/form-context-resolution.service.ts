@@ -633,14 +633,14 @@ export class FormContextResolutionService {
     const actorRoleNames = workerIdForActor ? workerRoleNames(shift, workerIdForActor) : [];
     const forcedSelfTimesheet = timesheetScope === 'own';
     const forcedAllTimesheets = timesheetScope === 'all';
+    const actorHasTimesheetSupervisorRole = hasTimesheetSupervisorRole(actorRoleNames);
     const isMobileSelfTimesheet =
       !forcedAllTimesheets &&
       isTimesheetTemplate(template) &&
-      (forcedSelfTimesheet || isViewerRole(actor)) &&
+      (forcedSelfTimesheet || (isViewerRole(actor) && !actorHasTimesheetSupervisorRole)) &&
       !canSubmitFinalMobileTimesheets(actor) &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
-      !actor?.permissions.includes('form-submissions.write') &&
-      !hasTimesheetSupervisorRole(actorRoleNames);
+      !actor?.permissions.includes('form-submissions.write');
     if (isMobileSelfTimesheet && workerIdForActor) {
       workerIds = workerIds.filter((workerId) => workerId === workerIdForActor);
     }

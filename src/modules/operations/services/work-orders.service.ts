@@ -727,6 +727,8 @@ export class WorkOrdersService {
       const name = worker
         ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
         : id;
+      const shiftRoles = this.shiftRolesForWorker(workOrder, id);
+      const shiftIds = Object.keys(shiftRoles);
       return {
         id,
         name,
@@ -734,6 +736,8 @@ export class WorkOrdersService {
         roleLine: this.roleNamesForWorker(workOrder, id).join(', ') || worker?.role || worker?.type || 'Assigned crew',
         badge: worker?.type || worker?.role || 'Crew',
         phone: worker?.phone || '',
+        shiftIds,
+        shiftRoles,
       };
     });
     const equipment = [
@@ -837,6 +841,30 @@ export class WorkOrdersService {
       }
     }
     return [...names];
+  }
+
+  private shiftRolesForWorker(workOrder: WorkOrder, workerId: string) {
+    const rolesByShift: Record<string, string[]> = {};
+    for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+      const shiftRecord = shift as Record<string, unknown>;
+      const shiftId = typeof shiftRecord.id === 'string' ? shiftRecord.id : '';
+      if (!shiftId) continue;
+      const roleNames = new Set<string>();
+      const roles = Array.isArray(shiftRecord.roles)
+        ? (shiftRecord.roles as Record<string, unknown>[])
+        : [];
+      for (const role of roles) {
+        const assignedWorkers = Array.isArray(role.assignedWorkers) ? role.assignedWorkers : [];
+        if (!assignedWorkers.includes(workerId)) continue;
+        if (typeof role.roleName === 'string' && role.roleName.trim()) {
+          roleNames.add(role.roleName.trim());
+        }
+      }
+      if (roleNames.size > 0) {
+        rolesByShift[shiftId] = [...roleNames];
+      }
+    }
+    return rolesByShift;
   }
 
   private initialsFromName(name: string) {

@@ -590,7 +590,6 @@ export function computeAssignmentStatus(
   const atRiskIssues =
     (signals.totalRequired > 0 &&
       signals.coverageRatio < rules.coverageAtRisk) ||
-    signals.awaitingConfirmationWithFullStaff ||
     signals.assignedWorkerWeeklyOvertimeRisk ||
     signals.assignedWorkerCertExpiringRisk;
 

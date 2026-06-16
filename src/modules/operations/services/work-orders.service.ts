@@ -444,11 +444,19 @@ export class WorkOrdersService {
 
     for (const workOrder of workOrders) {
       const pickedTemplateIds = new Set((workOrder.formTemplateIds || []).filter(Boolean));
-      const requiredTemplates = templates.filter((template) => {
-        if (template.isRequired === false) return false;
-        if (this.isIncidentTemplate(template)) return false;
+      const workOrderTemplates = templates.filter((template) => {
+        if (!this.isWorkOrderTemplate(template)) return false;
         return pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id);
       });
+      const requiredTemplates =
+        workOrderTemplates.length > 0
+          ? workOrderTemplates
+          : templates.filter((template) => {
+              if (template.isRequired === false) return false;
+              if (this.isIncidentTemplate(template)) return false;
+              if (this.isTimesheetTemplate(template)) return false;
+              return pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id);
+            });
       if (requiredTemplates.length === 0) continue;
       const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
       for (const shift of shifts) {
@@ -495,6 +503,14 @@ export class WorkOrdersService {
       .some((value) =>
         String(value).toLowerCase().replace(/\s+/g, '').includes('timesheet'),
       );
+  }
+
+  private isWorkOrderTemplate(template: FormTemplate) {
+    const text = [template.category, template.name]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase())
+      .join(' ');
+    return text.includes('work order') || /\bwo\b/.test(text);
   }
 
   private isIncidentTemplate(template: FormTemplate) {

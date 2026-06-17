@@ -246,7 +246,7 @@ const DEFAULT_STATUS_CATALOG: Array<
     scope: 'work_order',
     value: 'completed',
     name: 'Completed',
-    color: '#22C55E',
+    color: '#6B7280',
     sortOrder: 50,
     blocksEditing: false,
     triggersNotification: true,

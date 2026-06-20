@@ -1551,10 +1551,26 @@ export function buildWorkOrderPdf(
       if (!equipment) return;
       ops.push(pdfText(fitText(equipment.identifier, 11), workXs[6] + 2, baseline, 5.2));
       ops.push(pdfText(fitText(equipment.description, 31), workXs[7] + 2, baseline, 5.2));
-      ops.push(pdfText(fitText(equipment.hours || '', 5), workXs[8] + 4, baseline, 5.2));
     };
     drawEquipment(equipmentTop, personBaseline);
     drawEquipment(equipmentBottom, signBaseline);
+
+    if (worker) {
+      const totalHours =
+        Number(worker.regularHours || 0) +
+        Number(worker.overtimeHours || 0) +
+        Number(worker.doubleTimeHours || 0);
+      if (totalHours > 0) {
+        ops.push(
+          pdfText(
+            Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2),
+            workXs[8] + 4,
+            personBaseline,
+            5.5,
+          ),
+        );
+      }
+    }
   }
 
   const materialPercentages = [26.4, 8.9, 6.9, 8.4, 49.4];

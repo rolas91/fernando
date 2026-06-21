@@ -1536,10 +1536,10 @@ export function buildWorkOrderPdf(
           images,
           worker.signature,
           left + 20,
-          top + 0.2,
+          top,
           firstColumnSplit - 22,
-          workerSubRowHeight - 0.4,
-          0.95,
+          workerSubRowHeight,
+          1,
         );
       }
     }

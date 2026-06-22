@@ -20,6 +20,7 @@ import { WorkOrder } from '../../../entities/work-order.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateWorkOrderDto } from '../dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from '../dto/update-work-order.dto';
+import { BulkCreateShiftsDto } from '../dto/bulk-create-shifts.dto';
 import {
   computeAssignmentStatus,
   parseAssignmentAutoStatusRules,
@@ -1066,6 +1067,99 @@ export class WorkOrdersService {
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
     return saved;
+  }
+
+  /**
+   * Creates multiple shifts for a work order in one transaction.
+   * Used by the scheduler to repeat a shift for several days of the week.
+   */
+  async bulkCreateShifts(
+    workOrderId: string,
+    payload: BulkCreateShiftsDto,
+  ) {
+    const workOrder = await this.findOne(workOrderId);
+
+    if (!Array.isArray(payload.dates) || payload.dates.length === 0) {
+      throw new BadRequestException('At least one date is required.');
+    }
+    if (!Array.isArray(payload.roles) || payload.roles.length === 0) {
+      throw new BadRequestException('At least one role is required.');
+    }
+
+    const seen = new Set<string>();
+    const uniqueDates = payload.dates.filter((d) => {
+      if (typeof d !== 'string' || !d.trim()) return false;
+      if (seen.has(d)) return false;
+      seen.add(d);
+      return true;
+    });
+    if (uniqueDates.length === 0) {
+      throw new BadRequestException('No valid dates provided.');
+    }
+
+    /** Pre-validation: every date must fall within the assignment range. */
+    assertShiftsWithinAssignmentDateRange(
+      workOrder.startDate,
+      workOrder.endDate,
+      uniqueDates.map((date) => ({ date })),
+    );
+
+    const existingShifts = Array.isArray(workOrder.shifts)
+      ? (workOrder.shifts as Record<string, unknown>[])
+      : [];
+    const skipDuplicates = payload.skipDuplicates !== false;
+
+    /** Returns true if a shift already exists for that date with the same startTime. */
+    const hasConflictingShift = (date: string) =>
+      existingShifts.some((s) => {
+        if (!s || typeof s !== 'object') return false;
+        const row = s as { date?: unknown; startTime?: unknown; endTime?: unknown };
+        if (typeof row.date !== 'string' || row.date !== date) return false;
+        if (typeof row.startTime === 'string' && row.startTime === payload.startTime) {
+          return true;
+        }
+        return false;
+      });
+
+    const created: Record<string, unknown>[] = [];
+    const skipped: string[] = [];
+    const nowId = Date.now();
+
+    for (const date of uniqueDates) {
+      if (skipDuplicates && hasConflictingShift(date)) {
+        skipped.push(date);
+        continue;
+      }
+      created.push({
+        id: `s_bulk_${nowId}_${date.replace(/-/g, '')}`,
+        workOrderId,
+        shiftTemplateId: payload.shiftTemplateId || undefined,
+        defaultRoleStartTime: payload.defaultRoleStartTime || payload.startTime,
+        date,
+        startTime: payload.startTime,
+        endTime: payload.endTime,
+        roles: payload.roles.map((role, roleIdx) => ({
+          id: `sr_bulk_${nowId}_${date.replace(/-/g, '')}_${roleIdx}`,
+          roleName: role.roleName,
+          requiredCount: role.requiredCount,
+          startTime: role.startTime || payload.startTime,
+          requiredCertificationIds: role.requiredCertificationIds || [],
+          requiredSkillIds: role.requiredSkillIds || [],
+          assignedWorkers: role.assignedWorkers || [],
+          assignedEquipment: role.assignedEquipment || [],
+          assignedMaterials: role.assignedMaterials || [],
+        })),
+      });
+    }
+
+    if (created.length === 0) {
+      return { workOrder, created: [], skipped };
+    }
+
+    workOrder.shifts = [...existingShifts, ...created];
+    const saved = await this.workOrdersRepo.save(workOrder);
+    this.realtime.emitTableUpdated('work_orders');
+    return { workOrder: saved, created, skipped };
   }
 
   async remove(id: string) {

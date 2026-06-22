@@ -30,9 +30,17 @@ export const OPERATIONS_RESOURCE_PERMISSIONS = {
     read: 'availability-requests.read',
     write: 'availability-requests.write',
   },
+  certifications: {
+    read: 'certifications.read',
+    write: 'certifications.write',
+  },
   clients: {
     read: 'clients.read',
     write: 'clients.write',
+  },
+  'commercial-catalog-items': {
+    read: 'commercial-catalog-items.read',
+    write: 'commercial-catalog-items.write',
   },
   'company-settings': {
     read: 'company-settings.read',
@@ -54,6 +62,10 @@ export const OPERATIONS_RESOURCE_PERMISSIONS = {
     read: 'incidents.read',
     write: 'incidents.write',
   },
+  materials: {
+    read: 'materials.read',
+    write: 'materials.write',
+  },
   notifications: {
     read: 'notifications.read',
     write: 'notifications.write',
@@ -62,9 +74,17 @@ export const OPERATIONS_RESOURCE_PERMISSIONS = {
     read: 'projects.read',
     write: 'projects.write',
   },
+  'project-types': {
+    read: 'project-types.read',
+    write: 'project-types.write',
+  },
   shifts: {
     read: 'shifts.read',
     write: 'shifts.write',
+  },
+  skills: {
+    read: 'skills.read',
+    write: 'skills.write',
   },
   'status-catalog': {
     read: 'status-catalog.read',
@@ -85,6 +105,10 @@ export const OPERATIONS_RESOURCE_PERMISSIONS = {
   workers: {
     read: 'workers.read',
     write: 'workers.write',
+  },
+  'worker-roles': {
+    read: 'worker-roles.read',
+    write: 'worker-roles.write',
   },
 } as const;
 

@@ -85,6 +85,7 @@ import { WorkerRolesService } from './services/worker-roles.service';
 import { OperationsAuthGuard } from './operations-auth.guard';
 import { SpacesStorageService } from './services/spaces-storage.service';
 import { ShiftChatGateway } from './gateways/shift-chat.gateway';
+import { CatalogImportModule } from './import/catalog-import.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { ShiftChatGateway } from './gateways/shift-chat.gateway';
     UsersModule,
     RealtimeModule,
     IntegrationsModule,
+    CatalogImportModule,
     TypeOrmModule.forFeature([
       Worker,
       WorkerRole,

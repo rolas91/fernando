@@ -59,3 +59,50 @@ describe('updateShiftWorkerConfirmation', () => {
     ]);
   });
 });
+
+describe('normalizeWorkOrderShifts - role id regeneration', () => {
+  it('preserves confirmations when frontend sends a new role id but keeps roleName and worker', () => {
+    const previous = [
+      {
+        id: 'shift-1',
+        roles: [
+          {
+            id: 'role-1',
+            roleName: 'Flagger',
+            requiredCount: 2,
+            assignedWorkers: ['worker-a', 'worker-b'],
+            assignedEquipment: [],
+            assignedMaterials: [],
+            workerConfirmations: [
+              { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
+              { workerId: 'worker-b', status: 'pending' },
+            ],
+          },
+        ],
+      },
+    ];
+    const incoming = [
+      {
+        id: 'shift-1',
+        roles: [
+          {
+            id: 'sr_shift-1_1718900000000_Flagger',
+            roleName: 'Flagger',
+            requiredCount: 2,
+            assignedWorkers: ['worker-a', 'worker-b'],
+            assignedEquipment: [],
+            assignedMaterials: [],
+          },
+        ],
+      },
+    ];
+
+    const normalized = normalizeWorkOrderShifts(incoming, previous);
+    const role = normalized[0].roles?.[0] as { workerConfirmations?: Array<{ workerId: string; status: string }> };
+
+    expect(role.workerConfirmations).toEqual([
+      { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
+      { workerId: 'worker-b', status: 'pending' },
+    ]);
+  });
+});

@@ -148,9 +148,35 @@ export function normalizeWorkOrderShifts(
         roleRecord.requiredCertificationIds ?? roleRecord.requiredSkillIds,
       );
       const requiredSkillIds = asStringArray(roleRecord.requiredSkillIds);
+
+      /**
+       * Resolve the previous role so we can preserve workerConfirmations across
+       * edits. Match by id first, then fall back to (roleName + assignedWorkers
+       * intersection) when the frontend regenerates role ids. This protects
+       * confirmation state from being silently reset by re-id'd roles.
+       */
       const previousRole = roleId ? previousRoleById.get(roleId) : undefined;
-      const existingConfirmations = Array.isArray(previousRole?.workerConfirmations)
-        ? previousRole?.workerConfirmations
+      let resolvedPrevious = previousRole;
+      if (!resolvedPrevious && typeof roleRecord.roleName === 'string') {
+        const incomingName = roleRecord.roleName.trim().toLowerCase();
+        const incomingWorkerSet = new Set(assignedWorkers);
+        const fallback = previousRoles.find((pr) => {
+          if (!pr || typeof pr !== 'object') return false;
+          const name = (pr as { roleName?: unknown }).roleName;
+          if (typeof name !== 'string' || name.trim().toLowerCase() !== incomingName) {
+            return false;
+          }
+          const prevWorkers = asStringArray(
+            (pr as { assignedWorkers?: unknown }).assignedWorkers,
+          );
+          const overlap = prevWorkers.some((wid) => incomingWorkerSet.has(wid));
+          return overlap;
+        });
+        if (fallback) resolvedPrevious = fallback as ShiftRoleLike;
+      }
+
+      const existingConfirmations = Array.isArray(resolvedPrevious?.workerConfirmations)
+        ? resolvedPrevious?.workerConfirmations
         : Array.isArray(roleRecord.workerConfirmations)
           ? roleRecord.workerConfirmations
           : [];
@@ -166,6 +192,7 @@ export function normalizeWorkOrderShifts(
         if (isNewShift) return buildPendingConfirmation(workerId);
         return confirmationsByWorker.get(workerId) || buildPendingConfirmation(workerId);
       });
+      void resolvedPrevious;
 
       return {
         ...roleRecord,

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import ExcelJS from 'exceljs';
-import type { ObjectLiteral, Repository } from 'typeorm';
+import { In, type ObjectLiteral, type Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Certification } from '../../../entities/certification.entity';
 import { Client } from '../../../entities/client.entity';
@@ -12,18 +12,9 @@ import { Skill } from '../../../entities/skill.entity';
 import { StatusCatalog } from '../../../entities/status-catalog.entity';
 import { WorkOrderType } from '../../../entities/work-order-type.entity';
 import { Worker } from '../../../entities/worker.entity';
+import { WorkerCertification } from '../../../entities/worker-certification.entity';
 import { WorkerRole } from '../../../entities/worker-role.entity';
-import { WorkersService } from '../services/workers.service';
-import { CertificationsService } from '../services/certifications.service';
-import { ClientsService } from '../services/clients.service';
-import { CommercialCatalogItemsService } from '../services/commercial-catalog-items.service';
-import { EquipmentService } from '../services/equipment.service';
-import { MaterialsService } from '../services/materials.service';
-import { ProjectTypesService } from '../services/project-types.service';
-import { SkillsService } from '../services/skills.service';
-import { StatusCatalogService } from '../services/status-catalog.service';
-import { WorkOrderTypesService } from '../services/work-order-types.service';
-import { WorkerRolesService } from '../services/worker-roles.service';
+import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import {
   parseCertificationRow,
   parseCommercialCatalogItemRow,
@@ -38,7 +29,6 @@ import {
 import { parseClientRow } from './parsers/clients.parser';
 import { parseWorkerRow } from './parsers/workers.parser';
 import { getDescriptor } from './parsers/descriptors';
-import { normalizeHeader, pickField } from './parsers/common';
 import type {
   ApplyResult,
   CatalogScope,
@@ -84,17 +74,8 @@ export class CatalogImportService {
     @InjectRepository(CommercialCatalogItem) private readonly commercialRepo: Repository<CommercialCatalogItem>,
     @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
     @InjectRepository(Worker) private readonly workersRepo: Repository<Worker>,
-    private readonly skillsService: SkillsService,
-    private readonly workerRolesService: WorkerRolesService,
-    private readonly projectTypesService: ProjectTypesService,
-    private readonly workOrderTypesService: WorkOrderTypesService,
-    private readonly certificationsService: CertificationsService,
-    private readonly equipmentService: EquipmentService,
-    private readonly materialsService: MaterialsService,
-    private readonly statusCatalogService: StatusCatalogService,
-    private readonly commercialService: CommercialCatalogItemsService,
-    private readonly clientsService: ClientsService,
-    private readonly workersService: WorkersService,
+    @InjectRepository(WorkerCertification) private readonly workerCertificationsRepo: Repository<WorkerCertification>,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   getJob(id: string): ImportJob | undefined {
@@ -403,36 +384,101 @@ export class CatalogImportService {
 
   private async createEntity(scope: CatalogScope, data: Record<string, unknown>): Promise<void> {
     switch (scope) {
-      case 'skills':
-        await this.skillsService.create({ id: data.id as string, name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      case 'skills': {
+        const entity = this.skillsRepo.create({
+          id: data.id as string,
+          name: data.name as string,
+          description: (data.description as string) || '',
+          status: data.status as string,
+        });
+        await this.skillsRepo.save(entity);
+        this.emitUpdated('skills', 'workers');
         return;
-      case 'worker-roles':
-        await this.workerRolesService.create({ id: data.id as string, name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'worker-roles': {
+        const entity = this.workerRolesRepo.create({
+          id: data.id as string,
+          name: data.name as string,
+          description: (data.description as string) || '',
+          status: data.status as string,
+        });
+        await this.workerRolesRepo.save(entity);
+        this.emitUpdated('worker_roles', 'workers');
         return;
-      case 'project-types':
-        await this.projectTypesService.create({ id: data.id as string, name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'project-types': {
+        const entity = this.projectTypesRepo.create({
+          id: data.id as string,
+          name: data.name as string,
+          description: (data.description as string) || '',
+          status: data.status as string,
+        });
+        await this.projectTypesRepo.save(entity);
+        this.emitUpdated('project_types');
         return;
-      case 'work-order-types':
-        await this.workOrderTypesService.create({ id: data.id as string, name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'work-order-types': {
+        const entity = this.workOrderTypesRepo.create({
+          id: data.id as string,
+          name: data.name as string,
+          description: (data.description as string) || '',
+          status: data.status as string,
+        });
+        await this.workOrderTypesRepo.save(entity);
+        this.emitUpdated('work_order_types');
         return;
-      case 'certifications':
-        await this.certificationsService.create({ id: data.id as string, name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'certifications': {
+        const entity = this.certificationsRepo.create({
+          id: data.id as string,
+          name: data.name as string,
+          description: (data.description as string) || '',
+          status: data.status as string,
+        });
+        await this.certificationsRepo.save(entity);
+        this.emitUpdated('certifications', 'workers');
         return;
-      case 'equipment':
-        await this.equipmentService.create(data as never);
+      }
+      case 'equipment': {
+        const entity = this.equipmentRepo.create(data as unknown as Equipment);
+        await this.equipmentRepo.save(entity);
+        this.emitUpdated('equipment');
         return;
-      case 'materials':
-        await this.materialsService.create(data as never);
+      }
+      case 'materials': {
+        const entity = this.materialsRepo.create(data as unknown as Material);
+        await this.materialsRepo.save(entity);
+        this.emitUpdated('materials');
         return;
-      case 'status-catalog':
-        await this.statusCatalogService.create(data as never);
+      }
+      case 'status-catalog': {
+        const entity = this.statusCatalogRepo.create(data as unknown as StatusCatalog);
+        await this.statusCatalogRepo.save(entity);
+        this.emitUpdated('status_catalog');
         return;
-      case 'commercial-catalog-items':
-        await this.commercialService.create(data as never);
+      }
+      case 'commercial-catalog-items': {
+        const sku = String((data as { sku?: string }).sku || '').trim();
+        if (!sku) throw new Error('SKU es requerido');
+        const exists = await this.commercialRepo.findOne({ where: { sku } });
+        if (exists) throw new Error(`SKU ${sku} ya existe`);
+        const entity = this.commercialRepo.create(data as unknown as CommercialCatalogItem);
+        if (!entity.id) entity.id = `cci_${randomUUID()}`;
+        await this.commercialRepo.save(entity);
+        this.emitUpdated('commercial_catalog_items');
         return;
-      case 'clients':
-        await this.clientsService.create(data as never);
+      }
+      case 'clients': {
+        const entity = this.clientsRepo.create(data as unknown as Client);
+        entity.address = (entity.address ?? '').trim();
+        entity.city = (entity.city ?? '').trim();
+        entity.state = (entity.state ?? '').trim();
+        entity.zipCode = (entity.zipCode ?? '').trim();
+        entity.country = (entity.country ?? '').trim() || 'USA';
+        await this.clientsRepo.save(entity);
+        this.emitUpdated('clients');
         return;
+      }
       case 'workers': {
         const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
         const skills = (payload.skills as string[] | undefined) || [];
@@ -441,19 +487,29 @@ export class CatalogImportService {
         delete payload.skills;
         delete payload.workerRoles;
         delete payload.certifications;
+        if (payload.hourlyRate !== undefined) {
+          payload.hourlyRate = String(payload.hourlyRate);
+        }
         const skillIds = await this.resolveNames(this.skillsRepo, skills);
         const roleIds = await this.resolveNames(this.workerRolesRepo, workerRoles);
         const certIds = await this.resolveNames(this.certificationsRepo, certs);
-        const createPayload = payload as unknown as Record<string, unknown>;
-        await this.workersService.create(
-          {
-            ...createPayload,
-            skillIds,
-            workerRoleIds: roleIds,
-            certificationIds: certIds,
-          } as never,
-          undefined,
-        );
+        const skillsEntities = skillIds.length
+          ? await this.skillsRepo.findBy({ id: In(skillIds) })
+          : [];
+        const rolesEntities = roleIds.length
+          ? await this.workerRolesRepo.findBy({ id: In(roleIds) })
+          : [];
+        const entity = this.workersRepo.create({
+          ...(payload as unknown as Worker),
+          skills: skillsEntities,
+          workerRoles: rolesEntities,
+        });
+        entity.country = (entity.country ?? '').trim() || 'USA';
+        const saved = await this.workersRepo.save(entity);
+        if (certIds.length > 0) {
+          await this.replaceWorkerCertifications(saved.id, certIds);
+        }
+        this.emitUpdated('workers');
         return;
       }
       default:
@@ -463,38 +519,108 @@ export class CatalogImportService {
 
   private async updateEntity(scope: CatalogScope, id: string, data: Record<string, unknown>): Promise<void> {
     switch (scope) {
-      case 'skills':
-        await this.skillsService.update(id, { name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      case 'skills': {
+        const item = await this.skillsRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Skill ${id} not found`);
+        if (data.name !== undefined) item.name = data.name as string;
+        if (data.description !== undefined) item.description = data.description as string;
+        if (data.status !== undefined) item.status = data.status as string;
+        await this.skillsRepo.save(item);
+        this.emitUpdated('skills', 'workers');
         return;
-      case 'worker-roles':
-        await this.workerRolesService.update(id, { name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'worker-roles': {
+        const item = await this.workerRolesRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Worker role ${id} not found`);
+        if (data.name !== undefined) item.name = data.name as string;
+        if (data.description !== undefined) item.description = data.description as string;
+        if (data.status !== undefined) item.status = data.status as string;
+        await this.workerRolesRepo.save(item);
+        this.emitUpdated('worker_roles', 'workers');
         return;
-      case 'project-types':
-        await this.projectTypesService.update(id, { name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'project-types': {
+        const item = await this.projectTypesRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Project type ${id} not found`);
+        if (data.name !== undefined) item.name = data.name as string;
+        if (data.description !== undefined) item.description = data.description as string;
+        if (data.status !== undefined) item.status = data.status as string;
+        await this.projectTypesRepo.save(item);
+        this.emitUpdated('project_types');
         return;
-      case 'work-order-types':
-        await this.workOrderTypesService.update(id, { name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'work-order-types': {
+        const item = await this.workOrderTypesRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Work order type ${id} not found`);
+        if (data.name !== undefined) item.name = data.name as string;
+        if (data.description !== undefined) item.description = data.description as string;
+        if (data.status !== undefined) item.status = data.status as string;
+        await this.workOrderTypesRepo.save(item);
+        this.emitUpdated('work_order_types');
         return;
-      case 'certifications':
-        await this.certificationsService.update(id, { name: data.name as string, description: (data.description as string) || '', status: data.status as string });
+      }
+      case 'certifications': {
+        const item = await this.certificationsRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Certification ${id} not found`);
+        if (data.name !== undefined) item.name = data.name as string;
+        if (data.description !== undefined) item.description = data.description as string;
+        if (data.status !== undefined) item.status = data.status as string;
+        await this.certificationsRepo.save(item);
+        this.emitUpdated('certifications', 'workers');
         return;
-      case 'equipment':
-        await this.equipmentService.update(id, data as never);
+      }
+      case 'equipment': {
+        const item = await this.equipmentRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Equipment ${id} not found`);
+        Object.assign(item, data);
+        await this.equipmentRepo.save(item);
+        this.emitUpdated('equipment');
         return;
-      case 'materials':
-        await this.materialsService.update(id, data as never);
+      }
+      case 'materials': {
+        const item = await this.materialsRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Material ${id} not found`);
+        Object.assign(item, data);
+        await this.materialsRepo.save(item);
+        this.emitUpdated('materials');
         return;
-      case 'status-catalog':
-        await this.statusCatalogService.update(id, data as never);
+      }
+      case 'status-catalog': {
+        const item = await this.statusCatalogRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Status ${id} not found`);
+        Object.assign(item, data);
+        await this.statusCatalogRepo.save(item);
+        this.emitUpdated('status_catalog');
         return;
-      case 'commercial-catalog-items':
-        await this.commercialService.update(id, data as never);
+      }
+      case 'commercial-catalog-items': {
+        const item = await this.commercialRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Catalog item ${id} not found`);
+        Object.assign(item, data);
+        await this.commercialRepo.save(item);
+        this.emitUpdated('commercial_catalog_items');
         return;
-      case 'clients':
-        await this.clientsService.update(id, data as never);
+      }
+      case 'clients': {
+        const item = await this.clientsRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Client ${id} not found`);
+        Object.assign(item, data);
+        item.address = (item.address ?? '').trim();
+        item.city = (item.city ?? '').trim();
+        item.state = (item.state ?? '').trim();
+        item.zipCode = (item.zipCode ?? '').trim();
+        item.country = (item.country ?? '').trim() || 'USA';
+        await this.clientsRepo.save(item);
+        this.emitUpdated('clients');
         return;
+      }
       case 'workers': {
-        const payload = { ...(data as Record<string, unknown>) };
+        const item = await this.workersRepo.findOne({
+          where: { id },
+          relations: { skills: true, workerRoles: true },
+        });
+        if (!item) throw new Error(`Worker ${id} not found`);
+        const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
         const skills = (payload.skills as string[] | undefined) || [];
         const workerRoles = (payload.workerRoles as string[] | undefined) || [];
         const certs = (payload.certifications as string[] | undefined) || [];
@@ -502,19 +628,61 @@ export class CatalogImportService {
         delete payload.workerRoles;
         delete payload.certifications;
         delete payload.id;
-        const skillIds = skills.length ? await this.resolveNames(this.skillsRepo, skills) : undefined;
-        const roleIds = workerRoles.length ? await this.resolveNames(this.workerRolesRepo, workerRoles) : undefined;
-        const certIds = certs.length ? await this.resolveNames(this.certificationsRepo, certs) : undefined;
-        const update: Record<string, unknown> = { ...payload };
-        if (skillIds !== undefined) update.skillIds = skillIds;
-        if (roleIds !== undefined) update.workerRoleIds = roleIds;
-        if (certIds !== undefined) update.certificationIds = certIds;
-        await this.workersService.update(id, update as never, undefined);
+        if (payload.hourlyRate !== undefined) {
+          item.hourlyRate = String(payload.hourlyRate);
+        }
+        delete payload.hourlyRate;
+        Object.assign(item, payload);
+        item.country = (item.country ?? '').trim() || 'USA';
+        if (skills.length) {
+          const skillIds = await this.resolveNames(this.skillsRepo, skills);
+          item.skills = skillIds.length
+            ? await this.skillsRepo.findBy({ id: In(skillIds) })
+            : [];
+        }
+        if (workerRoles.length) {
+          const roleIds = await this.resolveNames(this.workerRolesRepo, workerRoles);
+          item.workerRoles = roleIds.length
+            ? await this.workerRolesRepo.findBy({ id: In(roleIds) })
+            : [];
+        }
+        await this.workersRepo.save(item);
+        if (certs.length) {
+          const certIds = await this.resolveNames(this.certificationsRepo, certs);
+          await this.replaceWorkerCertifications(id, certIds);
+        }
+        this.emitUpdated('workers');
         return;
       }
       default:
         throw new Error(`Unknown scope ${scope}`);
     }
+  }
+
+  private emitUpdated(...tables: string[]): void {
+    for (const t of tables) this.realtime.emitTableUpdated(t);
+  }
+
+  private async replaceWorkerCertifications(
+    workerId: string,
+    certIds: string[],
+  ): Promise<void> {
+    await this.workerCertificationsRepo.delete({ workerId });
+    if (certIds.length === 0) return;
+    const known = await this.certificationsRepo.findBy(
+      certIds.map((cid) => ({ id: cid })),
+    );
+    const knownIds = new Set(known.map((c) => c.id));
+    const records = certIds
+      .filter((cid) => knownIds.has(cid))
+      .map((cid) =>
+        this.workerCertificationsRepo.create({
+          workerId,
+          certificationId: cid,
+          expirationDate: null,
+        }),
+      );
+    if (records.length > 0) await this.workerCertificationsRepo.save(records);
   }
 
   private async resolveNames<T extends { id: string }>(

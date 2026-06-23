@@ -295,8 +295,9 @@ export function computeAssignmentSignals(
     rules,
     now,
   } = input;
-  const operationalShifts = shifts.filter((shift) => isOperationalShift(shift, now));
-  const anyShiftInProgress = shifts.some((shift) => isShiftInProgress(shift, now));
+  const safeShifts = Array.isArray(shifts) ? shifts : [];
+  const operationalShifts = safeShifts.filter((shift) => isOperationalShift(shift, now));
+  const anyShiftInProgress = safeShifts.some((shift) => isShiftInProgress(shift, now));
 
   let totalRequired = 0;
   let totalAssignedWorkers = 0;

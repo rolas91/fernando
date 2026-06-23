@@ -135,8 +135,9 @@ export class WorkOrdersService {
 
   async findAll() {
     const rows = await this.workOrdersRepo.find({ order: { startDate: 'ASC' } });
-    const refreshed = await this.refreshAutoAssignmentStatuses(rows);
-    return this.mergeShiftsWithRelational(refreshed);
+    const withShifts = await this.mergeShiftsWithRelational(rows);
+    const refreshed = await this.refreshAutoAssignmentStatuses(withShifts);
+    return refreshed;
   }
 
   async findMobileAssignmentsForUser(
@@ -146,9 +147,13 @@ export class WorkOrdersService {
     const worker = await this.resolveWorkerForMobileUser(actor);
     const search = (query.search || '').trim().toLowerCase();
     const status = (query.status || 'active').trim().toLowerCase();
-    const assignments = await this.refreshAutoAssignmentStatuses(await this.workOrdersRepo.find({
-      order: { createdAt: 'DESC', startDate: 'DESC', id: 'DESC' },
-    }));
+    const assignments = await this.refreshAutoAssignmentStatuses(
+      await this.mergeShiftsWithRelational(
+        await this.workOrdersRepo.find({
+          order: { createdAt: 'DESC', startDate: 'DESC', id: 'DESC' },
+        }),
+      ),
+    );
     const assigned = assignments.filter((wo) =>
       this.workOrderHasAssignedWorker(wo, worker.id),
     );

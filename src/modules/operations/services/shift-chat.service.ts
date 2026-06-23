@@ -16,6 +16,7 @@ import { CreateShiftChatMessageDto } from '../dto/create-shift-chat-message.dto'
 import { SpacesStorageService } from './spaces-storage.service';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
+import { ShiftsQueryService } from './shifts-query.service';
 
 @Injectable()
 export class ShiftChatService {
@@ -31,6 +32,7 @@ export class ShiftChatService {
     private readonly spacesStorage: SpacesStorageService,
     private readonly integrations: IntegrationsService,
     private readonly realtime: RealtimeGateway,
+    private readonly shiftsQuery: ShiftsQueryService,
   ) {}
 
   async findMessages(actor: UserAccessContext | undefined, shiftId: string) {
@@ -173,8 +175,10 @@ export class ShiftChatService {
   }
 
   async assertActorCanAccessShift(actor: UserAccessContext | undefined, shiftId: string) {
-    const workOrder = await this.workOrdersRepo.findOne({ where: { id: await this.findWorkOrderIdForShift(shiftId) } });
+    const workOrderId = await this.findWorkOrderIdForShift(shiftId);
+    const workOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
     if (!workOrder) throw new NotFoundException(`Shift ${shiftId} not found.`);
+    workOrder.shifts = (await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId)) ?? [];
     const worker = await this.resolveWorkerForActor(actor);
     if (this.isPrivilegedChatActor(actor)) {
       return { worker, workOrder };
@@ -183,21 +187,22 @@ export class ShiftChatService {
       throw new ForbiddenException('No worker profile is linked to this user email.');
     }
     if (!this.workerAssignedToShift(workOrder, shiftId, worker.id)) {
-      throw new ForbiddenException('Worker is not assigned to this shift chat.');
+      throw new ForbiddenException('Worker is not assigned to this shift.');
     }
     return { worker, workOrder };
   }
 
   private async findWorkOrderIdForShift(shiftId: string) {
-    const workOrders = await this.workOrdersRepo.find();
-    const found = workOrders.find((workOrder) =>
-      (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).some((shift) => {
-        const record = shift as Record<string, unknown>;
-        return record.id === shiftId;
-      }),
-    );
-    if (!found) throw new NotFoundException(`Shift ${shiftId} not found.`);
-    return found.id;
+    const row = await this.workOrdersRepo
+      .createQueryBuilder('wo')
+      .select('wo.id', 'id')
+      .where(
+        'EXISTS (SELECT 1 FROM work_order_shifts ws WHERE ws.work_order_id = wo.id AND ws.id = :shiftId)',
+      )
+      .setParameter('shiftId', shiftId)
+      .getRawOne<{ id: string }>();
+    if (!row?.id) throw new NotFoundException(`Shift ${shiftId} not found.`);
+    return row.id;
   }
 
   private async resolveWorkerForActor(actor: UserAccessContext | undefined) {

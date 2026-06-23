@@ -43,8 +43,7 @@ export class WorkOrder {
   @Column({ name: 'end_date', type: 'date', nullable: true })
   endDate: string | null;
 
-  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
-  shifts: Record<string, unknown>[];
+  shifts?: Record<string, unknown>[];
 
   @Column({ name: 'requester_name', type: 'varchar', length: 180, default: '' })
   requesterName: string;

@@ -7,6 +7,13 @@ import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-con
 import { RealtimeModule } from '../realtime/realtime.module';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
+import { ShiftsQueryService } from '../operations/services/shifts-query.service';
+import { WorkOrderShiftsWriteService } from '../operations/services/work-order-shifts-write.service';
+import { WorkOrderShift } from '../../entities/work-order-shift.entity';
+import { WorkOrderShiftRole } from '../../entities/work-order-shift-role.entity';
+import { WorkOrderShiftRoleWorker } from '../../entities/work-order-shift-role-worker.entity';
+import { WorkOrderShiftRoleEquipment } from '../../entities/work-order-shift-role-equipment.entity';
+import { WorkOrderShiftRoleMaterial } from '../../entities/work-order-shift-role-material.entity';
 
 @Module({
   imports: [
@@ -16,10 +23,15 @@ import { IntegrationsService } from './integrations.service';
       Worker,
       Notification,
       ShiftAssignmentConfirmation,
+      WorkOrderShift,
+      WorkOrderShiftRole,
+      WorkOrderShiftRoleWorker,
+      WorkOrderShiftRoleEquipment,
+      WorkOrderShiftRoleMaterial,
     ]),
   ],
   controllers: [IntegrationsController],
-  providers: [IntegrationsService],
-  exports: [IntegrationsService],
+  providers: [IntegrationsService, ShiftsQueryService, WorkOrderShiftsWriteService],
+  exports: [IntegrationsService, ShiftsQueryService, WorkOrderShiftsWriteService],
 })
 export class IntegrationsModule {}

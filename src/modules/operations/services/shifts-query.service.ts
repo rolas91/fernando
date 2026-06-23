@@ -9,16 +9,9 @@ import { WorkOrderShiftRoleMaterial } from '../../../entities/work-order-shift-r
 
 /**
  * Read-only query service for the relational representation of work order shifts.
- *
- * Phase 1 contract:
- *   - Tries to load shifts/roles/assignments from the new tables first.
- *   - Returns null when the work order has no rows in the new tables,
- *     so callers can fall back to the legacy `workOrder.shifts` JSON.
- *   - Does NOT mutate anything. Writes stay in the JSON for now (Phase 2).
- *
- * The output shape mirrors the legacy JSON so callers can swap it in
- * transparently. Once Phase 3 migrates the existing data, this service
- * becomes the single source of truth and the JSON column is dropped.
+ * Returns the shifts/roles/assignments from the new tables. Returns null when
+ * the work order has no rows in the tables, so callers can render an empty
+ * shifts list.
  */
 @Injectable()
 export class ShiftsQueryService {

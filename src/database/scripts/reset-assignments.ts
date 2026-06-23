@@ -39,7 +39,6 @@ async function main() {
     await manager.query(`DELETE FROM work_order_shift_role_materials`);
     await manager.query(`DELETE FROM work_order_shift_roles`);
     await manager.query(`DELETE FROM work_order_shifts`);
-    await manager.query(`UPDATE work_orders SET shifts = '[]'::jsonb`);
     await manager.query(
       `DELETE FROM work_orders WHERE deleted_at IS NULL`,
     );

@@ -1792,7 +1792,6 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
     existingWorkOrder.latitude = SEED_DEMO_WORK_ORDER.latitude;
     existingWorkOrder.longitude = SEED_DEMO_WORK_ORDER.longitude;
     existingWorkOrder.notes = SEED_DEMO_WORK_ORDER.notes;
-    existingWorkOrder.shifts = shiftsJson;
     await workOrderRepo.save(existingWorkOrder);
   } else {
     await workOrderRepo.save(
@@ -1816,7 +1815,6 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
         latitude: SEED_DEMO_WORK_ORDER.latitude,
         longitude: SEED_DEMO_WORK_ORDER.longitude,
         notes: SEED_DEMO_WORK_ORDER.notes,
-        shifts: shiftsJson,
         fileUploads: [],
         attachments: [],
         formTemplateIds: [],

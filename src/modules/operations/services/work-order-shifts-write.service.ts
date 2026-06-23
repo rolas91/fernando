@@ -32,8 +32,6 @@ export type ShiftWriteInput = {
 
 /**
  * Single source of truth for writes against the relational shift tables.
- * Replaces the `workOrder.shifts` JSON column for all mutations.
- *
  * - Uses transactions so a partial write never leaks.
  * - Replaces all rows for a work order in one call (simpler than diffing).
  * - Idempotent: callers can re-invoke with the same payload safely.

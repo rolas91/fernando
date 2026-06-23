@@ -46,7 +46,7 @@ export class WorkOrderShift {
   })
   shiftTemplateId: string | null;
 
-  @ManyToOne(() => WorkOrder, (workOrder) => workOrder.shifts, {
+  @ManyToOne(() => WorkOrder, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'work_order_id' })

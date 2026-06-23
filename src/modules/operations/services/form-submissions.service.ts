@@ -2276,7 +2276,7 @@ export class FormSubmissionsService {
       : null;
     const shift =
       workOrder?.shifts
-        .map(recordValue)
+        ?.map(recordValue)
         .find((entry) => entry?.id === submission.shiftId) ?? null;
     const roles = Array.isArray(shift?.roles)
       ? shift.roles

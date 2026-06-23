@@ -268,6 +268,7 @@ export class WorkOrdersService {
       status,
       respondedAt: new Date().toISOString(),
     });
+    await this.refreshShifts(saved);
     this.logger.log(
       `[mobile-confirmation] shift saved workOrder=${workOrderId} shift=${shiftId} worker=${worker.id} status=${status}`,
     );
@@ -407,6 +408,7 @@ export class WorkOrdersService {
         respondedAt,
       });
     }
+    await this.refreshShifts(saved);
     this.logger.log(
       `[mobile-confirmation] assignment saved workOrder=${workOrderId} worker=${worker.id} status=${status} updatedCount=${updatedCount} shifts=${touchedShifts.join(',')}`,
     );
@@ -1061,6 +1063,7 @@ export class WorkOrdersService {
         saved.id,
         WorkOrderShiftsWriteService.fromJson(saved.id, saved.shifts),
       );
+      await this.refreshShifts(saved);
       return saved;
     });
   }
@@ -1141,6 +1144,7 @@ export class WorkOrdersService {
         WorkOrderShiftsWriteService.fromJson(saved.id, saved.shifts),
       );
     }
+    await this.refreshShifts(saved);
     return saved;
   }
 
@@ -1240,6 +1244,7 @@ export class WorkOrdersService {
         WorkOrderShiftsWriteService.fromJson(saved.id, [c]),
       );
     }
+    await this.refreshShifts(saved);
     return { workOrder: saved, created, skipped };
   }
 
@@ -1512,6 +1517,16 @@ export class WorkOrdersService {
       }
     }
     return rows;
+  }
+
+  /**
+   * Re-applies the shifts merge on a single work order after a write.
+   * The relational tables are the source of truth, so the in-memory
+   * `shifts` must be refreshed after every mutation.
+   */
+  private async refreshShifts<T extends WorkOrder>(row: T): Promise<T> {
+    const [refreshed] = await this.mergeShiftsWithRelational([row]);
+    return refreshed;
   }
 
   private async refreshAutoAssignmentStatuses(rows: WorkOrder[]) {

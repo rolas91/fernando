@@ -8,6 +8,7 @@ import { Timesheet } from '../../../entities/timesheet.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { Shift as ShiftCatalog } from '../../../entities/shift.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
+import { ShiftsQueryService } from './shifts-query.service';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
 import { UpdateTimesheetDto } from '../dto/update-timesheet.dto';
 
@@ -27,6 +28,7 @@ export class TimesheetsService {
     @InjectRepository(ShiftCatalog)
     private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
     private readonly realtime: RealtimeGateway,
+    private readonly shiftsQuery: ShiftsQueryService,
   ) {}
 
   async findAll() {
@@ -191,11 +193,8 @@ export class TimesheetsService {
     shiftId: string,
     workerId: string,
   ) {
-    const workOrder = await this.workOrdersRepo.findOne({
-      where: { id: workOrderId },
-      select: { id: true, shifts: true },
-    });
-    const shift = workOrder?.shifts.find(
+    const shifts = await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId);
+    const shift = (shifts ?? []).find(
       (entry) => stringValue(entry.id) === shiftId,
     );
     const roles = Array.isArray(shift?.roles)

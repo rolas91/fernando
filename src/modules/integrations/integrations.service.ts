@@ -9,10 +9,8 @@ import { Notification } from '../../entities/notification.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
 import { Worker } from '../../entities/worker.entity';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
-import {
-  normalizeWorkOrderShifts,
-  updateShiftWorkerConfirmation,
-} from '../operations/utils/work-order-shifts.util';
+import { ShiftsQueryService } from '../operations/services/shifts-query.service';
+import { WorkOrderShiftsWriteService } from '../operations/services/work-order-shifts-write.service';
 
 type GeocodeInput = {
   id: string;
@@ -112,6 +110,8 @@ export class IntegrationsService {
     @InjectRepository(Notification)
     private readonly notificationsRepo: Repository<Notification>,
     private readonly realtime: RealtimeGateway,
+    private readonly shiftsQuery: ShiftsQueryService,
+    private readonly shiftsWrite: WorkOrderShiftsWriteService,
   ) {}
 
   async geocodeJobs(locations: GeocodeInput[]) {
@@ -358,8 +358,10 @@ export class IntegrationsService {
       };
     }
 
-    workOrder.shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
-    const shift = workOrder.shifts.find((item: any) => item?.id === confirmation.shiftId) as
+    const shifts = (await this.shiftsQuery.loadShiftsForWorkOrder(
+      workOrder.id,
+    )) ?? [];
+    const shift = shifts.find((item: any) => item?.id === confirmation.shiftId) as
       | Record<string, any>
       | undefined;
     const role = Array.isArray(shift?.roles)
@@ -392,20 +394,15 @@ export class IntegrationsService {
       confirmation.respondedAt = respondedAt;
       await this.confirmationsRepo.save(confirmation);
 
-      workOrder.shifts = updateShiftWorkerConfirmation(
-        workOrder.shifts,
-        {
-          shiftId: confirmation.shiftId,
-          roleId: confirmation.roleId,
-          workerId: confirmation.workerId,
-        },
-        {
-          status: 'confirmed',
-          respondedAt: respondedAt.toISOString(),
-        },
-      );
+      await this.shiftsWrite.updateWorkerConfirmation({
+        workOrderId: workOrder.id,
+        shiftId: confirmation.shiftId,
+        roleId: confirmation.roleId,
+        workerId: confirmation.workerId,
+        status: 'confirmed',
+        respondedAt: respondedAt.toISOString(),
+      });
 
-      await this.workOrdersRepo.save(workOrder);
       this.realtime.emitTableUpdated('work_orders');
     }
 
@@ -535,8 +532,10 @@ export class IntegrationsService {
       throw new Error(`Assignment ${confirmation.workOrderId} was not found.`);
     }
 
-    workOrder.shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
-    const shift = workOrder.shifts.find((item: any) => item?.id === confirmation.shiftId) as
+    const shifts = (await this.shiftsQuery.loadShiftsForWorkOrder(
+      workOrder.id,
+    )) ?? [];
+    const shift = shifts.find((item: any) => item?.id === confirmation.shiftId) as
       | Record<string, any>
       | undefined;
     const role = Array.isArray(shift?.roles)
@@ -616,21 +615,15 @@ export class IntegrationsService {
     record.deliveredAt = null;
     await this.confirmationsRepo.save(record);
 
-    workOrder.shifts = updateShiftWorkerConfirmation(
-      normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts),
-      {
-        shiftId: request.shiftId,
-        roleId: request.roleId,
-        workerId: request.workerId,
-      },
-      {
-        status: wasConfirmed ? 'confirmed' : 'pending',
-        requestedAt: request.requestedAtIso,
-        respondedAt: undefined,
-        notificationChannel: request.deliveryChannel,
-      },
-    );
-    await this.workOrdersRepo.save(workOrder);
+    await this.shiftsWrite.updateWorkerConfirmation({
+      workOrderId: request.workOrderId,
+      shiftId: request.shiftId,
+      roleId: request.roleId,
+      workerId: request.workerId,
+      status: wasConfirmed ? 'confirmed' : 'pending',
+      requestedAt: request.requestedAtIso,
+      notificationChannel: request.deliveryChannel,
+    });
     this.realtime.emitTableUpdated('work_orders');
   }
 

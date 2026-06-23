@@ -19,6 +19,7 @@
     "migration:revert": "ts-node -r tsconfig-paths/register src/database/revert-migration.ts",
     "seed:iam": "ts-node -r tsconfig-paths/register src/database/seed-iam.ts",
     "seed:dr": "ts-node -r tsconfig-paths/register src/database/seed-dr.ts",
+    "db:reset-assignments": "ts-node -r tsconfig-paths/register src/database/scripts/reset-assignments.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

@@ -97,6 +97,19 @@ export class WorkersService {
     worker.country = (worker.country ?? '').trim() || 'USA';
   }
 
+  /**
+   * Keeps the legacy `workers.type` column in sync with the first active
+   * WorkerRole. The column predates the many-to-many relation and several
+   * code paths (filters, scheduler compatibility heuristics) still read it.
+   * Setting it here guarantees the two sources of truth never drift.
+   *
+   * Exported as a pure function for unit tests; the instance method just
+   * delegates so the side effect stays on the same entity.
+   */
+  syncLegacyTypeField(worker: Worker, workerRoles: WorkerRole[]) {
+    applyLegacyTypeField(worker, workerRoles);
+  }
+
   private normalizeCertificationAssignments(
     dto: Pick<CreateWorkerDto, 'certificationIds' | 'certificationAssignments'>,
   ) {
@@ -267,6 +280,7 @@ export class WorkersService {
         hourlyRate !== undefined ? String(hourlyRate) : undefined,
     });
     this.finalizeWorkerPostalFields(entity);
+    this.syncLegacyTypeField(entity, workerRoles);
     const saved = await this.workersRepo.save(entity);
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);
@@ -343,6 +357,7 @@ export class WorkersService {
         hourlyRate !== undefined ? String(hourlyRate) : worker.hourlyRate,
     });
     this.finalizeWorkerPostalFields(worker);
+    this.syncLegacyTypeField(worker, workerRoles);
     const saved = await this.workersRepo.save(worker);
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);
@@ -400,5 +415,14 @@ export class WorkersService {
     await this.workersRepo.save(worker);
     this.realtime.emitTableUpdated('workers');
     return { success: true, workerId: worker.id, tokenCount: worker.fcmTokens.length };
+  }
+}
+
+export function applyLegacyTypeField(worker: Worker, workerRoles: WorkerRole[]): void {
+  const firstActive = (workerRoles || []).find(
+    (role) => role.status !== 'inactive' && (role.name || '').trim() !== '',
+  );
+  if (firstActive) {
+    worker.type = firstActive.name.trim();
   }
 }

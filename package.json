@@ -20,6 +20,7 @@
     "seed:iam": "ts-node -r tsconfig-paths/register src/database/seed-iam.ts",
     "seed:dr": "ts-node -r tsconfig-paths/register src/database/seed-dr.ts",
     "db:reset-assignments": "ts-node -r tsconfig-paths/register src/database/scripts/reset-assignments.ts",
+    "db:sync-worker-roles": "ts-node -r tsconfig-paths/register src/database/scripts/sync-worker-roles.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

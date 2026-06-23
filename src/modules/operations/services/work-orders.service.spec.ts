@@ -68,6 +68,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       realtime,
       {} as never,
       { updateWorkerConfirmation: jest.fn() } as never,
+      { loadShiftsForWorkOrders: jest.fn().mockResolvedValue(new Map()) } as never,
     );
     return { service, saved };
   }
@@ -355,5 +356,93 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
     expect(confs1.find((c) => c.workerId === 'worker-b')?.status).toBe('confirmed');
     expect(confs2.find((c) => c.workerId === 'worker-a')?.status).toBe('confirmed');
     expect(confs2.find((c) => c.workerId === 'worker-b')?.status).toBe('confirmed');
+  });
+});
+
+describe('WorkOrdersService.findOne shifts merge', () => {
+  function makeService(opts: {
+    jsonShifts: unknown[] | null;
+    relationalShifts: Record<string, unknown>[] | undefined;
+  }) {
+    const row: WorkOrder = {
+      id: 'wo-1',
+      projectId: 'proj-1',
+      workOrderTypeId: null,
+      title: 'T',
+      orderNumber: null,
+      status: 'pending',
+      startDate: null,
+      endDate: null,
+      shifts: opts.jsonShifts as never,
+      requesterName: '',
+      contactEmail: '',
+      contactPhoneNumber: '',
+      assignmentAddress: '',
+      latitude: null,
+      longitude: null,
+      assignmentCity: '',
+      assignmentState: '',
+      assignmentZipCode: '',
+      assignmentCountry: 'USA',
+      notes: '',
+      dispatchNote: '',
+      fileUploads: [],
+      attachments: [],
+      formTemplateIds: [],
+      createdAt: new Date(),
+      updatedAt: '',
+      role: 'viewer',
+      roles: [],
+      permissions: [],
+    };
+    const repo = {
+      findOne: jest.fn(async () => row),
+      find: jest.fn(async () => [row]),
+      save: jest.fn(),
+    } as never;
+    const map = new Map<string, Record<string, unknown>[]>();
+    if (opts.relationalShifts) map.set('wo-1', opts.relationalShifts);
+    const shiftsQuery = {
+      loadShiftsForWorkOrder: jest.fn(async () => opts.relationalShifts ?? null),
+      loadShiftsForWorkOrders: jest.fn(async () => map),
+    } as never;
+    const service = new WorkOrdersService(
+      repo,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      shiftsQuery,
+    );
+    return { service, repo };
+  }
+
+  it('replaces legacy JSON with relational rows when available', async () => {
+    const jsonShifts = [{ id: 'old', roles: [] }];
+    const relationalShifts = [{ id: 'new', roles: [] }];
+    const { service } = makeService({ jsonShifts, relationalShifts });
+    const result = await service.findOne('wo-1');
+    expect((result.shifts as Array<{ id: string }>)[0].id).toBe('new');
+  });
+
+  it('keeps legacy JSON when no relational rows exist', async () => {
+    const jsonShifts = [{ id: 'old', roles: [] }];
+    const { service } = makeService({ jsonShifts, relationalShifts: undefined });
+    const result = await service.findOne('wo-1');
+    expect((result.shifts as Array<{ id: string }>)[0].id).toBe('old');
+  });
+
+  it('keeps the work order intact when relational query returns null', async () => {
+    const { service } = makeService({ jsonShifts: null, relationalShifts: null });
+    const result = await service.findOne('wo-1');
+    expect(result.id).toBe('wo-1');
   });
 });

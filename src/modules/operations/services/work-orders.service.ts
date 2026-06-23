@@ -41,6 +41,7 @@ import {
   WorkOrderShiftsWriteService,
   type ShiftWriteInput,
 } from './work-order-shifts-write.service';
+import { ShiftsQueryService } from './shifts-query.service';
 import { SpacesStorageService } from './spaces-storage.service';
 import type { UserAccessContext } from '../../access/ports/access.port';
 
@@ -129,11 +130,13 @@ export class WorkOrdersService {
     private readonly realtime: RealtimeGateway,
     private readonly spacesStorage: SpacesStorageService,
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
+    private readonly shiftsQuery: ShiftsQueryService,
   ) {}
 
   async findAll() {
     const rows = await this.workOrdersRepo.find({ order: { startDate: 'ASC' } });
-    return this.refreshAutoAssignmentStatuses(rows);
+    const refreshed = await this.refreshAutoAssignmentStatuses(rows);
+    return this.mergeShiftsWithRelational(refreshed);
   }
 
   async findMobileAssignmentsForUser(
@@ -413,7 +416,8 @@ export class WorkOrdersService {
   async findOne(id: string) {
     const workOrder = await this.workOrdersRepo.findOne({ where: { id } });
     if (!workOrder) throw new NotFoundException(`Assignment ${id} not found`);
-    return workOrder;
+    const [merged] = await this.mergeShiftsWithRelational([workOrder]);
+    return merged;
   }
 
   private async resolveWorkerForMobileUser(actor: UserAccessContext | undefined) {
@@ -1479,6 +1483,34 @@ export class WorkOrdersService {
       );
       entity.status = 'pending';
     }
+  }
+
+  /**
+   * For each work order, try to read shifts from the relational tables.
+   * If the work order has rows there, replace the legacy JSON `shifts`
+   * with the relational output (shape-compatible). Otherwise keep the
+   * JSON so old work orders without a migration still work.
+   */
+  private async mergeShiftsWithRelational<T extends WorkOrder>(rows: T[]): Promise<T[]> {
+    if (rows.length === 0) return rows;
+    try {
+      const ids = rows.map((r) => r.id);
+      const shiftsByWorkOrder =
+        await this.shiftsQuery.loadShiftsForWorkOrders(ids);
+      for (const row of rows) {
+        const relational = shiftsByWorkOrder.get(row.id);
+        if (relational) {
+          (row as unknown as { shifts: unknown }).shifts = relational;
+        }
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'test') {
+        this.logger.warn(
+          `[shifts-merge] failed to overlay relational shifts, falling back to JSON: ${(err as Error).message}`,
+        );
+      }
+    }
+    return rows;
   }
 
   private async refreshAutoAssignmentStatuses(rows: WorkOrder[]) {

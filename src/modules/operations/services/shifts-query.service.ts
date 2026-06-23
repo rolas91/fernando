@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../../entities/work-order-shift-role-worker.entity';
@@ -146,5 +146,126 @@ export class ShiftsQueryService {
   async hasRelationalData(workOrderId: string): Promise<boolean> {
     const count = await this.shiftsRepo.count({ where: { workOrderId } });
     return count > 0;
+  }
+
+  /**
+   * Batch version: returns a map workOrderId -> shifts[]|null. Work orders
+   * with no relational rows are omitted from the map so callers can fall
+   * back to the legacy JSON for them.
+   */
+  async loadShiftsForWorkOrders(
+    workOrderIds: string[],
+  ): Promise<Map<string, Record<string, unknown>[]>> {
+    const out = new Map<string, Record<string, unknown>[]>();
+    if (workOrderIds.length === 0) return out;
+
+    const shiftRows = await this.shiftsRepo.find({
+      where: { workOrderId: In(workOrderIds) },
+      order: { date: 'ASC' },
+    });
+    if (shiftRows.length === 0) return out;
+
+    const [roleRows, workerRows, equipmentRows, materialRows] = await Promise.all([
+      this.rolesRepo
+        .createQueryBuilder('role')
+        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
+        .where('shift.work_order_id IN (:...workOrderIds)', { workOrderIds })
+        .orderBy('role.id', 'ASC')
+        .getMany(),
+      this.workerAssignmentsRepo
+        .createQueryBuilder('w')
+        .innerJoin('work_order_shift_roles', 'role', 'role.id = w.role_id')
+        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
+        .where('shift.work_order_id IN (:...workOrderIds)', { workOrderIds })
+        .getMany(),
+      this.equipmentAssignmentsRepo
+        .createQueryBuilder('e')
+        .innerJoin('work_order_shift_roles', 'role', 'role.id = e.role_id')
+        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
+        .where('shift.work_order_id IN (:...workOrderIds)', { workOrderIds })
+        .getMany(),
+      this.materialAssignmentsRepo
+        .createQueryBuilder('m')
+        .innerJoin('work_order_shift_roles', 'role', 'role.id = m.role_id')
+        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
+        .where('shift.work_order_id IN (:...workOrderIds)', { workOrderIds })
+        .getMany(),
+    ]);
+
+    const workerByRole = new Map<string, WorkOrderShiftRoleWorker[]>();
+    for (const w of workerRows) {
+      const list = workerByRole.get(w.roleId) ?? [];
+      list.push(w);
+      workerByRole.set(w.roleId, list);
+    }
+    const equipmentByRole = new Map<string, string[]>();
+    for (const e of equipmentRows) {
+      const list = equipmentByRole.get(e.roleId) ?? [];
+      list.push(e.equipmentId);
+      equipmentByRole.set(e.roleId, list);
+    }
+    const materialByRole = new Map<string, string[]>();
+    for (const m of materialRows) {
+      const list = materialByRole.get(m.roleId) ?? [];
+      list.push(m.materialId);
+      materialByRole.set(m.roleId, list);
+    }
+    const rolesByShift = new Map<string, WorkOrderShiftRole[]>();
+    for (const role of roleRows) {
+      const list = rolesByShift.get(role.shiftId) ?? [];
+      list.push(role);
+      rolesByShift.set(role.shiftId, list);
+    }
+
+    const grouped = new Map<string, typeof shiftRows>();
+    for (const shift of shiftRows) {
+      const list = grouped.get(shift.workOrderId) ?? [];
+      list.push(shift);
+      grouped.set(shift.workOrderId, list);
+    }
+
+    for (const [workOrderId, shifts] of grouped) {
+      out.set(
+        workOrderId,
+        shifts.map((shift) => {
+          const roleList = rolesByShift.get(shift.id) ?? [];
+          return {
+            id: shift.id,
+            workOrderId: shift.workOrderId,
+            date: shift.date,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            defaultRoleStartTime: shift.defaultRoleStartTime ?? undefined,
+            shiftTemplateId: shift.shiftTemplateId ?? undefined,
+            roles: roleList.map((role) => {
+              const workerList = workerByRole.get(role.id) ?? [];
+              return {
+                id: role.id,
+                roleName: role.roleName,
+                requiredCount: role.requiredCount,
+                startTime: role.startTime ?? undefined,
+                requiredCertificationIds: [...role.requiredCertificationIds],
+                requiredSkillIds: [...role.requiredSkillIds],
+                assignedWorkers: workerList.map((w) => w.workerId),
+                assignedEquipment: [...(equipmentByRole.get(role.id) ?? [])],
+                assignedMaterials: [...(materialByRole.get(role.id) ?? [])],
+                workerConfirmations: workerList.map((w) => {
+                  const conf: Record<string, unknown> = {
+                    workerId: w.workerId,
+                    status: w.confirmationStatus,
+                  };
+                  if (w.requestedAt) conf.requestedAt = w.requestedAt.toISOString();
+                  if (w.respondedAt) conf.respondedAt = w.respondedAt.toISOString();
+                  if (w.notificationChannel)
+                    conf.notificationChannel = w.notificationChannel;
+                  return conf;
+                }),
+              };
+            }),
+          };
+        }),
+      );
+    }
+    return out;
   }
 }

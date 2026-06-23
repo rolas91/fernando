@@ -1486,10 +1486,10 @@ export class WorkOrdersService {
   }
 
   /**
-   * For each work order, try to read shifts from the relational tables.
-   * If the work order has rows there, replace the legacy JSON `shifts`
-   * with the relational output (shape-compatible). Otherwise keep the
-   * JSON so old work orders without a migration still work.
+   * Reads shifts from the relational tables for the given work orders and
+   * overwrites each row's `shifts` with the result. Work orders with no
+   * rows in the new tables get `shifts: []`. The legacy `work_orders.shifts`
+   * JSON is no longer consulted by findOne/findAll.
    */
   private async mergeShiftsWithRelational<T extends WorkOrder>(rows: T[]): Promise<T[]> {
     if (rows.length === 0) return rows;
@@ -1499,15 +1499,16 @@ export class WorkOrdersService {
         await this.shiftsQuery.loadShiftsForWorkOrders(ids);
       for (const row of rows) {
         const relational = shiftsByWorkOrder.get(row.id);
-        if (relational) {
-          (row as unknown as { shifts: unknown }).shifts = relational;
-        }
+        (row as unknown as { shifts: unknown }).shifts = relational ?? [];
       }
     } catch (err) {
       if (process.env.NODE_ENV !== 'test') {
         this.logger.warn(
-          `[shifts-merge] failed to overlay relational shifts, falling back to JSON: ${(err as Error).message}`,
+          `[shifts-merge] failed to load relational shifts: ${(err as Error).message}`,
         );
+      }
+      for (const row of rows) {
+        (row as unknown as { shifts: unknown }).shifts = [];
       }
     }
     return rows;

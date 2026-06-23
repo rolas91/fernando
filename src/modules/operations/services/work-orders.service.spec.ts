@@ -54,6 +54,17 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
     const realtime = {
       emitTableUpdated: jest.fn(),
     } as never;
+    const shiftsQuery = {
+      loadShiftsForWorkOrder: jest.fn(async () => null),
+      loadShiftsForWorkOrders: jest.fn(async (ids: string[]) => {
+        const map = new Map<string, unknown[]>();
+        const current = saved.value;
+        if (current && ids.includes(current.id) && Array.isArray(current.shifts)) {
+          map.set(current.id, current.shifts as unknown[]);
+        }
+        return map;
+      }),
+    } as never;
     const service = new WorkOrdersService(
       repo,
       {} as never,
@@ -68,7 +79,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       realtime,
       {} as never,
       { updateWorkerConfirmation: jest.fn() } as never,
-      { loadShiftsForWorkOrders: jest.fn().mockResolvedValue(new Map()) } as never,
+      shiftsQuery,
     );
     return { service, saved };
   }
@@ -433,16 +444,17 @@ describe('WorkOrdersService.findOne shifts merge', () => {
     expect((result.shifts as Array<{ id: string }>)[0].id).toBe('new');
   });
 
-  it('keeps legacy JSON when no relational rows exist', async () => {
+  it('returns an empty shifts array when no relational rows exist', async () => {
     const jsonShifts = [{ id: 'old', roles: [] }];
     const { service } = makeService({ jsonShifts, relationalShifts: undefined });
     const result = await service.findOne('wo-1');
-    expect((result.shifts as Array<{ id: string }>)[0].id).toBe('old');
+    expect(result.shifts).toEqual([]);
   });
 
   it('keeps the work order intact when relational query returns null', async () => {
     const { service } = makeService({ jsonShifts: null, relationalShifts: null });
     const result = await service.findOne('wo-1');
     expect(result.id).toBe('wo-1');
+    expect(result.shifts).toEqual([]);
   });
 });

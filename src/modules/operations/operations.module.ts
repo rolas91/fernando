@@ -78,7 +78,6 @@ import { MaterialsService } from './services/materials.service';
 import { NotificationsService } from './services/notifications.service';
 import { ProjectsService } from './services/projects.service';
 import { ProjectTypesService } from './services/project-types.service';
-import { ShiftsDataMigrationService } from './services/shifts-data-migration.service';
 import { ShiftsQueryService } from './services/shifts-query.service';
 import { ShiftsService } from './services/shifts.service';
 import { ShiftChatService } from './services/shift-chat.service';
@@ -195,7 +194,6 @@ import { CatalogImportModule } from './import/catalog-import.module';
     ShiftChatGateway,
     OperationsAuthGuard,
     ShiftsQueryService,
-    ShiftsDataMigrationService,
     WorkOrderShiftsWriteService,
   ],
   exports: [

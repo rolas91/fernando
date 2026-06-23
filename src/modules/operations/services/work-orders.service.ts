@@ -1238,11 +1238,21 @@ export class WorkOrdersService {
     workOrder.shifts = [...existingShifts, ...created];
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
-    for (const c of created) {
-      await this.shiftsWrite.replaceShiftsForWorkOrder(
+    if (created.length > 0) {
+      const existingRelational =
+        (await this.shiftsQuery.loadShiftsForWorkOrder(saved.id)) ?? [];
+      const existingWriteInputs = WorkOrderShiftsWriteService.fromJson(
         saved.id,
-        WorkOrderShiftsWriteService.fromJson(saved.id, [c]),
+        existingRelational,
       );
+      const newWriteInputs = WorkOrderShiftsWriteService.fromJson(
+        saved.id,
+        created,
+      );
+      await this.shiftsWrite.replaceShiftsForWorkOrder(saved.id, [
+        ...existingWriteInputs,
+        ...newWriteInputs,
+      ]);
     }
     await this.refreshShifts(saved);
     return { workOrder: saved, created, skipped };
@@ -1250,7 +1260,6 @@ export class WorkOrdersService {
 
   async remove(id: string) {
     const workOrder = await this.findOne(id);
-    await this.shiftsWrite.deleteShiftsForWorkOrder(id);
     await this.workOrdersRepo.softRemove(workOrder);
     this.realtime.emitTableUpdated('work_orders');
     return { success: true, trashed: true };

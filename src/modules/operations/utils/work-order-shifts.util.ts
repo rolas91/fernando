@@ -260,3 +260,87 @@ export function updateShiftWorkerConfirmation(
     };
   });
 }
+
+export function preserveOtherWorkerConfirmations(
+  shifts: unknown,
+  snapshot: Map<string, Map<string, Map<string, ShiftWorkerConfirmation>>>,
+  target: { shiftId: string; roleId: string; workerId: string },
+): Record<string, unknown>[] {
+  const list = Array.isArray(shifts) ? (shifts as Record<string, unknown>[]) : [];
+  return list.map((shift) => {
+    const shiftId = typeof shift.id === 'string' ? shift.id : '';
+    if (shiftId !== target.shiftId || !Array.isArray(shift.roles)) return shift;
+    return {
+      ...shift,
+      roles: (shift.roles as Record<string, unknown>[]).map((role) => {
+        const roleRecord = asObject(role);
+        const roleId = typeof roleRecord.id === 'string' ? roleRecord.id : '';
+        if (roleId !== target.roleId) return roleRecord;
+        const roleSnapshot = snapshot.get(target.shiftId)?.get(roleId);
+        if (!roleSnapshot || roleSnapshot.size === 0) return roleRecord;
+
+        const currentConfirmations = Array.isArray(roleRecord.workerConfirmations)
+          ? (roleRecord.workerConfirmations as Record<string, unknown>[])
+          : [];
+        const currentByWorker = new Map<string, Record<string, unknown>>();
+        for (const entry of currentConfirmations) {
+          const wid = (entry as { workerId?: unknown })?.workerId;
+          if (typeof wid === 'string') currentByWorker.set(wid, entry);
+        }
+        const merged: Record<string, unknown>[] = [];
+        for (const [wid, snap] of roleSnapshot) {
+          if (wid === target.workerId) continue;
+          const current = currentByWorker.get(wid);
+          if (current) {
+            merged.push({ ...snap, ...current });
+          } else {
+            merged.push({ ...snap });
+          }
+        }
+        for (const [wid, current] of currentByWorker) {
+          if (wid === target.workerId) continue;
+          if (!roleSnapshot.has(wid)) merged.push(current);
+        }
+        const targetEntry = currentByWorker.get(target.workerId);
+        if (targetEntry) merged.push(targetEntry);
+
+        return {
+          ...roleRecord,
+          workerConfirmations: merged,
+        };
+      }),
+    };
+  });
+}
+
+/**
+ * Snapshot every confirmation for every role in the given shifts, keyed by
+ * (shiftId, roleId, workerId). Use this BEFORE a mutation if you intend to call
+ * {@link preserveOtherWorkerConfirmations} afterwards.
+ */
+export function snapshotWorkerConfirmations(
+  shifts: unknown,
+): Map<string, Map<string, Map<string, ShiftWorkerConfirmation>>> {
+  const result = new Map<string, Map<string, Map<string, ShiftWorkerConfirmation>>>();
+  const list = Array.isArray(shifts) ? (shifts as Record<string, unknown>[]) : [];
+  for (const shift of list) {
+    const shiftId = typeof shift.id === 'string' ? shift.id : '';
+    if (!shiftId || !Array.isArray(shift.roles)) continue;
+    const roleMap = new Map<string, Map<string, ShiftWorkerConfirmation>>();
+    for (const role of shift.roles as Record<string, unknown>[]) {
+      const roleId = typeof role.id === 'string' ? role.id : '';
+      if (!roleId) continue;
+      const confirmations = Array.isArray(role.workerConfirmations)
+        ? (role.workerConfirmations as unknown[])
+        : [];
+      const workerMap = new Map<string, ShiftWorkerConfirmation>();
+      for (const entry of confirmations) {
+        const parsed = sanitizeConfirmation(entry);
+        if (parsed) workerMap.set(parsed.workerId, parsed);
+      }
+      roleMap.set(roleId, workerMap);
+    }
+    result.set(shiftId, roleMap);
+  }
+  return result;
+}

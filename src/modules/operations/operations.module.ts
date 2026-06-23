@@ -23,6 +23,11 @@ import { Skill } from '../../entities/skill.entity';
 import { StatusCatalog } from '../../entities/status-catalog.entity';
 import { Timesheet } from '../../entities/timesheet.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
+import { WorkOrderShift } from '../../entities/work-order-shift.entity';
+import { WorkOrderShiftRole } from '../../entities/work-order-shift-role.entity';
+import { WorkOrderShiftRoleEquipment } from '../../entities/work-order-shift-role-equipment.entity';
+import { WorkOrderShiftRoleMaterial } from '../../entities/work-order-shift-role-material.entity';
+import { WorkOrderShiftRoleWorker } from '../../entities/work-order-shift-role-worker.entity';
 import { WorkOrderType } from '../../entities/work-order-type.entity';
 import { Worker } from '../../entities/worker.entity';
 import { WorkerCertification } from '../../entities/worker-certification.entity';
@@ -73,11 +78,14 @@ import { MaterialsService } from './services/materials.service';
 import { NotificationsService } from './services/notifications.service';
 import { ProjectsService } from './services/projects.service';
 import { ProjectTypesService } from './services/project-types.service';
+import { ShiftsDataMigrationService } from './services/shifts-data-migration.service';
+import { ShiftsQueryService } from './services/shifts-query.service';
 import { ShiftsService } from './services/shifts.service';
 import { ShiftChatService } from './services/shift-chat.service';
 import { SkillsService } from './services/skills.service';
 import { StatusCatalogService } from './services/status-catalog.service';
 import { TimesheetsService } from './services/timesheets.service';
+import { WorkOrderShiftsWriteService } from './services/work-order-shifts-write.service';
 import { WorkOrderTypesService } from './services/work-order-types.service';
 import { WorkOrdersService } from './services/work-orders.service';
 import { WorkersService } from './services/workers.service';
@@ -123,6 +131,11 @@ import { CatalogImportModule } from './import/catalog-import.module';
       ActivityFeedItem,
       AvailabilityRequest,
       CompanySettings,
+      WorkOrderShift,
+      WorkOrderShiftRole,
+      WorkOrderShiftRoleWorker,
+      WorkOrderShiftRoleEquipment,
+      WorkOrderShiftRoleMaterial,
     ]),
   ],
   controllers: [
@@ -181,6 +194,9 @@ import { CatalogImportModule } from './import/catalog-import.module';
     SpacesStorageService,
     ShiftChatGateway,
     OperationsAuthGuard,
+    ShiftsQueryService,
+    ShiftsDataMigrationService,
+    WorkOrderShiftsWriteService,
   ],
   exports: [
     WorkersService,
@@ -207,6 +223,8 @@ import { CatalogImportModule } from './import/catalog-import.module';
     ActivityFeedService,
     AvailabilityRequestsService,
     CompanySettingsService,
+    ShiftsQueryService,
+    WorkOrderShiftsWriteService,
   ],
 })
 export class OperationsModule {}

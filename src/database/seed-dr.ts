@@ -3,12 +3,23 @@ import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../app.module';
 import { ensureRuntimeEnv } from '../config/ensure-env';
+import { Client } from '../entities/client.entity';
 import { CompanySettings } from '../entities/company-settings.entity';
+import { Equipment } from '../entities/equipment.entity';
 import { FormTemplate } from '../entities/form-template.entity';
+import { Material } from '../entities/material.entity';
+import { Project } from '../entities/project.entity';
 import { Shift } from '../entities/shift.entity';
 import { StatusCatalog } from '../entities/status-catalog.entity';
 import { User } from '../entities/user.entity';
+import { Worker } from '../entities/worker.entity';
 import { WorkerRole } from '../entities/worker-role.entity';
+import { WorkOrder } from '../entities/work-order.entity';
+import { WorkOrderShift } from '../entities/work-order-shift.entity';
+import { WorkOrderShiftRole } from '../entities/work-order-shift-role.entity';
+import { WorkOrderShiftRoleEquipment } from '../entities/work-order-shift-role-equipment.entity';
+import { WorkOrderShiftRoleMaterial } from '../entities/work-order-shift-role-material.entity';
+import { WorkOrderShiftRoleWorker } from '../entities/work-order-shift-role-worker.entity';
 import { WorkOrderType } from '../entities/work-order-type.entity';
 import { AccessService } from '../modules/access/services/access.service';
 import { normalizeFormFields } from '../modules/operations/utils/form-contract.util';
@@ -1421,6 +1432,475 @@ async function seedUsers(dataSource: DataSource, accessService: AccessService) {
   );
 }
 
+type SeedShiftFixture = {
+  shiftId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  defaultRoleStartTime: string;
+  shiftTemplateId: string;
+  roles: Array<{
+    roleId: string;
+    roleName: string;
+    requiredCount: number;
+    startTime: string;
+    requiredCertificationIds: string[];
+    requiredSkillIds: string[];
+    assignedWorkers: Array<{ workerId: string; status: 'pending' | 'confirmed' | 'declined' }>;
+    equipmentIds: string[];
+    materialIds: string[];
+  }>;
+};
+
+const SEED_DEMO_PROJECT = {
+  id: 'proj_demo_pge',
+  name: 'PG&E Infrastructure Services',
+  clientId: 'cli_demo_pge',
+  status: 'active',
+  startDate: '2026-06-22',
+  endDate: '2026-06-28',
+  address: '123 Main St',
+  city: 'San Francisco',
+  state: 'CA',
+  zipCode: '94124',
+  country: 'USA',
+  description: 'Lane closure and traffic control for PG&E utility work',
+};
+
+const SEED_DEMO_CLIENT = {
+  id: 'cli_demo_pge',
+  name: 'PG&E Infrastructure Services',
+  contactName: 'Michael Thompson',
+  email: 'michael@pge.com',
+  phone: '+14155550100',
+  status: 'active',
+};
+
+const SEED_DEMO_WORK_ORDER = {
+  id: 'wo_demo_asn_2026_856',
+  projectId: 'proj_demo_pge',
+  workOrderTypeId: null,
+  title: 'PG&E Lane Closure - Week 24',
+  orderNumber: 'ASN-2026-856',
+  status: 'confirmed',
+  startDate: '2026-06-22',
+  endDate: '2026-06-28',
+  shiftTemplateId: 'shift_day',
+  defaultRoleStartTime: '07:00',
+  notes: 'Shift lane. Pickup cones and material Traffic control support',
+  requesterName: 'PG&E Dispatch',
+  contactEmail: 'dispatch@pge.com',
+  contactPhoneNumber: '+14155550100',
+  assignmentAddress: '1366 Palou Ave',
+  assignmentCity: 'San Francisco',
+  assignmentState: 'CA',
+  assignmentZipCode: '94124',
+  assignmentCountry: 'USA',
+  latitude: 37.737,
+  longitude: -122.387,
+};
+
+const SEED_DEMO_WORKERS = [
+  { id: 'wkr_demo_fernando', firstName: 'Fernando', lastName: 'Perez', email: 'fernando@example.com', phone: '+15125550100', type: 'Flagger', role: 'Flagger', status: 'active', hourlyRate: '22.5' },
+  { id: 'wkr_demo_rolando', firstName: 'Rolando', lastName: 'Sanchez', email: 'rolando@example.com', phone: '+15125550101', type: 'Flagger', role: 'Flagger', status: 'active', hourlyRate: '21.0' },
+  { id: 'wkr_demo_jhon', firstName: 'Jhon', lastName: 'Doe', email: 'jhon@example.com', phone: '+15125550102', type: 'Flagger', role: 'Flagger', status: 'active', hourlyRate: '20.0' },
+];
+
+const SEED_DEMO_EQUIPMENT = [
+  { id: 'eq_demo_cone', name: 'Cone Set 28"', type: 'Traffic Control', identifier: 'CONE-28-001', status: 'available' },
+  { id: 'eq_demo_arrow', name: 'Arrow Board', type: 'Traffic Control', identifier: 'ARR-001', status: 'available' },
+];
+
+const SEED_DEMO_MATERIALS = [
+  { id: 'mat_demo_sign', name: 'Sign Aluminum 48x48', type: 'Signage', identifier: 'SIGN-ALU-48', status: 'available' },
+];
+
+function buildSeedShiftFixtures(): SeedShiftFixture[] {
+  return [
+    {
+      shiftId: 's_demo_1',
+      date: '2026-06-22',
+      startTime: '07:00',
+      endTime: '15:30',
+      defaultRoleStartTime: '07:00',
+      shiftTemplateId: 'shift_day',
+      roles: [
+        {
+          roleId: 'r_demo_1_flagger',
+          roleName: 'Flagger',
+          requiredCount: 2,
+          startTime: '07:00',
+          requiredCertificationIds: [],
+          requiredSkillIds: [],
+          assignedWorkers: [
+            { workerId: 'wkr_demo_fernando', status: 'confirmed' },
+            { workerId: 'wkr_demo_rolando', status: 'pending' },
+          ],
+          equipmentIds: ['eq_demo_cone'],
+          materialIds: ['mat_demo_sign'],
+        },
+      ],
+    },
+    {
+      shiftId: 's_demo_2',
+      date: '2026-06-23',
+      startTime: '07:00',
+      endTime: '15:30',
+      defaultRoleStartTime: '07:00',
+      shiftTemplateId: 'shift_day',
+      roles: [
+        {
+          roleId: 'r_demo_2_flagger',
+          roleName: 'Flagger',
+          requiredCount: 2,
+          startTime: '07:00',
+          requiredCertificationIds: [],
+          requiredSkillIds: [],
+          assignedWorkers: [
+            { workerId: 'wkr_demo_fernando', status: 'confirmed' },
+            { workerId: 'wkr_demo_rolando', status: 'confirmed' },
+          ],
+          equipmentIds: ['eq_demo_cone', 'eq_demo_arrow'],
+          materialIds: ['mat_demo_sign'],
+        },
+        {
+          roleId: 'r_demo_2_lead',
+          roleName: 'Lead',
+          requiredCount: 1,
+          startTime: '07:00',
+          requiredCertificationIds: [],
+          requiredSkillIds: [],
+          assignedWorkers: [
+            { workerId: 'wkr_demo_jhon', status: 'pending' },
+          ],
+          equipmentIds: [],
+          materialIds: [],
+        },
+      ],
+    },
+    {
+      shiftId: 's_demo_3',
+      date: '2026-06-24',
+      startTime: '07:00',
+      endTime: '15:30',
+      defaultRoleStartTime: '07:00',
+      shiftTemplateId: 'shift_day',
+      roles: [
+        {
+          roleId: 'r_demo_3_flagger',
+          roleName: 'Flagger',
+          requiredCount: 2,
+          startTime: '07:00',
+          requiredCertificationIds: [],
+          requiredSkillIds: [],
+          assignedWorkers: [
+            { workerId: 'wkr_demo_rolando', status: 'pending' },
+          ],
+          equipmentIds: ['eq_demo_arrow'],
+          materialIds: [],
+        },
+      ],
+    },
+  ];
+}
+
+function buildSeedShiftsJson(fixtures: SeedShiftFixture[]): Record<string, unknown>[] {
+  return fixtures.map((s) => ({
+    id: s.shiftId,
+    date: s.date,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    defaultRoleStartTime: s.defaultRoleStartTime,
+    shiftTemplateId: s.shiftTemplateId,
+    roles: s.roles.map((r) => ({
+      id: r.roleId,
+      roleName: r.roleName,
+      requiredCount: r.requiredCount,
+      startTime: r.startTime,
+      requiredCertificationIds: [...r.requiredCertificationIds],
+      requiredSkillIds: [...r.requiredSkillIds],
+      assignedWorkers: r.assignedWorkers.map((w) => w.workerId),
+      assignedEquipment: [...r.equipmentIds],
+      assignedMaterials: [...r.materialIds],
+      workerConfirmations: r.assignedWorkers.map((w) => ({
+        workerId: w.workerId,
+        status: w.status,
+        respondedAt: w.status === 'confirmed' ? new Date('2026-06-21T15:00:00Z') : undefined,
+        notificationChannel: w.status === 'confirmed' ? 'sms' : undefined,
+      })),
+    })),
+  }));
+}
+
+async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
+  const clientRepo = dataSource.getRepository(Client);
+  const projectRepo = dataSource.getRepository(Project);
+  const workerRepo = dataSource.getRepository(Worker);
+  const equipmentRepo = dataSource.getRepository(Equipment);
+  const materialRepo = dataSource.getRepository(Material);
+  const workOrderRepo = dataSource.getRepository(WorkOrder);
+  const shiftRepo = dataSource.getRepository(WorkOrderShift);
+  const roleRepo = dataSource.getRepository(WorkOrderShiftRole);
+  const roleWorkerRepo = dataSource.getRepository(WorkOrderShiftRoleWorker);
+  const roleEquipmentRepo = dataSource.getRepository(WorkOrderShiftRoleEquipment);
+  const roleMaterialRepo = dataSource.getRepository(WorkOrderShiftRoleMaterial);
+
+  const existingClient = await clientRepo.findOne({ where: { id: SEED_DEMO_CLIENT.id } });
+  if (!existingClient) {
+    await clientRepo.save(
+      clientRepo.create({
+        id: SEED_DEMO_CLIENT.id,
+        name: SEED_DEMO_CLIENT.name,
+        contactName: SEED_DEMO_CLIENT.contactName,
+        email: SEED_DEMO_CLIENT.email,
+        phone: SEED_DEMO_CLIENT.phone,
+        website: '',
+        address: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: 'USA',
+        latitude: null,
+        longitude: null,
+        status: SEED_DEMO_CLIENT.status,
+        notes: '',
+      }),
+    );
+  }
+
+  const existingProject = await projectRepo.findOne({ where: { id: SEED_DEMO_PROJECT.id } });
+  if (!existingProject) {
+    await projectRepo.save(
+      projectRepo.create({
+        id: SEED_DEMO_PROJECT.id,
+        number: 'PROJ-2026-001',
+        name: SEED_DEMO_PROJECT.name,
+        clientId: SEED_DEMO_PROJECT.clientId,
+        projectTypeId: '',
+        projectManager: '',
+        projectManagerEmail: '',
+        location: SEED_DEMO_PROJECT.address,
+        city: SEED_DEMO_PROJECT.city,
+        state: SEED_DEMO_PROJECT.state,
+        zipCode: SEED_DEMO_PROJECT.zipCode,
+        country: SEED_DEMO_PROJECT.country,
+        latitude: SEED_DEMO_WORK_ORDER.latitude,
+        longitude: SEED_DEMO_WORK_ORDER.longitude,
+        status: SEED_DEMO_PROJECT.status,
+        startDate: SEED_DEMO_PROJECT.startDate,
+        endDate: SEED_DEMO_PROJECT.endDate,
+        workOrderNumber: null,
+        purchaseOrder: SEED_DEMO_WORK_ORDER.orderNumber,
+        description: SEED_DEMO_PROJECT.description,
+        notes: '',
+      }),
+    );
+  }
+
+  for (const w of SEED_DEMO_WORKERS) {
+    const existing = await workerRepo.findOne({ where: { id: w.id } });
+    if (existing) continue;
+    await workerRepo.save(
+      workerRepo.create({
+        id: w.id,
+        firstName: w.firstName,
+        lastName: w.lastName,
+        email: w.email,
+        phone: w.phone,
+        type: w.type,
+        role: w.role,
+        status: w.status,
+        driverLicense: '',
+        driverLicenseExpiration: null,
+        primaryAddress: '',
+        city: 'San Francisco',
+        zipCode: '94124',
+        state: 'CA',
+        country: 'USA',
+        latitude: null,
+        longitude: null,
+        hireDate: null,
+        hourlyRate: w.hourlyRate,
+        fileUploads: [],
+        fcmTokens: [],
+        avatar: null,
+        emergencyContact: null,
+        notes: '',
+        workerCertifications: [],
+        skills: [],
+        workerRoles: [],
+      }),
+    );
+  }
+
+  for (const e of SEED_DEMO_EQUIPMENT) {
+    const existing = await equipmentRepo.findOne({ where: { id: e.id } });
+    if (existing) continue;
+    await equipmentRepo.save(
+      equipmentRepo.create({
+        id: e.id,
+        name: e.name,
+        type: e.type,
+        identifier: e.identifier,
+        brand: '',
+        status: e.status,
+        lastMaintenance: null,
+        nextMaintenance: null,
+        notes: '',
+      }),
+    );
+  }
+
+  for (const m of SEED_DEMO_MATERIALS) {
+    const existing = await materialRepo.findOne({ where: { id: m.id } });
+    if (existing) continue;
+    await materialRepo.save(
+      materialRepo.create({
+        id: m.id,
+        name: m.name,
+        type: m.type,
+        identifier: m.identifier,
+        brand: '',
+        status: m.status,
+        lastMaintenance: null,
+        nextMaintenance: null,
+        notes: '',
+      }),
+    );
+  }
+
+  const fixtures = buildSeedShiftFixtures();
+  const shiftsJson = buildSeedShiftsJson(fixtures);
+
+  const existingWorkOrder = await workOrderRepo.findOne({ where: { id: SEED_DEMO_WORK_ORDER.id } });
+  if (existingWorkOrder) {
+    existingWorkOrder.projectId = SEED_DEMO_WORK_ORDER.projectId;
+    existingWorkOrder.workOrderTypeId = SEED_DEMO_WORK_ORDER.workOrderTypeId;
+    existingWorkOrder.title = SEED_DEMO_WORK_ORDER.title;
+    existingWorkOrder.orderNumber = SEED_DEMO_WORK_ORDER.orderNumber;
+    existingWorkOrder.status = SEED_DEMO_WORK_ORDER.status;
+    existingWorkOrder.startDate = SEED_DEMO_WORK_ORDER.startDate;
+    existingWorkOrder.endDate = SEED_DEMO_WORK_ORDER.endDate;
+    existingWorkOrder.requesterName = SEED_DEMO_WORK_ORDER.requesterName;
+    existingWorkOrder.contactEmail = SEED_DEMO_WORK_ORDER.contactEmail;
+    existingWorkOrder.contactPhoneNumber = SEED_DEMO_WORK_ORDER.contactPhoneNumber;
+    existingWorkOrder.assignmentAddress = SEED_DEMO_WORK_ORDER.assignmentAddress;
+    existingWorkOrder.assignmentCity = SEED_DEMO_WORK_ORDER.assignmentCity;
+    existingWorkOrder.assignmentState = SEED_DEMO_WORK_ORDER.assignmentState;
+    existingWorkOrder.assignmentZipCode = SEED_DEMO_WORK_ORDER.assignmentZipCode;
+    existingWorkOrder.assignmentCountry = SEED_DEMO_WORK_ORDER.assignmentCountry;
+    existingWorkOrder.latitude = SEED_DEMO_WORK_ORDER.latitude;
+    existingWorkOrder.longitude = SEED_DEMO_WORK_ORDER.longitude;
+    existingWorkOrder.notes = SEED_DEMO_WORK_ORDER.notes;
+    existingWorkOrder.shifts = shiftsJson;
+    await workOrderRepo.save(existingWorkOrder);
+  } else {
+    await workOrderRepo.save(
+      workOrderRepo.create({
+        id: SEED_DEMO_WORK_ORDER.id,
+        projectId: SEED_DEMO_WORK_ORDER.projectId,
+        workOrderTypeId: SEED_DEMO_WORK_ORDER.workOrderTypeId,
+        title: SEED_DEMO_WORK_ORDER.title,
+        orderNumber: SEED_DEMO_WORK_ORDER.orderNumber,
+        status: SEED_DEMO_WORK_ORDER.status,
+        startDate: SEED_DEMO_WORK_ORDER.startDate,
+        endDate: SEED_DEMO_WORK_ORDER.endDate,
+        requesterName: SEED_DEMO_WORK_ORDER.requesterName,
+        contactEmail: SEED_DEMO_WORK_ORDER.contactEmail,
+        contactPhoneNumber: SEED_DEMO_WORK_ORDER.contactPhoneNumber,
+        assignmentAddress: SEED_DEMO_WORK_ORDER.assignmentAddress,
+        assignmentCity: SEED_DEMO_WORK_ORDER.assignmentCity,
+        assignmentState: SEED_DEMO_WORK_ORDER.assignmentState,
+        assignmentZipCode: SEED_DEMO_WORK_ORDER.assignmentZipCode,
+        assignmentCountry: SEED_DEMO_WORK_ORDER.assignmentCountry,
+        latitude: SEED_DEMO_WORK_ORDER.latitude,
+        longitude: SEED_DEMO_WORK_ORDER.longitude,
+        notes: SEED_DEMO_WORK_ORDER.notes,
+        shifts: shiftsJson,
+        fileUploads: [],
+        attachments: [],
+        formTemplateIds: [],
+        dispatchNote: '',
+      }),
+    );
+  }
+
+  for (const shift of fixtures) {
+    const existingShift = await shiftRepo.findOne({ where: { id: shift.shiftId } });
+    if (!existingShift) {
+      await shiftRepo.save(
+        shiftRepo.create({
+          id: shift.shiftId,
+          workOrderId: SEED_DEMO_WORK_ORDER.id,
+          date: shift.date,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          defaultRoleStartTime: shift.defaultRoleStartTime,
+          shiftTemplateId: shift.shiftTemplateId,
+        }),
+      );
+    }
+
+    for (const role of shift.roles) {
+      const existingRole = await roleRepo.findOne({ where: { id: role.roleId } });
+      if (!existingRole) {
+        await roleRepo.save(
+          roleRepo.create({
+            id: role.roleId,
+            shiftId: shift.shiftId,
+            roleName: role.roleName,
+            requiredCount: role.requiredCount,
+            startTime: role.startTime,
+            requiredCertificationIds: [...role.requiredCertificationIds],
+            requiredSkillIds: [...role.requiredSkillIds],
+          }),
+        );
+      }
+
+      for (const w of role.assignedWorkers) {
+        const existing = await roleWorkerRepo.findOne({
+          where: { roleId: role.roleId, workerId: w.workerId },
+        });
+        if (existing) continue;
+        await roleWorkerRepo.save(
+          roleWorkerRepo.create({
+            roleId: role.roleId,
+            workerId: w.workerId,
+            confirmationStatus: w.status,
+            respondedAt: w.status === 'confirmed' ? new Date('2026-06-21T15:00:00Z') : null,
+            notificationChannel: w.status === 'confirmed' ? 'sms' : null,
+            requestedAt: null,
+          }),
+        );
+      }
+
+      for (const equipId of role.equipmentIds) {
+        const existing = await roleEquipmentRepo.findOne({
+          where: { roleId: role.roleId, equipmentId: equipId },
+        });
+        if (existing) continue;
+        await roleEquipmentRepo.save(
+          roleEquipmentRepo.create({ roleId: role.roleId, equipmentId: equipId }),
+        );
+      }
+
+      for (const matId of role.materialIds) {
+        const existing = await roleMaterialRepo.findOne({
+          where: { roleId: role.roleId, materialId: matId },
+        });
+        if (existing) continue;
+        await roleMaterialRepo.save(
+          roleMaterialRepo.create({ roleId: role.roleId, materialId: matId }),
+        );
+      }
+    }
+  }
+
+  console.log(
+    `Work order seed OK. workOrder=${SEED_DEMO_WORK_ORDER.id} shifts=${fixtures.length} (JSON + relational tables)`,
+  );
+}
+
 async function seedDr() {
   ensureRuntimeEnv();
   const app = await NestFactory.createApplicationContext(AppModule, {
@@ -1437,6 +1917,7 @@ async function seedDr() {
     await seedStatusCatalog(dataSource);
     await seedFormTemplates(dataSource);
     await seedUsers(dataSource, accessService);
+    await seedWorkOrderWithShifts(dataSource);
     console.log('Seed DR OK.');
   } finally {
     await app.close();

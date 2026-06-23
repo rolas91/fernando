@@ -32,9 +32,15 @@ import {
 } from '../utils/work-order-shift-date-range.util';
 import {
   normalizeWorkOrderShifts,
+  preserveOtherWorkerConfirmations,
+  snapshotWorkerConfirmations,
   updateShiftWorkerConfirmation,
   type ShiftConfirmationStatus,
 } from '../utils/work-order-shifts.util';
+import {
+  WorkOrderShiftsWriteService,
+  type ShiftWriteInput,
+} from './work-order-shifts-write.service';
 import { SpacesStorageService } from './spaces-storage.service';
 import type { UserAccessContext } from '../../access/ports/access.port';
 
@@ -122,6 +128,7 @@ export class WorkOrdersService {
     private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
     private readonly realtime: RealtimeGateway,
     private readonly spacesStorage: SpacesStorageService,
+    private readonly shiftsWrite: WorkOrderShiftsWriteService,
   ) {}
 
   async findAll() {
@@ -229,7 +236,8 @@ export class WorkOrdersService {
       `[mobile-confirmation] updating shift workOrder=${workOrderId} shift=${shiftId} role=${roleId} worker=${worker.id} status=${status}`,
     );
 
-    workOrder.shifts = updateShiftWorkerConfirmation(
+    const confirmationSnapshot = snapshotWorkerConfirmations(shifts);
+    let updated = updateShiftWorkerConfirmation(
       shifts,
       {
         shiftId,
@@ -241,8 +249,22 @@ export class WorkOrdersService {
         respondedAt: new Date().toISOString(),
       },
     );
+    updated = preserveOtherWorkerConfirmations(
+      updated,
+      confirmationSnapshot,
+      { shiftId, roleId, workerId: worker.id },
+    );
+    workOrder.shifts = updated;
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
+    await this.shiftsWrite.updateWorkerConfirmation({
+      workOrderId: workOrderId,
+      shiftId,
+      roleId,
+      workerId: worker.id,
+      status,
+      respondedAt: new Date().toISOString(),
+    });
     this.logger.log(
       `[mobile-confirmation] shift saved workOrder=${workOrderId} shift=${shiftId} worker=${worker.id} status=${status}`,
     );
@@ -269,6 +291,8 @@ export class WorkOrdersService {
       `[mobile-confirmation] assignment request workOrder=${workOrderId} worker=${worker.id} email=${worker.email} status=${status}`,
     );
 
+    const confirmationSnapshot = snapshotWorkerConfirmations(shifts);
+    const touchedTargets: Array<{ shiftId: string; roleId: string }> = [];
     const nextShifts = shifts.map((shift) => {
       const shiftId = typeof shift.id === 'string' ? shift.id : '';
       if (!shiftId) return shift;
@@ -293,6 +317,8 @@ export class WorkOrdersService {
           (confirmation) => confirmation?.workerId === worker.id,
         );
         if (current?.status === status) return role;
+
+        touchedTargets.push({ shiftId, roleId });
 
         this.logger.log(
           `[mobile-confirmation] updating assignment shift workOrder=${workOrderId} shift=${shiftId} role=${roleId || 'unknown'} worker=${worker.id} from=${String(current?.status || 'pending')} to=${status}`,
@@ -340,9 +366,44 @@ export class WorkOrdersService {
       return this.serializeMobileAssignment(workOrder, worker.id);
     }
 
-    workOrder.shifts = nextShifts;
+    /** Defensive pass: re-apply every other worker's confirmation from the pre-mutation snapshot. */
+    const targets: Array<{ shiftId: string; roleId: string; workerId: string }> = [];
+    for (const shift of nextShifts) {
+      const shiftId = typeof (shift as { id?: unknown }).id === 'string'
+        ? (shift as { id: string }).id
+        : '';
+      if (!shiftId) continue;
+      const roles = Array.isArray((shift as { roles?: unknown }).roles)
+        ? (shift as { roles: Record<string, unknown>[] }).roles
+        : [];
+      for (const role of roles) {
+        const roleId = typeof role.id === 'string' ? role.id : '';
+        if (!roleId) continue;
+        const assignedWorkers = Array.isArray(role.assignedWorkers)
+          ? (role.assignedWorkers as string[])
+          : [];
+        for (const wid of assignedWorkers) {
+          targets.push({ shiftId, roleId, workerId: wid });
+        }
+      }
+    }
+    let guarded = nextShifts as Record<string, unknown>[];
+    for (const t of targets) {
+      guarded = preserveOtherWorkerConfirmations(guarded, confirmationSnapshot, t);
+    }
+    workOrder.shifts = guarded;
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
+    for (const t of touchedTargets) {
+      await this.shiftsWrite.updateWorkerConfirmation({
+        workOrderId: workOrderId,
+        shiftId: t.shiftId,
+        roleId: t.roleId,
+        workerId: worker.id,
+        status,
+        respondedAt,
+      });
+    }
     this.logger.log(
       `[mobile-confirmation] assignment saved workOrder=${workOrderId} worker=${worker.id} status=${status} updatedCount=${updatedCount} shifts=${touchedShifts.join(',')}`,
     );
@@ -990,8 +1051,12 @@ export class WorkOrdersService {
 
     await this.applyAutoAssignmentStatus(entity, undefined, dtoStatusLane);
 
-    return this.workOrdersRepo.save(entity).then((saved) => {
+    return this.workOrdersRepo.save(entity).then(async (saved) => {
       this.realtime.emitTableUpdated('work_orders');
+      await this.shiftsWrite.replaceShiftsForWorkOrder(
+        saved.id,
+        WorkOrderShiftsWriteService.fromJson(saved.id, saved.shifts),
+      );
       return saved;
     });
   }
@@ -1066,6 +1131,12 @@ export class WorkOrdersService {
 
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
+    if (dto.shifts !== undefined) {
+      await this.shiftsWrite.replaceShiftsForWorkOrder(
+        saved.id,
+        WorkOrderShiftsWriteService.fromJson(saved.id, saved.shifts),
+      );
+    }
     return saved;
   }
 
@@ -1159,11 +1230,18 @@ export class WorkOrdersService {
     workOrder.shifts = [...existingShifts, ...created];
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
+    for (const c of created) {
+      await this.shiftsWrite.replaceShiftsForWorkOrder(
+        saved.id,
+        WorkOrderShiftsWriteService.fromJson(saved.id, [c]),
+      );
+    }
     return { workOrder: saved, created, skipped };
   }
 
   async remove(id: string) {
     const workOrder = await this.findOne(id);
+    await this.shiftsWrite.deleteShiftsForWorkOrder(id);
     await this.workOrdersRepo.softRemove(workOrder);
     this.realtime.emitTableUpdated('work_orders');
     return { success: true, trashed: true };

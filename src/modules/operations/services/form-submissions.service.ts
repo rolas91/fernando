@@ -20,6 +20,7 @@ import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
 import { UpdateFormSubmissionDto } from '../dto/update-form-submission.dto';
 import { SpacesStorageService } from './spaces-storage.service';
 import { TimesheetsService } from './timesheets.service';
+import { ShiftsQueryService } from './shifts-query.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -1712,6 +1713,7 @@ export class FormSubmissionsService {
     private readonly realtime: RealtimeGateway,
     private readonly spacesStorage: SpacesStorageService,
     private readonly timesheetsService: TimesheetsService,
+    private readonly shiftsQuery: ShiftsQueryService,
   ) {}
 
   findAll(
@@ -2274,10 +2276,11 @@ export class FormSubmissionsService {
     const client = project?.clientId
       ? await this.clientsRepo.findOne({ where: { id: project.clientId } })
       : null;
+    const relationalShifts = workOrder?.id
+      ? (await this.shiftsQuery.loadShiftsForWorkOrder(workOrder.id)) ?? []
+      : [];
     const shift =
-      workOrder?.shifts
-        ?.map(recordValue)
-        .find((entry) => entry?.id === submission.shiftId) ?? null;
+      relationalShifts.find((entry) => entry?.id === submission.shiftId) ?? null;
     const roles = Array.isArray(shift?.roles)
       ? shift.roles
           .map(recordValue)

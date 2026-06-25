@@ -210,6 +210,23 @@ function findTimesheetRows(data: Record<string, unknown>) {
   return [];
 }
 
+function findResourceRows(
+  data: Record<string, unknown>,
+  idKey: 'equipmentId' | 'materialId',
+): Array<Record<string, unknown>> {
+  for (const value of Object.values(data)) {
+    if (!Array.isArray(value)) continue;
+    const rows = value.filter(
+      (entry): entry is Record<string, unknown> =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as Record<string, unknown>)[idKey] === 'string',
+    );
+    if (rows.length) return rows;
+  }
+  return [];
+}
+
 function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {
   const roleNames = [
     ...(Array.isArray(row.roleNames) ? row.roleNames : [row.roleNames]),
@@ -2314,6 +2331,34 @@ export class FormSubmissionsService {
       }
       for (const equipmentId of this.stringArray(role.assignedEquipment)) {
         if (!equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
+      }
+    }
+
+    // Fallback: when the work order has no rows in the relational shift
+    // tables (new WO created with shifts:[] before the user added a shift),
+    // harvest workers/equipment/materials from the submission form data.
+    if (workerIds.length === 0) {
+      for (const row of findTimesheetRows(submission.data ?? {})) {
+        const workerId = String(row.workerId ?? '').trim();
+        if (workerId && !workerIds.includes(workerId)) {
+          workerIds.push(workerId);
+        }
+      }
+    }
+    if (equipmentIds.length === 0) {
+      for (const row of findResourceRows(submission.data ?? {}, 'equipmentId')) {
+        const equipmentId = String(row.equipmentId ?? '').trim();
+        if (equipmentId && !equipmentIds.includes(equipmentId)) {
+          equipmentIds.push(equipmentId);
+        }
+      }
+    }
+    if (materialIds.length === 0) {
+      for (const row of findResourceRows(submission.data ?? {}, 'materialId')) {
+        const materialId = String(row.materialId ?? '').trim();
+        if (materialId && !materialIds.includes(materialId)) {
+          materialIds.push(materialId);
+        }
       }
     }
 

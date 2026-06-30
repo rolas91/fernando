@@ -7,6 +7,7 @@ import { Client } from '../../../entities/client.entity';
 import { CommercialCatalogItem } from '../../../entities/commercial-catalog-item.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { Material } from '../../../entities/material.entity';
+import { Project } from '../../../entities/project.entity';
 import { ProjectType } from '../../../entities/project-type.entity';
 import { Skill } from '../../../entities/skill.entity';
 import { StatusCatalog } from '../../../entities/status-catalog.entity';
@@ -20,6 +21,7 @@ import {
   parseCommercialCatalogItemRow,
   parseEquipmentRow,
   parseMaterialRow,
+  parseProjectRow,
   parseProjectTypeRow,
   parseSkillRow,
   parseStatusCatalogRow,
@@ -52,6 +54,7 @@ const PARSERS: Record<CatalogScope, RowParser> = {
   'status-catalog': parseStatusCatalogRow,
   'commercial-catalog-items': parseCommercialCatalogItemRow,
   clients: parseClientRow,
+  projects: parseProjectRow,
   workers: parseWorkerRow,
 };
 
@@ -73,6 +76,7 @@ export class CatalogImportService {
     @InjectRepository(StatusCatalog) private readonly statusCatalogRepo: Repository<StatusCatalog>,
     @InjectRepository(CommercialCatalogItem) private readonly commercialRepo: Repository<CommercialCatalogItem>,
     @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
+    @InjectRepository(Project) private readonly projectsRepo: Repository<Project>,
     @InjectRepository(Worker) private readonly workersRepo: Repository<Worker>,
     @InjectRepository(WorkerCertification) private readonly workerCertificationsRepo: Repository<WorkerCertification>,
     private readonly realtime: RealtimeGateway,
@@ -334,6 +338,14 @@ export class CatalogImportService {
         if (found) return { id: found.id };
       }
     }
+    if (scope === 'projects') {
+      const number = String(data.number || '').trim();
+      if (number) {
+        const list = await this.projectsRepo.find();
+        const found = list.find((p) => p.number.trim().toLowerCase() === number.toLowerCase());
+        if (found) return { id: found.id };
+      }
+    }
     return null;
   }
 
@@ -375,6 +387,8 @@ export class CatalogImportService {
         return this.commercialRepo as unknown as Repository<ObjectLiteral>;
       case 'clients':
         return this.clientsRepo as unknown as Repository<ObjectLiteral>;
+      case 'projects':
+        return this.projectsRepo as unknown as Repository<ObjectLiteral>;
       case 'workers':
         return this.workersRepo as unknown as Repository<ObjectLiteral>;
       default:
@@ -434,6 +448,7 @@ export class CatalogImportService {
           name: data.name as string,
           description: (data.description as string) || '',
           status: data.status as string,
+          documentUrl: (data.documentUrl as string) || '',
         });
         await this.certificationsRepo.save(entity);
         this.emitUpdated('certifications', 'workers');
@@ -477,6 +492,28 @@ export class CatalogImportService {
         entity.country = (entity.country ?? '').trim() || 'USA';
         await this.clientsRepo.save(entity);
         this.emitUpdated('clients');
+        return;
+      }
+      case 'projects': {
+        const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+        const clientName = String(payload.clientName || '').trim();
+        if (!payload.clientId && clientName) {
+          const clients = await this.clientsRepo.find();
+          const found = clients.find((c) => c.name.trim().toLowerCase() === clientName.toLowerCase());
+          if (found) payload.clientId = found.id;
+        }
+        const projectTypeName = String(payload.projectTypeName || '').trim();
+        if (!payload.projectTypeId && projectTypeName) {
+          const types = await this.projectTypesRepo.find();
+          const foundType = types.find((t) => t.name.trim().toLowerCase() === projectTypeName.toLowerCase());
+          if (foundType) payload.projectTypeId = foundType.id;
+        }
+        delete payload.clientName;
+        delete payload.projectTypeName;
+        const entity = this.projectsRepo.create(payload as unknown as Project);
+        entity.country = (entity.country ?? '').trim() || 'USA';
+        await this.projectsRepo.save(entity);
+        this.emitUpdated('projects');
         return;
       }
       case 'workers': {
@@ -565,6 +602,7 @@ export class CatalogImportService {
         if (data.name !== undefined) item.name = data.name as string;
         if (data.description !== undefined) item.description = data.description as string;
         if (data.status !== undefined) item.status = data.status as string;
+        if (data.documentUrl !== undefined) item.documentUrl = data.documentUrl as string;
         await this.certificationsRepo.save(item);
         this.emitUpdated('certifications', 'workers');
         return;
@@ -612,6 +650,31 @@ export class CatalogImportService {
         item.country = (item.country ?? '').trim() || 'USA';
         await this.clientsRepo.save(item);
         this.emitUpdated('clients');
+        return;
+      }
+      case 'projects': {
+        const item = await this.projectsRepo.findOne({ where: { id } });
+        if (!item) throw new Error(`Project ${id} not found`);
+        const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+        const clientName = String(payload.clientName || '').trim();
+        if (!payload.clientId && clientName) {
+          const clients = await this.clientsRepo.find();
+          const found = clients.find((c) => c.name.trim().toLowerCase() === clientName.toLowerCase());
+          if (found) payload.clientId = found.id;
+        }
+        const projectTypeName = String(payload.projectTypeName || '').trim();
+        if (!payload.projectTypeId && projectTypeName) {
+          const types = await this.projectTypesRepo.find();
+          const foundType = types.find((t) => t.name.trim().toLowerCase() === projectTypeName.toLowerCase());
+          if (foundType) payload.projectTypeId = foundType.id;
+        }
+        delete payload.clientName;
+        delete payload.projectTypeName;
+        delete payload.id;
+        Object.assign(item, payload);
+        item.country = (item.country ?? '').trim() || 'USA';
+        await this.projectsRepo.save(item);
+        this.emitUpdated('projects');
         return;
       }
       case 'workers': {

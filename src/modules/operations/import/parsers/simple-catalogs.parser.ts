@@ -2,6 +2,7 @@ import type { ParsedRow, RowError } from './parser.types';
 import {
   idFromName,
   pushError,
+  readBoolean,
   readCsv,
   readDate,
   readEnum,
@@ -71,7 +72,9 @@ export const parseSkillRow = buildSimpleParser('skill', 'skl');
 export const parseWorkerRoleRow = buildSimpleParser('workerRole', 'wrl');
 export const parseProjectTypeRow = buildSimpleParser('projectType', 'pt');
 export const parseWorkOrderTypeRow = buildSimpleParser('workOrderType', 'wot');
-export const parseCertificationRow = buildSimpleParser('certification', 'cert');
+export const parseCertificationRow = buildSimpleParser('certification', 'cert', [
+  { key: 'documentUrl', aliases: ['document_url'], required: false },
+]);
 
 type AssetCatalog = 'equipment' | 'material';
 
@@ -143,9 +146,12 @@ export function parseStatusCatalogRow(
   const color = readString(raw, 'color', [], { allowEmpty: true });
   const sortOrder = readNumber(raw, 'sortOrder', ['sort_order'], { allowEmpty: true });
   if (sortOrder.error) pushError(errors, { ...sortOrder.error, row }, row);
-  const blocksEditing = readNumber(raw, 'blocksEditing', ['blocks_editing'], { allowEmpty: true });
-  const triggersNotification = readNumber(raw, 'triggersNotification', ['triggers_notification'], { allowEmpty: true });
-  const requiresApproval = readNumber(raw, 'requiresApproval', ['requires_approval'], { allowEmpty: true });
+  const blocksEditing = readBoolean(raw, 'blocksEditing', ['blocks_editing'], { default: false });
+  if (blocksEditing.error) pushError(errors, { ...blocksEditing.error, row }, row);
+  const triggersNotification = readBoolean(raw, 'triggersNotification', ['triggers_notification'], { default: false });
+  if (triggersNotification.error) pushError(errors, { ...triggersNotification.error, row }, row);
+  const requiresApproval = readBoolean(raw, 'requiresApproval', ['requires_approval'], { default: false });
+  if (requiresApproval.error) pushError(errors, { ...requiresApproval.error, row }, row);
   const status = readEnum(raw, 'status', ['active', 'inactive'], [], {
     required: true,
     defaultValue: 'active',
@@ -164,10 +170,9 @@ export function parseStatusCatalogRow(
     name: name.value,
     color: color.value || '#94A3B8',
     sortOrder: sortOrder.value ?? 0,
-    blocksEditing: blocksEditing.value != null ? Boolean(blocksEditing.value) : false,
-    triggersNotification:
-      triggersNotification.value != null ? Boolean(triggersNotification.value) : false,
-    requiresApproval: requiresApproval.value != null ? Boolean(requiresApproval.value) : false,
+    blocksEditing: blocksEditing.value,
+    triggersNotification: triggersNotification.value,
+    requiresApproval: requiresApproval.value,
     status: status.value,
   };
   return { row, raw, data, errors: [], action: undefined };
@@ -211,5 +216,72 @@ export function parseCommercialCatalogItemRow(
     notes: notes.value || '',
   };
   if (idIn.value) data.id = idIn.value.trim();
+  return { row, raw, data, errors: [], action: undefined };
+}
+
+export function parseProjectRow(
+  raw: Record<string, unknown>,
+  row: number,
+): ParsedRow {
+  const errors: RowError[] = [];
+  const idIn = readString(raw, 'id', ['project_id']);
+  const number = readString(raw, 'number', [], { required: true });
+  if (number.error) pushError(errors, { ...number.error, row }, row);
+  const name = readString(raw, 'name', [], { required: true });
+  if (name.error) pushError(errors, { ...name.error, row }, row);
+  const clientId = readString(raw, 'clientId', ['client_id']);
+  const clientName = readString(raw, 'clientName', ['client_name']);
+  const projectTypeId = readString(raw, 'projectTypeId', ['project_type_id']);
+  const projectTypeName = readString(raw, 'projectTypeName', ['project_type_name']);
+  const projectManager = readString(raw, 'projectManager', ['project_manager']);
+  const projectManagerEmail = readString(raw, 'projectManagerEmail', ['project_manager_email']);
+  const location = readString(raw, 'location');
+  const city = readString(raw, 'city');
+  const state = readString(raw, 'state');
+  const zipCode = readString(raw, 'zipCode', ['zip_code', 'zip']);
+  const country = readString(raw, 'country', [], { allowEmpty: true });
+  const latitude = readNumber(raw, 'latitude', [], { allowEmpty: true });
+  if (latitude.error) pushError(errors, { ...latitude.error, row }, row);
+  const longitude = readNumber(raw, 'longitude', [], { allowEmpty: true });
+  if (longitude.error) pushError(errors, { ...longitude.error, row }, row);
+  const status = readString(raw, 'status', [], { required: true });
+  if (status.error) pushError(errors, { ...status.error, row }, row);
+  const workOrderNumber = readString(raw, 'workOrderNumber', ['work_order_number']);
+  const purchaseOrder = readString(raw, 'purchaseOrder', ['purchase_order']);
+  const startDate = readDate(raw, 'startDate', ['start_date']);
+  const endDate = readDate(raw, 'endDate', ['end_date']);
+  const description = readString(raw, 'description');
+  const notes = readString(raw, 'notes');
+
+  if (errors.length > 0) {
+    return { row, raw, data: null, errors, action: 'skip' };
+  }
+
+  const id = (idIn.value && idIn.value.trim()) || idFromName(number.value || '', 'prj');
+  const data: Record<string, unknown> = {
+    id,
+    number: number.value,
+    name: name.value,
+    clientId: clientId.value || '',
+    clientName: clientName.value || '',
+    projectTypeId: projectTypeId.value || '',
+    projectTypeName: projectTypeName.value || '',
+    projectManager: projectManager.value || '',
+    projectManagerEmail: projectManagerEmail.value || '',
+    location: location.value || '',
+    city: city.value || '',
+    state: state.value || '',
+    zipCode: zipCode.value || '',
+    country: country.value || 'USA',
+    latitude: latitude.value ?? null,
+    longitude: longitude.value ?? null,
+    status: status.value,
+    workOrderNumber: workOrderNumber.value || '',
+    purchaseOrder: purchaseOrder.value || '',
+    startDate: startDate.value || null,
+    endDate: endDate.value || null,
+    description: description.value || '',
+    notes: notes.value || '',
+  };
   return { row, raw, data, errors: [], action: undefined };
 }

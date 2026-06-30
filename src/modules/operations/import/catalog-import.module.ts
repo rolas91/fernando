@@ -6,6 +6,7 @@ import { CommercialCatalogItem } from '../../../entities/commercial-catalog-item
 import { Equipment } from '../../../entities/equipment.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
 import { Material } from '../../../entities/material.entity';
+import { Project } from '../../../entities/project.entity';
 import { ProjectType } from '../../../entities/project-type.entity';
 import { Skill } from '../../../entities/skill.entity';
 import { StatusCatalog } from '../../../entities/status-catalog.entity';
@@ -29,6 +30,7 @@ import { OperationsAuthGuard } from '../operations-auth.guard';
       Skill,
       WorkerRole,
       ProjectType,
+      Project,
       WorkOrderType,
       Certification,
       Equipment,

@@ -5,6 +5,7 @@ export type CatalogScope =
   | 'equipment'
   | 'materials'
   | 'project-types'
+  | 'projects'
   | 'skills'
   | 'status-catalog'
   | 'work-order-types'
@@ -18,6 +19,7 @@ export const CATALOG_SCOPES: readonly CatalogScope[] = [
   'equipment',
   'materials',
   'project-types',
+  'projects',
   'skills',
   'status-catalog',
   'work-order-types',

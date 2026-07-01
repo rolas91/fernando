@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, randomUUID } from 'crypto';
+import sharp from 'sharp';
 import {
   ALLOWED_MIME_BY_UPLOAD_SCOPE,
   normalizeUploadMimeForScope,
@@ -57,8 +58,102 @@ export class SpacesStorageService {
   async uploadLogo(
     file: UploadFileCandidate,
   ) {
-    const results = await this.uploadFilesForScope('logo', [file], 'company');
+    const processed = await this.processLogoImage(file);
+    const results = await this.uploadFilesForScope('logo', [processed], 'company');
     return results[0] || null;
+  }
+
+  /**
+   * Processes a logo upload: converts JPG/raster images to PNG and removes
+   * white/near-white backgrounds so the logo composites cleanly on any background.
+   * PNG images with transparency are returned as-is.
+   * SVG files are returned unchanged (vector format).
+   */
+  private async processLogoImage(
+    file: UploadFileCandidate,
+  ): Promise<UploadFileCandidate> {
+    if (!file.buffer?.length) return file;
+    const originalName = file.originalname || 'logo';
+    const lowerName = originalName.toLowerCase();
+    const isSvg = lowerName.endsWith('.svg');
+    if (isSvg) return file;
+
+    try {
+      const trimmedName = originalName.replace(/\.(jpe?g|png|webp)$/i, '');
+      const newName = `${trimmedName}.png`;
+
+      // Step 1: Get RGBA raw bytes
+      const { data: rgbaRaw, info } = await sharp(file.buffer, { failOn: 'none' })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      // Step 2: Create an alpha mask where "white-ish" pixels become transparent
+      // (we copy the rgbaRaw so we don't mutate sharp's internal buffer)
+      const channels = info.channels;
+      const width = info.width;
+      const height = info.height;
+      const pixelCount = width * height;
+      const safeRgba = Buffer.from(rgbaRaw);
+      const maskData = Buffer.alloc(pixelCount); // 1 byte per pixel
+      const threshold = 245;
+      for (let i = 0; i < pixelCount; i++) {
+        const idx = i * channels;
+        const r = safeRgba[idx];
+        const g = safeRgba[idx + 1];
+        const b = safeRgba[idx + 2];
+        maskData[i] = r >= threshold && g >= threshold && b >= threshold ? 0 : 255;
+      }
+
+      // Step 3: Apply mask to alpha channel
+      // If image was originally 3-channel (RGB), channels===3 means maskData[i] goes to alpha
+      // If image was already 4-channel (RGBA), we need to update the existing alpha
+      if (channels === 3) {
+        for (let i = 0; i < pixelCount; i++) {
+          safeRgba[i * 4 + 3] = maskData[i];
+        }
+        const processedBuffer = await sharp(safeRgba, {
+          raw: { width, height, channels: 4 },
+        }).png().toBuffer();
+
+        this.logger.log(`Logo processed: ${originalName} → ${newName} (${processedBuffer.length} bytes)`);
+        return {
+          ...file,
+          buffer: processedBuffer,
+          originalname: newName,
+          mimetype: 'image/png',
+          size: processedBuffer.length,
+        };
+      }
+
+      // For 4-channel (RGBA) images, modify alpha in place
+      for (let i = 0; i < pixelCount; i++) {
+        const alphaIdx = i * 4 + 3;
+        // Keep the original alpha if it was already transparent, otherwise use mask
+        if (safeRgba[alphaIdx] > 0) {
+          safeRgba[alphaIdx] = Math.min(safeRgba[alphaIdx], maskData[i]);
+        }
+      }
+      const processedBuffer = await sharp(safeRgba, {
+        raw: { width, height, channels: 4 },
+      }).png().toBuffer();
+
+      this.logger.log(`Logo processed: ${originalName} → ${newName} (${processedBuffer.length} bytes)`);
+      return {
+        ...file,
+        buffer: processedBuffer,
+        originalname: newName,
+        mimetype: 'image/png',
+        size: processedBuffer.length,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Logo processing failed for ${originalName}, uploading as-is: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return file;
+    }
   }
 
   private async uploadFilesForScope(

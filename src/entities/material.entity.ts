@@ -26,6 +26,9 @@ export class Material {
   @Column({ type: 'varchar', length: 32 })
   status: string;
 
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  price: string;
+
   @Column({ name: 'last_maintenance', type: 'date', nullable: true })
   lastMaintenance: string | null;
 

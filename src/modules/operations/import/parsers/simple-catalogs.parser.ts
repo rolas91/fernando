@@ -98,6 +98,8 @@ function buildAssetParser(catalog: AssetCatalog) {
     if (lastMaintenance.error) pushError(errors, { ...lastMaintenance.error, row }, row);
     const nextMaintenance = readDate(raw, 'nextMaintenance', ['next_maintenance']);
     if (nextMaintenance.error) pushError(errors, { ...nextMaintenance.error, row }, row);
+    const price = readNumber(raw, 'price', [], { allowEmpty: true, min: 0 });
+    if (price.error) pushError(errors, { ...price.error, row }, row);
     const notes = readString(raw, 'notes');
     if (notes.error) pushError(errors, { ...notes.error, row }, row);
 
@@ -113,6 +115,7 @@ function buildAssetParser(catalog: AssetCatalog) {
       identifier: identifier.value || '',
       brand: brand.value || '',
       status: status.value,
+      price: price.value ?? 0,
       lastMaintenance: lastMaintenance.value || null,
       nextMaintenance: nextMaintenance.value || null,
       notes: notes.value || '',

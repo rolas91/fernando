@@ -28,6 +28,7 @@ import { WorkOrderShiftRole } from '../../entities/work-order-shift-role.entity'
 import { WorkOrderShiftRoleEquipment } from '../../entities/work-order-shift-role-equipment.entity';
 import { WorkOrderShiftRoleMaterial } from '../../entities/work-order-shift-role-material.entity';
 import { WorkOrderShiftRoleWorker } from '../../entities/work-order-shift-role-worker.entity';
+import { WorkOrderSequence } from '../../entities/work-order-sequence.entity';
 import { WorkOrderType } from '../../entities/work-order-type.entity';
 import { Worker } from '../../entities/worker.entity';
 import { WorkerCertification } from '../../entities/worker-certification.entity';
@@ -51,6 +52,7 @@ import { FormTemplatesController } from './controllers/form-templates.controller
 import { IncidentsController } from './controllers/incidents.controller';
 import { MaterialsController } from './controllers/materials.controller';
 import { NotificationsController } from './controllers/notifications.controller';
+import { NumberingController } from './controllers/numbering.controller';
 import { ProjectsController } from './controllers/projects.controller';
 import { ProjectTypesController } from './controllers/project-types.controller';
 import { ShiftsController } from './controllers/shifts.controller';
@@ -85,6 +87,7 @@ import { SkillsService } from './services/skills.service';
 import { StatusCatalogService } from './services/status-catalog.service';
 import { TimesheetsService } from './services/timesheets.service';
 import { WorkOrderShiftsWriteService } from './services/work-order-shifts-write.service';
+import { NumberingService } from './services/numbering.service';
 import { WorkOrderTypesService } from './services/work-order-types.service';
 import { WorkOrdersService } from './services/work-orders.service';
 import { WorkersService } from './services/workers.service';
@@ -135,6 +138,7 @@ import { CatalogImportModule } from './import/catalog-import.module';
       WorkOrderShiftRoleWorker,
       WorkOrderShiftRoleEquipment,
       WorkOrderShiftRoleMaterial,
+      WorkOrderSequence,
     ]),
   ],
   controllers: [
@@ -163,6 +167,7 @@ import { CatalogImportModule } from './import/catalog-import.module';
     AvailabilityRequestsController,
     CertificationsController,
     CompanySettingsController,
+    NumberingController,
   ],
   providers: [
     WorkersService,
@@ -195,6 +200,7 @@ import { CatalogImportModule } from './import/catalog-import.module';
     OperationsAuthGuard,
     ShiftsQueryService,
     WorkOrderShiftsWriteService,
+    NumberingService,
   ],
   exports: [
     WorkersService,

@@ -51,6 +51,33 @@ export class CompanySettings {
   @Column({ name: 'minimum_rest_hours', type: 'numeric', precision: 4, scale: 1, default: 8.0 })
   minimumRestHours: number;
 
+  @Column({
+    name: 'work_order_number_prefix',
+    type: 'varchar',
+    length: 16,
+    default: 'ASN',
+  })
+  workOrderNumberPrefix: string;
+
+  @Column({ name: 'work_order_number_padding', type: 'int', default: 4 })
+  workOrderNumberPadding: number;
+
+  @Column({
+    name: 'work_order_number_reset',
+    type: 'varchar',
+    length: 16,
+    default: 'yearly',
+  })
+  workOrderNumberReset: 'never' | 'yearly' | 'monthly';
+
+  @Column({
+    name: 'work_order_number_template',
+    type: 'varchar',
+    length: 64,
+    default: '{PREFIX}-{YYYY}-{NNNN}',
+  })
+  workOrderNumberTemplate: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

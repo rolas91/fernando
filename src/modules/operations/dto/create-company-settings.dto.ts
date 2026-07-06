@@ -1,4 +1,4 @@
-import { IsArray, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateCompanySettingsDto {
   @IsString()
@@ -54,4 +54,22 @@ export class CreateCompanySettingsDto {
   @IsOptional()
   @IsNumber()
   minimumRestHours?: number;
+
+  @IsOptional()
+  @IsString()
+  workOrderNumberPrefix?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(10)
+  workOrderNumberPadding?: number;
+
+  @IsOptional()
+  @IsIn(['never', 'yearly', 'monthly'])
+  workOrderNumberReset?: 'never' | 'yearly' | 'monthly';
+
+  @IsOptional()
+  @IsString()
+  workOrderNumberTemplate?: string;
 }

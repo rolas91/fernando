@@ -80,6 +80,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       {} as never,
       { updateWorkerConfirmation: jest.fn() } as never,
       shiftsQuery,
+      { nextWorkOrderNumber: jest.fn(async () => 'ASN-2026-0001') } as never,
     );
     return { service, saved };
   }
@@ -432,6 +433,7 @@ describe('WorkOrdersService.findOne shifts merge', () => {
       {} as never,
       {} as never,
       shiftsQuery,
+      { nextWorkOrderNumber: jest.fn(async () => 'ASN-2026-0001') } as never,
     );
     return { service, repo };
   }

@@ -43,6 +43,7 @@ import {
 } from './work-order-shifts-write.service';
 import { ShiftsQueryService } from './shifts-query.service';
 import { SpacesStorageService } from './spaces-storage.service';
+import { NumberingService } from './numbering.service';
 import type { UserAccessContext } from '../../access/ports/access.port';
 
 type MobileAssignmentStatusFilter =
@@ -131,6 +132,7 @@ export class WorkOrdersService {
     private readonly spacesStorage: SpacesStorageService,
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly shiftsQuery: ShiftsQueryService,
+    private readonly numbering: NumberingService,
   ) {}
 
   async findAll() {
@@ -1035,8 +1037,11 @@ export class WorkOrdersService {
     assertShiftsWithinAssignmentDateRange(dto.startDate, dto.endDate, shifts);
     await this.assertAssignedWorkersMeetRoleCertifications(shifts);
     const { status: dtoStatusLane, ...dtoWithoutDeclaredStatus } = dto;
+    const orderNumber = (dto.orderNumber?.trim())
+      || (await this.numbering.nextWorkOrderNumber());
     const entity = this.workOrdersRepo.create({
       ...dtoWithoutDeclaredStatus,
+      orderNumber,
       status: 'pending',
       shifts,
       dispatchNote: dto.dispatchNote?.trim() || '',

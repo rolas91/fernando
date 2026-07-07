@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
-import { createSign, randomBytes } from 'crypto';
+import { randomBytes } from 'crypto';
+import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { Repository } from 'typeorm';
 import { ShiftAssignmentConfirmation } from '../../entities/shift-assignment-confirmation.entity';
 import { Notification } from '../../entities/notification.entity';
@@ -78,11 +79,6 @@ type NotificationResult = {
   twilioErrorMessage?: string | null;
 };
 
-type FirebaseAccessToken = {
-  token: string;
-  expiresAt: number;
-};
-
 type TwilioStatusCallbackPayload = {
   MessageSid?: string;
   MessageStatus?: string;
@@ -98,7 +94,6 @@ type TwilioStatusCallbackPayload = {
 @Injectable()
 export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
-  private firebaseAccessToken: FirebaseAccessToken | null = null;
 
   constructor(
     @InjectRepository(ShiftAssignmentConfirmation)
@@ -210,59 +205,53 @@ export class IntegrationsService {
       };
     }
 
-    const projectId = this.firebaseProjectId();
-    const accessToken = await this.getFirebaseAccessToken();
-    if (!projectId || !accessToken) {
+    const validTokens = tokens.filter((t) => Expo.isExpoPushToken(t));
+    if (validTokens.length === 0) {
       return {
         success: true,
         simulated: true,
         channel: 'in_app',
-        note: 'FCM simulated because Firebase credentials are not configured.',
+        note: 'Push simulated because no valid Expo push tokens found.',
       };
     }
 
-    const endpoint = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
-    const sendResults = await Promise.all(
-      tokens.map(async (token) => {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: {
-              token,
-              notification: {
-                title: params.title,
-                body: params.body,
-              },
-              data: {
-                type: 'shift_chat_message',
-                channel: 'shift_chat',
-                workOrderId: params.workOrderId,
-                shiftId: params.shiftId,
-                shiftDate: params.shiftDate || '',
-                messageId: params.messageId,
-                senderName: params.senderName,
-              },
-              android: {
-                priority: 'HIGH',
-                notification: {
-                  channel_id: 'shift_notifications',
-                },
-              },
-            },
-          }),
-        });
+    const messages: ExpoPushMessage[] = validTokens.map((token) => ({
+      to: token,
+      sound: 'default',
+      title: params.title,
+      body: params.body,
+      data: {
+        type: 'shift_chat_message',
+        channel: 'shift_chat',
+        workOrderId: params.workOrderId,
+        shiftId: params.shiftId,
+        shiftDate: params.shiftDate || '',
+        messageId: params.messageId,
+        senderName: params.senderName,
+      },
+      channelId: 'shift_notifications',
+      priority: 'high',
+      badge: 1,
+    }));
 
-        if (!res.ok) {
-          return { ok: false, error: await res.text() };
+    const expo = new Expo();
+    const chunks = expo.chunkPushNotifications(messages);
+    const sendResults: { ok: boolean; name?: string; error?: string }[] = [];
+
+    for (const chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        for (const ticket of ticketChunk) {
+          if (ticket.status === 'error') {
+            sendResults.push({ ok: false, error: ticket.message });
+          } else {
+            sendResults.push({ ok: true, name: ticket.id });
+          }
         }
-        const json = (await res.json()) as { name?: string };
-        return { ok: true, name: json.name };
-      }),
-    );
+      } catch (err) {
+        sendResults.push({ ok: false, error: String(err) });
+      }
+    }
 
     const sent = sendResults.filter((item) => item.ok);
     if (sent.length === 0) {
@@ -270,7 +259,7 @@ export class IntegrationsService {
         success: false,
         simulated: false,
         channel: 'in_app',
-        error: sendResults.find((item) => !item.ok)?.error || 'FCM rejected all chat messages.',
+        error: sendResults.find((item) => !item.ok)?.error || 'Expo Push rejected all chat messages.',
       };
     }
 
@@ -961,67 +950,58 @@ export class IntegrationsService {
         success: true,
         simulated: true,
         channel: 'in_app',
-        note: 'FCM simulated because the worker has no registered device token.',
+        note: 'Push simulated because the worker has no registered device token.',
         confirmationUrl: body.confirmationUrl,
       };
     }
 
-    const projectId = this.firebaseProjectId();
-    const accessToken = await this.getFirebaseAccessToken();
-    if (!projectId || !accessToken) {
+    const validTokens = tokens.filter((t) => Expo.isExpoPushToken(t));
+    if (validTokens.length === 0) {
       return {
         success: true,
         simulated: true,
         channel: 'in_app',
-        note: 'FCM simulated because Firebase credentials are not configured.',
+        note: 'Push simulated because no valid Expo push tokens found.',
         confirmationUrl: body.confirmationUrl,
       };
     }
 
-    const endpoint = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
-    const title = 'Shift assignment notification';
-    const sendResults = await Promise.all(
-      tokens.map(async (token) => {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: {
-              token,
-              notification: {
-                title,
-                body: body.message || 'Notification',
-              },
-              data: {
-                channel: 'in_app',
-                workOrderId: body.confirmation?.workOrderId || '',
-                shiftId: body.confirmation?.shiftId || '',
-                roleId: body.confirmation?.roleId || '',
-                workerId: body.confirmation?.workerId || '',
-                confirmationUrl: body.confirmationUrl || '',
-              },
-              android: {
-                priority: 'HIGH',
-                notification: {
-                  channel_id: 'shift_notifications',
-                },
-              },
-            },
-          }),
-        });
+    const messages: ExpoPushMessage[] = validTokens.map((token) => ({
+      to: token,
+      sound: 'default',
+      title: 'Shift assignment notification',
+      body: body.message || 'Notification',
+      data: {
+        channel: 'in_app',
+        workOrderId: body.confirmation?.workOrderId || '',
+        shiftId: body.confirmation?.shiftId || '',
+        roleId: body.confirmation?.roleId || '',
+        workerId: body.confirmation?.workerId || '',
+        confirmationUrl: body.confirmationUrl || '',
+      },
+      channelId: 'shift_notifications',
+      priority: 'high',
+      badge: 1,
+    }));
 
-        if (!res.ok) {
-          const error = await res.text();
-          return { ok: false, error };
+    const expo = new Expo();
+    const chunks = expo.chunkPushNotifications(messages);
+    const sendResults: { ok: boolean; name?: string; error?: string }[] = [];
+
+    for (const chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        for (const ticket of ticketChunk) {
+          if (ticket.status === 'error') {
+            sendResults.push({ ok: false, error: ticket.message });
+          } else {
+            sendResults.push({ ok: true, name: ticket.id });
+          }
         }
-
-        const json = (await res.json()) as { name?: string };
-        return { ok: true, name: json.name };
-      }),
-    );
+      } catch (err) {
+        sendResults.push({ ok: false, error: String(err) });
+      }
+    }
 
     const sent = sendResults.filter((item) => item.ok);
     if (sent.length === 0) {
@@ -1031,7 +1011,7 @@ export class IntegrationsService {
         channel: 'in_app',
         error:
           sendResults.find((item) => !item.ok)?.error ||
-          'FCM rejected all messages.',
+          'Expo Push rejected all messages.',
         confirmationUrl: body.confirmationUrl,
       };
     }
@@ -1056,103 +1036,6 @@ export class IntegrationsService {
 
     const worker = await this.workersRepo.findOne({ where });
     return (worker?.fcmTokens || []).filter((token) => token.trim());
-  }
-
-  private firebaseProjectId() {
-    return (
-      process.env.FIREBASE_PROJECT_ID ||
-      this.firebaseServiceAccount()?.project_id ||
-      ''
-    ).trim();
-  }
-
-  private firebaseServiceAccount():
-    | { client_email?: string; private_key?: string; project_id?: string }
-    | null {
-    const json = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '').trim();
-    if (json) {
-      try {
-        return JSON.parse(json) as {
-          client_email?: string;
-          private_key?: string;
-          project_id?: string;
-        };
-      } catch {
-        this.logger.warn('FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.');
-      }
-    }
-
-    return {
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      private_key: process.env.FIREBASE_PRIVATE_KEY,
-      project_id: process.env.FIREBASE_PROJECT_ID,
-    };
-  }
-
-  private async getFirebaseAccessToken() {
-    if (
-      this.firebaseAccessToken &&
-      this.firebaseAccessToken.expiresAt > Date.now() + 60_000
-    ) {
-      return this.firebaseAccessToken.token;
-    }
-
-    const account = this.firebaseServiceAccount();
-    const clientEmail = account?.client_email?.trim();
-    const privateKey = account?.private_key?.replace(/\\n/g, '\n');
-    if (!clientEmail || !privateKey) return null;
-
-    const now = Math.floor(Date.now() / 1000);
-    const jwtHeader = this.base64Url(
-      JSON.stringify({ alg: 'RS256', typ: 'JWT' }),
-    );
-    const jwtClaim = this.base64Url(
-      JSON.stringify({
-        iss: clientEmail,
-        scope: 'https://www.googleapis.com/auth/firebase.messaging',
-        aud: 'https://oauth2.googleapis.com/token',
-        iat: now,
-        exp: now + 3600,
-      }),
-    );
-    const unsignedJwt = `${jwtHeader}.${jwtClaim}`;
-    const signature = createSign('RSA-SHA256')
-      .update(unsignedJwt)
-      .sign(privateKey);
-    const assertion = `${unsignedJwt}.${this.base64Url(signature)}`;
-
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion,
-      }).toString(),
-    });
-
-    if (!res.ok) {
-      this.logger.error(`Firebase OAuth failed status=${res.status} body=${await res.text()}`);
-      return null;
-    }
-
-    const body = (await res.json()) as {
-      access_token?: string;
-      expires_in?: number;
-    };
-    if (!body.access_token) return null;
-    this.firebaseAccessToken = {
-      token: body.access_token,
-      expiresAt: Date.now() + Number(body.expires_in || 3600) * 1000,
-    };
-    return this.firebaseAccessToken.token;
-  }
-
-  private base64Url(input: string | Buffer) {
-    return Buffer.from(input)
-      .toString('base64')
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
   }
 
   private generateConfirmationToken() {

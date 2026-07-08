@@ -104,12 +104,18 @@ export class TimesheetsService {
         scheduledTimes.endTime,
       );
       const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
+      const timesheetDate =
+        stringValue(row.shiftDate) ||
+        stringValue(row.date) ||
+        existing?.date ||
+        new Date().toISOString().slice(0, 10);
       const hours = calculateTimesheetHours(
         {
           startTime: clockIn,
           endTime: clockOut,
           scheduledStartTime: scheduledTimes.startTime,
           scheduledEndTime: scheduledTimes.endTime,
+          date: timesheetDate,
           lunchTaken,
         },
         calculationRules,
@@ -123,7 +129,7 @@ export class TimesheetsService {
         projectId: stringValue(row.projectId) || opts?.projectId || existing?.projectId || '',
         workOrderId,
         shiftId,
-        date: stringValue(row.shiftDate) || stringValue(row.date) || existing?.date || new Date().toISOString().slice(0, 10),
+        date: timesheetDate,
         clockIn,
         clockOut,
         breakMinutes: numberValue(row.breakMinutes, existing?.breakMinutes ?? 0),
@@ -437,6 +443,8 @@ export type TimesheetCalculationRules = {
   noLunchCreditEnabled: boolean;
   noLunchCreditMinimumHours: number;
   noLunchCreditHours: number;
+  noLunchCreditTarget: 'st' | 'ot';
+  noLunchCreditEffectiveDate: string;
 };
 
 export function timesheetCalculationRules(
@@ -451,6 +459,11 @@ export function timesheetCalculationRules(
       7,
     ),
     noLunchCreditHours: nonNegativeNumber(rules?.noLunchCreditHours, 1),
+    noLunchCreditTarget:
+      stringValue(rules?.noLunchCreditTarget).toLowerCase() === 'ot'
+        ? 'ot'
+        : 'st',
+    noLunchCreditEffectiveDate: stringValue(rules?.noLunchCreditEffectiveDate),
   };
 }
 
@@ -461,6 +474,8 @@ export function calculateTimesheetHours(row: {
   clockOut?: string;
   scheduledStartTime?: string;
   scheduledEndTime?: string;
+  date?: string;
+  shiftDate?: string;
   lunchTaken?: boolean;
 }, rules: TimesheetCalculationRules = timesheetCalculationRules()) {
   const startLabel = stringValue(row.startTime) || stringValue(row.clockIn);
@@ -491,13 +506,18 @@ export function calculateTimesheetHours(row: {
     totalHours > rules.noLunchCreditMinimumHours
       ? rules.noLunchCreditHours
       : 0;
-  const st = Math.min(totalHours, regularLimit) + lunchCredit;
+  const target = noLunchCreditTargetForDate(
+    stringValue(row.date) || stringValue(row.shiftDate),
+    rules,
+  );
+  const st = Math.min(totalHours, regularLimit) + (target === 'st' ? lunchCredit : 0);
+  const creditedOt = ot + (target === 'ot' ? lunchCredit : 0);
 
   return {
     st: roundHours(st),
-    ot: roundHours(ot),
+    ot: roundHours(creditedOt),
     dt: roundHours(dt),
-    total: roundHours(st + ot + dt),
+    total: roundHours(st + creditedOt + dt),
   };
 }
 
@@ -540,6 +560,7 @@ export function normalizeTimesheetSubmissionRow(
       endTime: clockOut,
       scheduledStartTime: stringValue(row.scheduledStartTime),
       scheduledEndTime: stringValue(row.scheduledEndTime),
+      date: stringValue(row.shiftDate) || stringValue(row.date),
       lunchTaken,
     },
     rules,
@@ -554,6 +575,17 @@ export function normalizeTimesheetSubmissionRow(
     total: hours.total,
     lunchTaken,
   };
+}
+
+function noLunchCreditTargetForDate(
+  rowDate: string,
+  rules: TimesheetCalculationRules,
+): 'st' | 'ot' {
+  if (rules.noLunchCreditTarget !== 'ot') return 'st';
+  if (!rules.noLunchCreditEffectiveDate) return 'st';
+  const effectiveDate = rules.noLunchCreditEffectiveDate.slice(0, 10);
+  const normalizedRowDate = rowDate.slice(0, 10);
+  return normalizedRowDate && normalizedRowDate >= effectiveDate ? 'ot' : 'st';
 }
 
 function timesheetTimeline(

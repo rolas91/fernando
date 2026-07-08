@@ -11,6 +11,8 @@ describe('calculateTimesheetHours', () => {
     noLunchCreditEnabled: true,
     noLunchCreditMinimumHours: 7,
     noLunchCreditHours: 1,
+    noLunchCreditTarget: 'st',
+    noLunchCreditEffectiveDate: '',
   });
 
   it('does not add credit at the exact configured threshold', () => {
@@ -27,6 +29,42 @@ describe('calculateTimesheetHours', () => {
       calculateTimesheetHours(
         { startTime: '07:00', endTime: '16:00', lunchTaken: false },
         rules,
+      ),
+    ).toEqual({ st: 9, ot: 1, dt: 0, total: 10 });
+  });
+
+  it('adds the configured credit to OT on or after the effective date', () => {
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '07:00',
+          endTime: '16:00',
+          date: '2026-07-08',
+          lunchTaken: false,
+        },
+        {
+          ...rules,
+          noLunchCreditTarget: 'ot',
+          noLunchCreditEffectiveDate: '2026-07-08',
+        },
+      ),
+    ).toEqual({ st: 8, ot: 2, dt: 0, total: 10 });
+  });
+
+  it('keeps the configured credit on ST before the effective date', () => {
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '07:00',
+          endTime: '16:00',
+          date: '2026-07-07',
+          lunchTaken: false,
+        },
+        {
+          ...rules,
+          noLunchCreditTarget: 'ot',
+          noLunchCreditEffectiveDate: '2026-07-08',
+        },
       ),
     ).toEqual({ st: 9, ot: 1, dt: 0, total: 10 });
   });

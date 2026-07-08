@@ -67,6 +67,8 @@ const DEFAULT_SETTINGS: Pick<
     noLunchCreditEnabled: true,
     noLunchCreditMinimumHours: 7,
     noLunchCreditHours: 1,
+    noLunchCreditTarget: 'ot',
+    noLunchCreditEffectiveDate: '2026-07-08',
   },
   workerTypes: [
     'Full-Time Employee',

@@ -11,31 +11,31 @@ function makeWorker(type = ''): Worker {
 }
 
 describe('applyLegacyTypeField', () => {
-  it('sets type to the first active role name', () => {
-    const worker = makeWorker('Foreman');
+  it('keeps the worker type independent from active role names', () => {
+    const worker = makeWorker('Full-Time Employee');
     applyLegacyTypeField(worker, [makeRole('Flagger'), makeRole('Foreman')]);
-    expect(worker.type).toBe('Flagger');
+    expect(worker.type).toBe('Full-Time Employee');
   });
 
-  it('trims whitespace from the role name', () => {
-    const worker = makeWorker('');
+  it('trims whitespace from the existing worker type', () => {
+    const worker = makeWorker('  Part-Time Employee  ');
     applyLegacyTypeField(worker, [makeRole('  Flagger  ')]);
-    expect(worker.type).toBe('Flagger');
+    expect(worker.type).toBe('Part-Time Employee');
   });
 
-  it('skips inactive roles', () => {
-    const worker = makeWorker('OldType');
+  it('ignores inactive roles', () => {
+    const worker = makeWorker('Temporary / Seasonal');
     applyLegacyTypeField(worker, [
       makeRole('Flagger', 'inactive'),
       makeRole('Foreman'),
     ]);
-    expect(worker.type).toBe('Foreman');
+    expect(worker.type).toBe('Temporary / Seasonal');
   });
 
-  it('skips roles with empty names', () => {
-    const worker = makeWorker('OldType');
+  it('ignores roles with empty names', () => {
+    const worker = makeWorker('Subcontractor');
     applyLegacyTypeField(worker, [makeRole(''), makeRole('Foreman')]);
-    expect(worker.type).toBe('Foreman');
+    expect(worker.type).toBe('Subcontractor');
   });
 
   it('leaves type unchanged when no active role is provided', () => {

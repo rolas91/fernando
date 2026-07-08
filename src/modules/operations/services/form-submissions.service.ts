@@ -1549,17 +1549,18 @@ export function buildWorkOrderPdf(
         ops.push(pdfLine(bx - 0.2, signBaseline, bx + 2, signBaseline + 3.5));
       }
       if (worker.signature) {
+        const workerSignatureWidth = Math.min(82, firstColumnSplit - 38);
         const workerSignatureHeight = Math.min(
-          workerBlockHeight - 5,
-          workerSubRowHeight + 3,
+          workerBlockHeight - 4,
+          workerSubRowHeight + 4,
         );
         drawSignature(
           ops,
           images,
           worker.signature,
-          left + 31,
-          top - 1.5,
-          Math.min(65, firstColumnSplit - 34),
+          left + firstColumnSplit - workerSignatureWidth - 7,
+          top - 2,
+          workerSignatureWidth,
           workerSignatureHeight,
           1,
         );

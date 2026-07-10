@@ -46,6 +46,11 @@ export class WorkOrdersController {
     return this.workOrdersService.findTrash();
   }
 
+  @Get('shifts/overview')
+  getShiftOverview() {
+    return this.workOrdersService.findShiftOverview();
+  }
+
   @Patch('trash/:id/restore')
   restore(@Param('id') id: string) {
     return this.workOrdersService.restore(id);

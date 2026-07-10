@@ -142,6 +142,11 @@ export class WorkOrdersService {
     return refreshed;
   }
 
+  /** Dedicated read contract for the Shifts module. */
+  async findShiftOverview() {
+    return this.findAll();
+  }
+
   async findMobileAssignmentsForUser(
     actor: UserAccessContext | undefined,
     query: MobileAssignmentQuery,

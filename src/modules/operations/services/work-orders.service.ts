@@ -837,6 +837,20 @@ export class WorkOrdersService {
     },
     visibleShiftIds?: Set<string>,
   ) {
+    const visibleDocumentTypes = new Set<string>();
+    const visibleShiftNotes: { id: string; title: string; body: string }[] = [];
+    for (const rawShift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+      const shift = rawShift as unknown as Record<string, unknown>;
+      const shiftId = typeof shift.id === 'string' ? shift.id : '';
+      if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId))) continue;
+      const selected = Array.isArray(shift.visibleDocumentTypes)
+        ? shift.visibleDocumentTypes.filter((item): item is string => typeof item === 'string')
+        : [];
+      selected.forEach((item) => visibleDocumentTypes.add(item));
+      if (selected.includes('Other Notes') && typeof shift.notes === 'string' && shift.notes.trim()) {
+        visibleShiftNotes.push({ id: `shift_note_${shiftId}`, title: 'Shift Notes', body: shift.notes.trim() });
+      }
+    }
     const { workerIds, equipmentIds, materialIds } = this.collectMobileQuickAccessIds(
       workOrder,
       visibleShiftIds,
@@ -894,14 +908,17 @@ export class WorkOrdersService {
       }),
     ];
     const notes = [
+      ...visibleShiftNotes,
+      ...(visibleDocumentTypes.has('Other Notes') ? [
       workOrder.dispatchNote?.trim()
         ? { id: 'dispatchNote', title: 'Dispatch Note', body: workOrder.dispatchNote.trim() }
         : null,
       workOrder.notes?.trim()
         ? { id: 'notes', title: 'Notes', body: workOrder.notes.trim() }
         : null,
+      ] : []),
     ].filter((item): item is { id: string; title: string; body: string } => Boolean(item));
-    const documents = [
+    const allDocuments = [
       ...(maps?.pdfSubmissionsByWorkOrderId.get(workOrder.id) || []).map((submission, index) => ({
         id: `generated_pdf_${submission.id || index}`,
         title: this.generatedPdfTitle(submission, index),
@@ -921,6 +938,9 @@ export class WorkOrdersService {
         tag: 'Reference',
       })),
     ];
+    const documents = allDocuments.filter((document) =>
+      this.mobileDocumentIsVisible(document.title, document.id, visibleDocumentTypes),
+    );
     const client = project?.clientId?.trim()
       ? maps?.clientById.get(project.clientId) ?? null
       : null;
@@ -953,6 +973,15 @@ export class WorkOrdersService {
       notes,
       documents,
     };
+  }
+
+  private mobileDocumentIsVisible(title: string, id: string, allowed: Set<string>) {
+    const key = `${title} ${id}`.toLowerCase();
+    if (key.includes('timesheet')) return allowed.has('Timesheet');
+    if (key.includes('incident')) return allowed.has('Incident Report');
+    if (key.includes('site map') || key.includes('sitemap') || key.includes('site-map')) return allowed.has('Site Map');
+    if (key.includes('safety')) return allowed.has('Safety Plan');
+    return allowed.has('Work Order');
   }
 
   private roleNamesForWorker(workOrder: WorkOrder, workerId: string) {

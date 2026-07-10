@@ -17,7 +17,10 @@ export type ShiftWriteInput = {
   endTime: string;
   status?: string;
   createdByUserId?: string | null;
+  requesterUserId?: string | null;
   address?: string | null;
+  addressLatitude?: number | null; addressLongitude?: number | null;
+  addressCity?: string | null; addressState?: string | null; addressZipCode?: string | null; addressCountry?: string | null;
   requesterName?: string | null;
   visibleDocumentTypes?: string[];
   notes?: string | null;
@@ -96,7 +99,10 @@ export class WorkOrderShiftsWriteService {
         endTime: s.endTime,
         status: s.status ?? 'customer_pending',
         createdByUserId: s.createdByUserId ?? null,
+        requesterUserId: s.requesterUserId ?? null,
         address: s.address ?? null,
+        addressLatitude: s.addressLatitude ?? null, addressLongitude: s.addressLongitude ?? null,
+        addressCity: s.addressCity ?? null, addressState: s.addressState ?? null, addressZipCode: s.addressZipCode ?? null, addressCountry: s.addressCountry ?? null,
         requesterName: s.requesterName ?? null,
         visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
         notes: s.notes ?? null,
@@ -236,7 +242,14 @@ export class WorkOrderShiftsWriteService {
         endTime,
         status: typeof raw.status === 'string' ? raw.status : 'customer_pending',
         createdByUserId: typeof raw.createdByUserId === 'string' ? raw.createdByUserId : null,
+        requesterUserId: typeof raw.requesterUserId === 'string' ? raw.requesterUserId : null,
         address: typeof raw.address === 'string' ? raw.address : null,
+        addressLatitude: typeof raw.addressLatitude === 'number' ? raw.addressLatitude : null,
+        addressLongitude: typeof raw.addressLongitude === 'number' ? raw.addressLongitude : null,
+        addressCity: typeof raw.addressCity === 'string' ? raw.addressCity : null,
+        addressState: typeof raw.addressState === 'string' ? raw.addressState : null,
+        addressZipCode: typeof raw.addressZipCode === 'string' ? raw.addressZipCode : null,
+        addressCountry: typeof raw.addressCountry === 'string' ? raw.addressCountry : null,
         requesterName: typeof raw.requesterName === 'string' ? raw.requesterName : null,
         visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes) ? raw.visibleDocumentTypes as string[] : [],
         notes: typeof raw.notes === 'string' ? raw.notes : null,

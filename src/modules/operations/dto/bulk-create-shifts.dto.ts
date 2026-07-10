@@ -59,7 +59,14 @@ export class BulkCreateShiftsDto {
 
   @IsOptional() @IsString() status?: string;
   @IsOptional() @IsString() createdByUserId?: string;
+  @IsOptional() @IsString() requesterUserId?: string;
   @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsNumber() addressLatitude?: number;
+  @IsOptional() @IsNumber() addressLongitude?: number;
+  @IsOptional() @IsString() addressCity?: string;
+  @IsOptional() @IsString() addressState?: string;
+  @IsOptional() @IsString() addressZipCode?: string;
+  @IsOptional() @IsString() addressCountry?: string;
   @IsOptional() @IsString() requesterName?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) visibleDocumentTypes?: string[];
   @IsOptional() @IsString() notes?: string;

@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { WorkOrder } from './work-order.entity';
 import { WorkOrderShiftRole } from './work-order-shift-role.entity';
+import { User } from './user.entity';
 
 @Entity('work_order_shifts')
 @Index('idx_work_order_shifts_work_order', ['workOrderId'])
@@ -33,11 +34,35 @@ export class WorkOrderShift {
   @Column({ type: 'varchar', length: 64, default: 'customer_pending' })
   status: string;
 
-  @Column({ name: 'created_by_user_id', type: 'varchar', length: 64, nullable: true })
+  @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })
   createdByUserId: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by_user_id' })
+  createdByUser?: User | null;
+
+  @Column({ name: 'requester_user_id', type: 'uuid', nullable: true })
+  requesterUserId: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'requester_user_id' })
+  requesterUser?: User | null;
 
   @Column({ type: 'text', nullable: true })
   address: string | null;
+
+  @Column({ name: 'address_latitude', type: 'double precision', nullable: true })
+  addressLatitude: number | null;
+  @Column({ name: 'address_longitude', type: 'double precision', nullable: true })
+  addressLongitude: number | null;
+  @Column({ name: 'address_city', type: 'varchar', length: 120, nullable: true })
+  addressCity: string | null;
+  @Column({ name: 'address_state', type: 'varchar', length: 120, nullable: true })
+  addressState: string | null;
+  @Column({ name: 'address_zip_code', type: 'varchar', length: 32, nullable: true })
+  addressZipCode: string | null;
+  @Column({ name: 'address_country', type: 'varchar', length: 120, nullable: true })
+  addressCountry: string | null;
 
   @Column({ name: 'requester_name', type: 'varchar', length: 200, nullable: true })
   requesterName: string | null;

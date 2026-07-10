@@ -1232,6 +1232,12 @@ export class WorkOrdersService {
         date,
         startTime: payload.startTime,
         endTime: payload.endTime,
+        status: payload.status,
+        createdByUserId: payload.createdByUserId,
+        address: payload.address,
+        requesterName: payload.requesterName,
+        visibleDocumentTypes: payload.visibleDocumentTypes || [],
+        notes: payload.notes,
         roles: payload.roles.map((role, roleIdx) => ({
           id: `sr_bulk_${nowId}_${date.replace(/-/g, '')}_${roleIdx}`,
           roleName: role.roleName,

@@ -57,6 +57,13 @@ export class BulkCreateShiftsDto {
   @IsString()
   endTime: string;
 
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsString() createdByUserId?: string;
+  @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() requesterName?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) visibleDocumentTypes?: string[];
+  @IsOptional() @IsString() notes?: string;
+
   @IsOptional()
   @IsString()
   shiftTemplateId?: string;

@@ -30,6 +30,24 @@ export class WorkOrderShift {
   @Column({ name: 'end_time', type: 'varchar', length: 16, default: '' })
   endTime: string;
 
+  @Column({ type: 'varchar', length: 64, default: 'customer_pending' })
+  status: string;
+
+  @Column({ name: 'created_by_user_id', type: 'varchar', length: 64, nullable: true })
+  createdByUserId: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  address: string | null;
+
+  @Column({ name: 'requester_name', type: 'varchar', length: 200, nullable: true })
+  requesterName: string | null;
+
+  @Column({ name: 'visible_document_types', type: 'jsonb', default: () => "'[]'::jsonb" })
+  visibleDocumentTypes: string[];
+
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
+
   @Column({
     name: 'default_role_start_time',
     type: 'varchar',

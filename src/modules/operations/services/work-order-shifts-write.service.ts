@@ -15,6 +15,12 @@ export type ShiftWriteInput = {
   date: string;
   startTime: string;
   endTime: string;
+  status?: string;
+  createdByUserId?: string | null;
+  address?: string | null;
+  requesterName?: string | null;
+  visibleDocumentTypes?: string[];
+  notes?: string | null;
   defaultRoleStartTime?: string | null;
   shiftTemplateId?: string | null;
   roles: Array<{
@@ -88,6 +94,12 @@ export class WorkOrderShiftsWriteService {
         date: s.date,
         startTime: s.startTime,
         endTime: s.endTime,
+        status: s.status ?? 'customer_pending',
+        createdByUserId: s.createdByUserId ?? null,
+        address: s.address ?? null,
+        requesterName: s.requesterName ?? null,
+        visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
+        notes: s.notes ?? null,
         defaultRoleStartTime: s.defaultRoleStartTime ?? null,
         shiftTemplateId: s.shiftTemplateId ?? null,
       }));
@@ -222,6 +234,12 @@ export class WorkOrderShiftsWriteService {
         date,
         startTime,
         endTime,
+        status: typeof raw.status === 'string' ? raw.status : 'customer_pending',
+        createdByUserId: typeof raw.createdByUserId === 'string' ? raw.createdByUserId : null,
+        address: typeof raw.address === 'string' ? raw.address : null,
+        requesterName: typeof raw.requesterName === 'string' ? raw.requesterName : null,
+        visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes) ? raw.visibleDocumentTypes as string[] : [],
+        notes: typeof raw.notes === 'string' ? raw.notes : null,
         defaultRoleStartTime:
           typeof raw.defaultRoleStartTime === 'string' ? raw.defaultRoleStartTime : null,
         shiftTemplateId:

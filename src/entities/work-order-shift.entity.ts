@@ -31,8 +31,8 @@ export class WorkOrderShift {
   @Column({ name: 'end_time', type: 'varchar', length: 16, default: '' })
   endTime: string;
 
-  @Column({ type: 'varchar', length: 64, default: 'customer_pending' })
-  status: string;
+  @Column({ type: 'varchar', length: 64, nullable: true, default: null })
+  status: string | null;
 
   /**
    * Manual cancellation flag. When true, the shift computes to the automatic

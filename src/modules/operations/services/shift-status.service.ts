@@ -71,7 +71,7 @@ export class ShiftStatusService {
     from: string | null;
     to: string | null;
     counters: ShiftAggregateCounters;
-    shifts: Array<{ workOrderId: string; shiftId: string; status: ShiftStatusValue; automatic: boolean }>;
+    shifts: Array<{ workOrderId: string; shiftId: string; status: ShiftStatusValue | null; automatic: boolean }>;
   }> {
     const { from, to } = args;
 
@@ -122,7 +122,7 @@ export class ShiftStatusService {
     const effectiveShifts: Array<{
       workOrderId: string;
       shiftId: string;
-      status: ShiftStatusValue;
+      status: ShiftStatusValue | null;
       automatic: boolean;
     }> = [];
 

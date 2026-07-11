@@ -16,6 +16,7 @@ export type ShiftWriteInput = {
   startTime: string;
   endTime: string;
   status?: string;
+  cancelled?: boolean;
   createdByUserId?: string | null;
   requesterUserId?: string | null;
   address?: string | null;
@@ -97,7 +98,8 @@ export class WorkOrderShiftsWriteService {
         date: s.date,
         startTime: s.startTime,
         endTime: s.endTime,
-        status: s.status ?? 'customer_pending',
+        status: s.status?.trim() || null,
+        cancelled: s.cancelled ?? false,
         createdByUserId: s.createdByUserId ?? null,
         requesterUserId: s.requesterUserId ?? null,
         address: s.address ?? null,
@@ -236,7 +238,7 @@ export class WorkOrderShiftsWriteService {
     shiftId: string;
     status: string;
   }): Promise<WorkOrderShift | null> {
-    const allowed = ['customer_pending', 'dispatch_pending', 'ready_to_notify'];
+    const allowed = ['', 'customer_pending', 'dispatch_pending', 'ready_to_notify'];
     const next = (input.status || '').trim().toLowerCase();
     if (!allowed.includes(next)) {
       throw new Error(
@@ -247,7 +249,7 @@ export class WorkOrderShiftsWriteService {
       where: { id: input.shiftId, workOrderId: input.workOrderId },
     });
     if (!shift) return null;
-    shift.status = next;
+    shift.status = next || null;
     await this.shiftsRepo.save(shift);
     return shift;
   }
@@ -296,7 +298,8 @@ export class WorkOrderShiftsWriteService {
         date,
         startTime,
         endTime,
-        status: typeof raw.status === 'string' ? raw.status : 'customer_pending',
+        status: typeof raw.status === 'string' ? raw.status : '',
+        cancelled: raw.cancelled === true,
         createdByUserId: typeof raw.createdByUserId === 'string' ? raw.createdByUserId : null,
         requesterUserId: typeof raw.requesterUserId === 'string' ? raw.requesterUserId : null,
         address: typeof raw.address === 'string' ? raw.address : null,

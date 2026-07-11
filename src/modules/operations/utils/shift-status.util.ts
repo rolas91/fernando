@@ -180,7 +180,7 @@ function isAwaitingResponse(
 
 export interface ShiftComputedStatus {
   /** The final status value, either manual or automatic. */
-  status: ShiftStatusValue;
+  status: ShiftStatusValue | null;
   /** True if the status is automatic (derived). */
   automatic: boolean;
   /** Reason / explanation, useful for debugging or UI tooltips. */
@@ -212,6 +212,10 @@ export function computeShiftStatus(
   const { workOrderId, shift, completion, workOrderCancelled } = input;
   const shiftId =
     typeof shift.id === 'string' ? shift.id.trim() : '';
+  const manualStatus = typeof shift.status === 'string'
+    ? shift.status.trim().toLowerCase()
+    : '';
+  const automaticLifecycleEnabled = manualStatus === 'ready_to_notify';
 
   // 1. Work-order cancellation wins over everything.
   if (workOrderCancelled) {
@@ -232,7 +236,11 @@ export function computeShiftStatus(
   }
 
   // 3. Completion (form submissions).
-  if (shiftId && completion.isShiftCompleted(workOrderId, shiftId)) {
+  if (
+    automaticLifecycleEnabled &&
+    shiftId &&
+    completion.isShiftCompleted(workOrderId, shiftId)
+  ) {
     return {
       status: 'shift_completed',
       automatic: true,
@@ -258,7 +266,7 @@ export function computeShiftStatus(
     }
   }
 
-  if (totalAssigned > 0 && totalConfirmed === totalAssigned) {
+  if (automaticLifecycleEnabled && totalAssigned > 0 && totalConfirmed === totalAssigned) {
     return {
       status: 'workers_confirmed',
       automatic: true,
@@ -266,7 +274,7 @@ export function computeShiftStatus(
     };
   }
 
-  if (totalAwaiting > 0) {
+  if (automaticLifecycleEnabled && totalAwaiting > 0) {
     return {
       status: 'awaiting_response',
       automatic: true,
@@ -275,13 +283,9 @@ export function computeShiftStatus(
   }
 
   // 6. Fall back to manual status.
-  const raw =
-    typeof shift.status === 'string' ? shift.status.trim().toLowerCase() : '';
-  const fallback: ManualShiftStatus = (
-    raw === 'dispatch_pending' || raw === 'ready_to_notify'
-  )
-    ? (raw as ManualShiftStatus)
-    : 'customer_pending';
+  const fallback = MANUAL_SHIFT_STATUSES.includes(manualStatus as ManualShiftStatus)
+    ? (manualStatus as ManualShiftStatus)
+    : null;
   return { status: fallback, automatic: false };
 }
 

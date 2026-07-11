@@ -226,6 +226,62 @@ export class WorkOrderShiftsWriteService {
     });
   }
 
+  /**
+   * Update the user-pickable manual status of a single shift
+   * (`customer_pending` | `dispatch_pending` | `ready_to_notify`).
+   * Returns the updated row, or null if the shift does not exist.
+   */
+  async setShiftManualStatus(input: {
+    workOrderId: string;
+    shiftId: string;
+    status: string;
+  }): Promise<WorkOrderShift | null> {
+    const allowed = ['customer_pending', 'dispatch_pending', 'ready_to_notify'];
+    const next = (input.status || '').trim().toLowerCase();
+    if (!allowed.includes(next)) {
+      throw new Error(
+        `Invalid manual shift status '${input.status}'. Allowed: ${allowed.join(', ')}`,
+      );
+    }
+    const shift = await this.shiftsRepo.findOne({
+      where: { id: input.shiftId, workOrderId: input.workOrderId },
+    });
+    if (!shift) return null;
+    shift.status = next;
+    await this.shiftsRepo.save(shift);
+    return shift;
+  }
+
+  /**
+   * Mark a shift as manually cancelled (sets `cancelled = true`).
+   * Reversible: calling `restoreShift` flips the flag back to false.
+   */
+  async cancelShift(input: {
+    workOrderId: string;
+    shiftId: string;
+  }): Promise<WorkOrderShift | null> {
+    const shift = await this.shiftsRepo.findOne({
+      where: { id: input.shiftId, workOrderId: input.workOrderId },
+    });
+    if (!shift) return null;
+    shift.cancelled = true;
+    await this.shiftsRepo.save(shift);
+    return shift;
+  }
+
+  async restoreShift(input: {
+    workOrderId: string;
+    shiftId: string;
+  }): Promise<WorkOrderShift | null> {
+    const shift = await this.shiftsRepo.findOne({
+      where: { id: input.shiftId, workOrderId: input.workOrderId },
+    });
+    if (!shift) return null;
+    shift.cancelled = false;
+    await this.shiftsRepo.save(shift);
+    return shift;
+  }
+
   /** Build the ShiftWriteInput[] payload from a JSON array (for legacy fallbacks). */
   static fromJson(workOrderId: string, json: unknown): ShiftWriteInput[] {
     if (!Array.isArray(json)) return [];

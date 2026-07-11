@@ -56,6 +56,7 @@ import { NumberingController } from './controllers/numbering.controller';
 import { ProjectsController } from './controllers/projects.controller';
 import { ProjectTypesController } from './controllers/project-types.controller';
 import { ShiftsController } from './controllers/shifts.controller';
+import { ShiftStatusController } from './controllers/shift-status.controller';
 import { ShiftChatController } from './controllers/shift-chat.controller';
 import { SkillsController } from './controllers/skills.controller';
 import { StatusCatalogController } from './controllers/status-catalog.controller';
@@ -82,6 +83,7 @@ import { ProjectsService } from './services/projects.service';
 import { ProjectTypesService } from './services/project-types.service';
 import { ShiftsQueryService } from './services/shifts-query.service';
 import { ShiftsService } from './services/shifts.service';
+import { ShiftStatusService } from './services/shift-status.service';
 import { ShiftChatService } from './services/shift-chat.service';
 import { SkillsService } from './services/skills.service';
 import { StatusCatalogService } from './services/status-catalog.service';
@@ -147,6 +149,7 @@ import { PagedListsController } from './controllers/paged-lists.controller';
     WorkersController,
     WorkerRolesController,
     ShiftsController,
+    ShiftStatusController,
     ShiftChatController,
     SkillsController,
     StatusCatalogController,
@@ -176,6 +179,7 @@ import { PagedListsController } from './controllers/paged-lists.controller';
     WorkerRolesService,
     CertificationsService,
     ShiftsService,
+    ShiftStatusService,
     ShiftChatService,
     SkillsService,
     StatusCatalogService,
@@ -209,6 +213,7 @@ import { PagedListsController } from './controllers/paged-lists.controller';
     WorkerRolesService,
     CertificationsService,
     ShiftsService,
+    ShiftStatusService,
     ShiftChatService,
     SkillsService,
     StatusCatalogService,

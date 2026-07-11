@@ -34,6 +34,13 @@ export class WorkOrderShift {
   @Column({ type: 'varchar', length: 64, default: 'customer_pending' })
   status: string;
 
+  /**
+   * Manual cancellation flag. When true, the shift computes to the automatic
+   * `shift_cancelled` status regardless of `status` or confirmations.
+   */
+  @Column({ type: 'boolean', default: false })
+  cancelled: boolean;
+
   @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })
   createdByUserId: string | null;
 

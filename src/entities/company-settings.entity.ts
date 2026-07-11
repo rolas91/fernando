@@ -44,9 +44,10 @@ export class CompanySettings {
   @Column({ name: 'job_statuses', type: 'text', array: true, default: '{}' })
   jobStatuses: string[];
 
-  /** Optional JSON thresholds for automatic work order (assignment) status. */
-  @Column({ name: 'assignment_auto_status', type: 'jsonb', nullable: true })
-  assignmentAutoStatus: Record<string, unknown> | null;
+  /*
+   * Retired: assignment_auto_status remains as an unused database column so
+   * existing installations do not require a destructive migration.
+   */
 
   @Column({ name: 'minimum_rest_hours', type: 'numeric', precision: 4, scale: 1, default: 8.0 })
   minimumRestHours: number;

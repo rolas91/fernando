@@ -8,7 +8,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
 import { Client } from '../../../entities/client.entity';
-import { CompanySettings } from '../../../entities/company-settings.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
@@ -21,11 +20,6 @@ import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateWorkOrderDto } from '../dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from '../dto/update-work-order.dto';
 import { BulkCreateShiftsDto } from '../dto/bulk-create-shifts.dto';
-import {
-  computeAssignmentStatus,
-  parseAssignmentAutoStatusRules,
-  type ComputeAssignmentStatusInput,
-} from '../utils/assignment-auto-status.util';
 import {
   assertAssignmentWithinProjectDates,
   assertShiftsWithinAssignmentDateRange,
@@ -46,17 +40,8 @@ import { SpacesStorageService } from './spaces-storage.service';
 import { NumberingService } from './numbering.service';
 import type { UserAccessContext } from '../../access/ports/access.port';
 
-type MobileAssignmentStatusFilter =
-  | 'all'
-  | 'active'
-  | 'pending'
-  | 'at_risk'
-  | 'critical'
-  | 'completed';
-
 type MobileAssignmentQuery = {
   search?: string;
-  status?: MobileAssignmentStatusFilter | string;
 };
 
 type MobileShiftCompletion = {
@@ -124,8 +109,6 @@ export class WorkOrdersService {
     private readonly formTemplatesRepo: Repository<FormTemplate>,
     @InjectRepository(Worker)
     private readonly workerRepo: Repository<Worker>,
-    @InjectRepository(CompanySettings)
-    private readonly companySettingsRepo: Repository<CompanySettings>,
     @InjectRepository(ShiftCatalog)
     private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
     private readonly realtime: RealtimeGateway,
@@ -138,8 +121,7 @@ export class WorkOrdersService {
   async findAll() {
     const rows = await this.workOrdersRepo.find({ order: { startDate: 'ASC' } });
     const withShifts = await this.mergeShiftsWithRelational(rows);
-    const refreshed = await this.refreshAutoAssignmentStatuses(withShifts);
-    return refreshed;
+    return withShifts;
   }
 
   /** Dedicated read contract for the Shifts module. */
@@ -182,13 +164,10 @@ export class WorkOrdersService {
   ) {
     const worker = await this.resolveWorkerForMobileUser(actor);
     const search = (query.search || '').trim().toLowerCase();
-    const status = (query.status || 'active').trim().toLowerCase();
-    const assignments = await this.refreshAutoAssignmentStatuses(
-      await this.mergeShiftsWithRelational(
-        await this.workOrdersRepo.find({
-          order: { createdAt: 'DESC', startDate: 'DESC', id: 'DESC' },
-        }),
-      ),
+    const assignments = await this.mergeShiftsWithRelational(
+      await this.workOrdersRepo.find({
+        order: { createdAt: 'DESC', startDate: 'DESC', id: 'DESC' },
+      }),
     );
     const assigned = assignments.filter((wo) =>
       this.workOrderHasAssignedWorker(wo, worker.id),
@@ -209,7 +188,6 @@ export class WorkOrdersService {
     const quickAccessMaps = await this.loadMobileQuickAccessMaps(assigned);
 
     return assigned
-      .filter((wo) => this.mobileStatusMatches(wo.status, status))
       .filter((wo) => {
         if (!search) return true;
         const project = projectById.get(wo.projectId);
@@ -491,18 +469,6 @@ export class WorkOrdersService {
     });
   }
 
-  private mobileStatusMatches(rawStatus: string, filter: string) {
-    const status = (rawStatus || '').trim().toLowerCase().replace(/\s+/g, '_');
-    if (!filter || filter === 'all') return !['cancelled', 'closed'].includes(status);
-    if (!filter || filter === 'active') {
-      return !['completed', 'cancelled', 'closed'].includes(status);
-    }
-    if (filter === 'completed') {
-      return status === 'completed' || status === 'closed' || status === 'approved';
-    }
-    return status === filter;
-  }
-
   private async resolveMobileShiftCompletion(
     workOrders: WorkOrder[],
   ): Promise<MobileShiftCompletion> {
@@ -754,7 +720,6 @@ export class WorkOrdersService {
       id: workOrder.id,
       orderNumber: workOrder.orderNumber || workOrder.id,
       title: workOrder.title,
-      status: workOrder.status,
       startDate: workOrder.startDate,
       endDate: workOrder.endDate,
       projectId: workOrder.projectId,
@@ -1099,13 +1064,11 @@ export class WorkOrdersService {
     const shifts = normalizeWorkOrderShifts(dto.shifts);
     assertShiftsWithinAssignmentDateRange(dto.startDate, dto.endDate, shifts);
     await this.assertAssignedWorkersMeetRoleCertifications(shifts);
-    const { status: dtoStatusLane, ...dtoWithoutDeclaredStatus } = dto;
     const orderNumber = (dto.orderNumber?.trim())
       || (await this.numbering.nextWorkOrderNumber());
     const entity = this.workOrdersRepo.create({
-      ...dtoWithoutDeclaredStatus,
+      ...dto,
       orderNumber,
-      status: 'pending',
       shifts,
       dispatchNote: dto.dispatchNote?.trim() || '',
       fileUploads: this.normalizeTextArray(dto.fileUploads),
@@ -1128,8 +1091,6 @@ export class WorkOrdersService {
         (dto.assignmentCountry ?? '').trim() || 'USA';
     }
 
-    await this.applyAutoAssignmentStatus(entity, undefined, dtoStatusLane);
-
     return this.workOrdersRepo.save(entity).then(async (saved) => {
       this.realtime.emitTableUpdated('work_orders');
       await this.shiftsWrite.replaceShiftsForWorkOrder(
@@ -1143,8 +1104,6 @@ export class WorkOrdersService {
 
   async update(id: string, dto: UpdateWorkOrderDto) {
     const workOrder = await this.findOne(id);
-    const previousStatus = workOrder.status;
-
     /** Must be captured before Object.assign: dto replaces entity.shifts, and normalize needs true DB-merge baseline. */
     const previousShiftsSnapshot: Record<string, unknown>[] =
       dto.shifts !== undefined
@@ -1153,8 +1112,7 @@ export class WorkOrdersService {
           ) as Record<string, unknown>[])
         : [];
 
-    const { status: dtoStatusLane, ...dtoRest } = dto;
-    Object.assign(workOrder, dtoRest);
+    Object.assign(workOrder, dto);
     if (dto.shifts !== undefined) {
       workOrder.shifts = normalizeWorkOrderShifts(
         dto.shifts,
@@ -1202,12 +1160,6 @@ export class WorkOrdersService {
       workOrder.assignmentCountry =
         (dto.assignmentCountry ?? '').trim() || 'USA';
     }
-
-    await this.applyAutoAssignmentStatus(
-      workOrder,
-      previousStatus,
-      dtoStatusLane,
-    );
 
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
@@ -1497,94 +1449,6 @@ export class WorkOrdersService {
     );
   }
 
-  private buildSchedulingSnapshot(
-    current: WorkOrder,
-    allRows: WorkOrder[],
-  ): ComputeAssignmentStatusInput['allWorkOrdersForScheduling'] {
-    const hasCurrent = allRows.some((w) => w.id === current.id);
-    const base = hasCurrent ? allRows : [...allRows, current];
-    return base.map((w) =>
-      w.id === current.id
-        ? {
-            id: current.id,
-            status: current.status,
-            shifts: current.shifts as Record<string, unknown>[],
-          }
-        : {
-            id: w.id,
-            status: w.status,
-            shifts: w.shifts as Record<string, unknown>[],
-          },
-    );
-  }
-
-  private async applyAutoAssignmentStatus(
-    entity: WorkOrder,
-    previousStatus: string | undefined,
-    dtoStatusLane: string | undefined,
-  ) {
-    try {
-      const [allRows, equipmentRows, workerRows, settingsRow] =
-        await Promise.all([
-          this.workOrdersRepo.find(),
-          this.equipmentRepo.find(),
-          this.workerRepo.find({
-            relations: { workerCertifications: true },
-          }),
-          this.companySettingsRepo.find({
-            order: { updatedAt: 'DESC' },
-            take: 1,
-          }),
-        ]);
-
-      const rules = parseAssignmentAutoStatusRules(
-        settingsRow[0]?.assignmentAutoStatus ?? null,
-      );
-      const equipmentStatusById = new Map(
-        equipmentRows.map((e) => [e.id, e.status]),
-      );
-      const workerCertExpiryDates = new Map<
-        string,
-        (string | null | undefined)[]
-      >();
-      for (const w of workerRows) {
-        workerCertExpiryDates.set(
-          w.id,
-          (w.workerCertifications ?? []).map((wc) => wc.expirationDate),
-        );
-      }
-
-      const allForScheduling = this.buildSchedulingSnapshot(entity, allRows);
-      const completedWorkOrderShiftKeys =
-        await this.resolveCompletedMobileShiftKeys(
-          allRows.some((row) => row.id === entity.id) ? allRows : [...allRows, entity],
-        );
-
-      const { status } = computeAssignmentStatus({
-        workOrderId: entity.id,
-        previousStatus,
-        dtoStatus: dtoStatusLane,
-        startDate: entity.startDate,
-        endDate: entity.endDate,
-        shifts: entity.shifts as Record<string, unknown>[],
-        allWorkOrdersForScheduling: allForScheduling,
-        equipmentStatusById,
-        workerCertExpiryDates,
-        completedWorkOrderShiftKeys,
-        rules,
-        now: new Date(),
-      });
-      entity.status = status;
-    } catch (err) {
-      this.logger.warn(
-        `Auto assignment status failed for ${entity.id}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      entity.status = 'pending';
-    }
-  }
-
   /**
    * Reads shifts from the relational tables for the given work orders and
    * overwrites each row's `shifts` with the result. Work orders with no
@@ -1622,82 +1486,6 @@ export class WorkOrdersService {
   private async refreshShifts<T extends WorkOrder>(row: T): Promise<T> {
     const [refreshed] = await this.mergeShiftsWithRelational([row]);
     return refreshed;
-  }
-
-  private async refreshAutoAssignmentStatuses(rows: WorkOrder[]) {
-    if (rows.length === 0) return rows;
-
-    try {
-      const [equipmentRows, workerRows, settingsRow] = await Promise.all([
-        this.equipmentRepo.find(),
-        this.workerRepo.find({
-          relations: { workerCertifications: true },
-        }),
-        this.companySettingsRepo.find({
-          order: { updatedAt: 'DESC' },
-          take: 1,
-        }),
-      ]);
-
-      const rules = parseAssignmentAutoStatusRules(
-        settingsRow[0]?.assignmentAutoStatus ?? null,
-      );
-      const equipmentStatusById = new Map(
-        equipmentRows.map((e) => [e.id, e.status]),
-      );
-      const workerCertExpiryDates = new Map<
-        string,
-        (string | null | undefined)[]
-      >();
-      for (const w of workerRows) {
-        workerCertExpiryDates.set(
-          w.id,
-          (w.workerCertifications ?? []).map((wc) => wc.expirationDate),
-        );
-      }
-      const completedWorkOrderShiftKeys =
-        await this.resolveCompletedMobileShiftKeys(rows);
-
-      const changed: WorkOrder[] = [];
-      for (const row of rows) {
-        const previousStatus = row.status;
-        const { status } = computeAssignmentStatus({
-          workOrderId: row.id,
-          previousStatus,
-          dtoStatus: undefined,
-          startDate: row.startDate,
-          endDate: row.endDate,
-          shifts: row.shifts as Record<string, unknown>[],
-          allWorkOrdersForScheduling: this.buildSchedulingSnapshot(row, rows),
-          equipmentStatusById,
-          workerCertExpiryDates,
-          completedWorkOrderShiftKeys,
-          rules,
-          now: new Date(),
-        });
-
-        if (status !== previousStatus) {
-          row.status = status;
-          changed.push(row);
-        }
-      }
-
-      if (changed.length > 0) {
-        await this.workOrdersRepo.save(changed);
-        this.realtime.emitTableUpdated('work_orders');
-        this.logger.log(
-          `Auto assignment statuses refreshed. updated=${changed.length}`,
-        );
-      }
-    } catch (err) {
-      this.logger.warn(
-        `Auto assignment status refresh failed: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
-
-    return rows;
   }
 
   private normalizeTextArray(value: string[] | undefined) {

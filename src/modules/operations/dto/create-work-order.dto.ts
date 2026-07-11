@@ -20,9 +20,6 @@ export class CreateWorkOrderDto {
   @IsString()
   orderNumber?: string;
 
-  @IsString()
-  status: string;
-
   @IsOptional()
   @IsString()
   startDate?: string;

@@ -35,11 +35,6 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
     requiresShift: false,
   },
   {
-    path: 'workOrder.status',
-    description: 'Assignment status',
-    requiresShift: false,
-  },
-  {
     path: 'workOrder.startDate',
     description: 'Assignment start date',
     requiresShift: false,

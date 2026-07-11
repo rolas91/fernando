@@ -521,8 +521,6 @@ export class FormContextResolutionService {
           return wo.title ?? '';
         case 'orderNumber':
           return wo.orderNumber ?? '';
-        case 'status':
-          return wo.status ?? '';
         case 'startDate':
           return wo.startDate ?? '';
         case 'endDate':

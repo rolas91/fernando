@@ -63,20 +63,12 @@ export class WorkOrdersController {
     type: String,
     description: 'Optional text to filter assignments.',
   })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: ['all', 'active', 'pending', 'at_risk', 'critical', 'completed'],
-    description: 'Optional assignment status filter. Defaults to active.',
-  })
   findMobileAssignments(
     @Req() req: ReqWithOpsUser,
     @Query('search') search?: string,
-    @Query('status') status?: string,
   ) {
     return this.workOrdersService.findMobileAssignmentsForUser(req.user, {
       search,
-      status,
     });
   }
 

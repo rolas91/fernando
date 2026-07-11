@@ -48,10 +48,6 @@ export class CreateCompanySettingsDto {
   jobStatuses?: string[];
 
   @IsOptional()
-  @IsObject()
-  assignmentAutoStatus?: Record<string, unknown>;
-
-  @IsOptional()
   @IsNumber()
   minimumRestHours?: number;
 

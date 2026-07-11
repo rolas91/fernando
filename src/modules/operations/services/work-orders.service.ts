@@ -1069,6 +1069,9 @@ export class WorkOrdersService {
     const entity = this.workOrdersRepo.create({
       ...dto,
       orderNumber,
+      // Legacy NOT NULL column kept only for compatibility with databases
+      // created before assignment statuses were retired.
+      status: '',
       shifts,
       dispatchNote: dto.dispatchNote?.trim() || '',
       fileUploads: this.normalizeTextArray(dto.fileUploads),

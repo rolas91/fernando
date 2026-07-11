@@ -144,7 +144,36 @@ export class WorkOrdersService {
 
   /** Dedicated read contract for the Shifts module. */
   async findShiftOverview() {
-    return this.findAll();
+    const workOrders = await this.findAll();
+    const shiftTimestamp = (shift: Record<string, unknown>) =>
+      `${typeof shift.date === 'string' ? shift.date : ''}T${typeof shift.startTime === 'string' ? shift.startTime : '00:00'}`;
+    const latestShiftTimestamp = (workOrder: WorkOrder) => {
+      const shifts = Array.isArray(workOrder.shifts)
+        ? (workOrder.shifts as Record<string, unknown>[])
+        : [];
+      return shifts.reduce(
+        (latest, shift) => {
+          const value = shiftTimestamp(shift);
+          return value > latest ? value : latest;
+        },
+        '',
+      );
+    };
+
+    return workOrders
+      .map((workOrder) => {
+        const shifts = Array.isArray(workOrder.shifts)
+          ? [...(workOrder.shifts as Record<string, unknown>[])]
+          : [];
+        shifts.sort((a, b) => shiftTimestamp(b).localeCompare(shiftTimestamp(a)));
+        workOrder.shifts = shifts;
+        return workOrder;
+      })
+      .sort((a, b) => {
+        const byLatestShift = latestShiftTimestamp(b).localeCompare(latestShiftTimestamp(a));
+        if (byLatestShift !== 0) return byLatestShift;
+        return String(b.startDate || '').localeCompare(String(a.startDate || ''));
+      });
   }
 
   async findMobileAssignmentsForUser(

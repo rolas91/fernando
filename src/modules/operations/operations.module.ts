@@ -96,6 +96,7 @@ import { OperationsAuthGuard } from './operations-auth.guard';
 import { SpacesStorageService } from './services/spaces-storage.service';
 import { ShiftChatGateway } from './gateways/shift-chat.gateway';
 import { CatalogImportModule } from './import/catalog-import.module';
+import { PagedListsController } from './controllers/paged-lists.controller';
 
 @Module({
   imports: [
@@ -142,6 +143,7 @@ import { CatalogImportModule } from './import/catalog-import.module';
     ]),
   ],
   controllers: [
+    PagedListsController,
     WorkersController,
     WorkerRolesController,
     ShiftsController,

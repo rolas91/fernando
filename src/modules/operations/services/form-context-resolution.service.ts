@@ -595,6 +595,8 @@ export class FormContextResolutionService {
           return typeof s.startTime === 'string' ? s.startTime : null;
         case 'endTime':
           return typeof s.endTime === 'string' ? s.endTime : null;
+        case 'address':
+          return typeof s.address === 'string' ? s.address : null;
         case 'workerNames': {
           const ids = collectRoleIds(s, 'assignedWorkers');
           return joinLabels(ids, ctx.workerLabelById, '');

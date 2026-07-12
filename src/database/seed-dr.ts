@@ -976,7 +976,7 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
     label: 'Location',
     type: 'text',
     required: true,
-    dataBinding: { path: 'workOrder.assignmentAddress', optional: true },
+    dataBinding: { path: 'shift.address', optional: true },
     ui: {
       section: 'Incident Details',
       layout: 'full',

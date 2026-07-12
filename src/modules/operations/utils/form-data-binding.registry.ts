@@ -186,6 +186,11 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
     requiresShift: true,
   },
   {
+    path: 'shift.address',
+    description: 'Address assigned specifically to the shift',
+    requiresShift: true,
+  },
+  {
     path: 'shift.workerNames',
     description: 'Worker names assigned to the shift across all roles, comma-separated',
     requiresShift: true,

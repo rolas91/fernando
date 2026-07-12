@@ -12,6 +12,7 @@ import {
   ShiftAggregateCounters,
   ShiftStatusValue,
   ShiftCompletionLookup,
+  ALL_SHIFT_STATUSES,
 } from '../utils/shift-status.util';
 
 export interface ShiftCatalogItem {
@@ -49,7 +50,9 @@ export class ShiftStatusService {
       where: { scope: 'shift', status: 'active' },
       order: { sortOrder: 'ASC' },
     });
-    return rows.map((r) => ({
+    return rows
+      .filter((r) => ALL_SHIFT_STATUSES.includes(r.value as ShiftStatusValue))
+      .map((r) => ({
       value: r.value as ShiftStatusValue,
       name: r.name,
       color: r.color,
@@ -58,7 +61,7 @@ export class ShiftStatusService {
       blocksEditing: r.blocksEditing,
       triggersNotification: r.triggersNotification,
       requiresApproval: r.requiresApproval,
-    }));
+      }));
   }
 
   /**

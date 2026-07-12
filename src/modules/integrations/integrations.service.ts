@@ -184,6 +184,42 @@ export class IntegrationsService {
     return result;
   }
 
+  async notifyShiftCancellation(workOrderId: string, shiftId: string) {
+    const workOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+    if (!workOrder) return { attempted: 0, sent: 0 };
+
+    const shifts = await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId);
+    const shift = (shifts || []).find((item: any) => item.id === shiftId) as any;
+    if (!shift) return { attempted: 0, sent: 0 };
+
+    const workersById = new Map<string, { startTime: string }>();
+    for (const role of shift.roles || []) {
+      const startTime = role.startTime || shift.defaultRoleStartTime || shift.startTime;
+      for (const workerId of role.assignedWorkers || []) {
+        if (!workersById.has(workerId)) workersById.set(workerId, { startTime });
+      }
+    }
+
+    let sent = 0;
+    for (const [workerId, details] of workersById) {
+      const worker = await this.workersRepo.findOne({ where: { id: workerId } });
+      if (!worker) continue;
+      const message = `Shift Cancelled\n\nYour scheduled shift for ${workOrder.title} on ${shift.date} at ${details.startTime} has been cancelled.\n\nYou are no longer assigned to this shift. If you have any questions, please contact dispatch`;
+      const result = await this.sendNotification(
+        {
+          action: 'send_in_app',
+          email: worker.email,
+          workerName: `${worker.firstName} ${worker.lastName}`,
+          message,
+        },
+        '',
+      );
+      if (result.success) sent += 1;
+    }
+
+    return { attempted: workersById.size, sent };
+  }
+
   async sendChatPushNotification(params: {
     workerId: string;
     title: string;

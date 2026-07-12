@@ -13,6 +13,7 @@ import { OperationsAuthGuard } from '../operations-auth.guard';
 import { ShiftStatusService } from '../services/shift-status.service';
 import { WorkOrderShiftsWriteService } from '../services/work-order-shifts-write.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
+import { IntegrationsService } from '../../integrations/integrations.service';
 
 @ApiTags('operations')
 @Controller('work-orders/shifts')
@@ -22,6 +23,7 @@ export class ShiftStatusController {
     private readonly shiftStatus: ShiftStatusService,
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly realtime: RealtimeGateway,
+    private readonly integrations: IntegrationsService,
   ) {}
 
   /**
@@ -87,8 +89,11 @@ export class ShiftStatusController {
     @Param('shiftId') shiftId: string,
   ) {
     const updated = await this.shiftsWrite.cancelShift({ workOrderId, shiftId });
+    const notifications = updated
+      ? await this.integrations.notifyShiftCancellation(workOrderId, shiftId)
+      : { attempted: 0, sent: 0 };
     this.realtime.emitTableUpdated('work_orders');
-    return updated;
+    return { shift: updated, notifications };
   }
 
   /**

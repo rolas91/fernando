@@ -841,7 +841,7 @@ export class WorkOrdersService {
         ? shift.visibleDocumentTypes.filter((item): item is string => typeof item === 'string')
         : [];
       selected.forEach((item) => visibleDocumentTypes.add(item));
-      if (selected.includes('Other Notes') && typeof shift.notes === 'string' && shift.notes.trim()) {
+      if (typeof shift.notes === 'string' && shift.notes.trim()) {
         visibleShiftNotes.push({ id: `shift_note_${shiftId}`, title: 'Shift Notes', body: shift.notes.trim() });
       }
     }
@@ -903,14 +903,12 @@ export class WorkOrdersService {
     ];
     const notes = [
       ...visibleShiftNotes,
-      ...(visibleDocumentTypes.has('Other Notes') ? [
       workOrder.dispatchNote?.trim()
         ? { id: 'dispatchNote', title: 'Dispatch Note', body: workOrder.dispatchNote.trim() }
         : null,
       workOrder.notes?.trim()
         ? { id: 'notes', title: 'Notes', body: workOrder.notes.trim() }
         : null,
-      ] : []),
     ].filter((item): item is { id: string; title: string; body: string } => Boolean(item));
     const allDocuments = [
       ...(maps?.pdfSubmissionsByWorkOrderId.get(workOrder.id) || []).map((submission, index) => ({
@@ -933,7 +931,7 @@ export class WorkOrdersService {
       })),
     ];
     const documents = allDocuments.filter((document) =>
-      this.mobileDocumentIsVisible(document.title, document.id, visibleDocumentTypes),
+      visibleDocumentTypes.has(document.url),
     );
     const client = project?.clientId?.trim()
       ? maps?.clientById.get(project.clientId) ?? null

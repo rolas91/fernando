@@ -63,12 +63,21 @@ export class WorkOrdersController {
     type: String,
     description: 'Optional text to filter assignments.',
   })
+  @ApiQuery({ name: 'filter', required: false, enum: ['all', 'upcoming', 'this_week', 'completed'] })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   findMobileAssignments(
     @Req() req: ReqWithOpsUser,
     @Query('search') search?: string,
+    @Query('filter') filter?: 'all' | 'upcoming' | 'this_week' | 'completed',
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.workOrdersService.findMobileAssignmentsForUser(req.user, {
       search,
+      filter,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 

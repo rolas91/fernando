@@ -42,6 +42,9 @@ import type { UserAccessContext } from '../../access/ports/access.port';
 
 type MobileAssignmentQuery = {
   search?: string;
+  filter?: 'all' | 'upcoming' | 'this_week' | 'completed';
+  page?: number;
+  limit?: number;
 };
 
 type MobileShiftCompletion = {
@@ -185,9 +188,7 @@ export class WorkOrdersService {
       shiftTemplates.map((shiftTemplate) => [shiftTemplate.id, shiftTemplate]),
     );
     const shiftCompletion = await this.resolveMobileShiftCompletion(assigned);
-    const quickAccessMaps = await this.loadMobileQuickAccessMaps(assigned);
-
-    return assigned
+    const filteredAssignments = assigned
       .filter((wo) => {
         if (!search) return true;
         const project = projectById.get(wo.projectId);
@@ -205,18 +206,89 @@ export class WorkOrdersService {
           .join(' ')
           .toLowerCase();
         return haystack.includes(search);
-      })
-      .map((wo) =>
+      });
+
+    if (query.page && query.page > 0) {
+      const page = Math.max(1, Math.trunc(query.page));
+      const limit = Math.min(100, Math.max(1, Math.trunc(query.limit || 20)));
+      const filter = query.filter || 'all';
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+      const todayKey = today.toISOString().slice(0, 10);
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      const weekStartKey = weekStart.toISOString().slice(0, 10);
+      const weekEndKey = weekEnd.toISOString().slice(0, 10);
+
+      const lightweight = filteredAssignments.map((wo) =>
         this.serializeMobileAssignment(
           wo,
           worker.id,
           projectById.get(wo.projectId),
           shiftCompletion.completedShiftKeys,
           shiftCompletion.completedTemplateIdsByShift,
-          quickAccessMaps,
+          undefined,
           shiftTemplateById,
         ),
       );
+      const rows = lightweight
+        .flatMap((assignment) => assignment.shifts.map((shift) => ({ assignment, shift })))
+        .filter(({ shift }) => {
+          if (filter === 'completed') return Boolean(shift.completed);
+          if (filter === 'upcoming') return !shift.completed && shift.date >= todayKey;
+          if (filter === 'this_week') {
+            return !shift.completed && shift.date >= weekStartKey && shift.date <= weekEndKey;
+          }
+          return true;
+        })
+        .sort((a, b) => a.shift.date.localeCompare(b.shift.date) || a.shift.startTime.localeCompare(b.shift.startTime));
+      const total = rows.length;
+      const pageRows = rows.slice((page - 1) * limit, page * limit);
+      const pageWorkOrderIds = new Set(pageRows.map(({ assignment }) => assignment.id));
+      const pageWorkOrders = filteredAssignments.filter((wo) => pageWorkOrderIds.has(wo.id));
+      const pageQuickAccessMaps = await this.loadMobileQuickAccessMaps(pageWorkOrders);
+      const fullById = new Map(
+        pageWorkOrders.map((wo) => [
+          wo.id,
+          this.serializeMobileAssignment(
+            wo,
+            worker.id,
+            projectById.get(wo.projectId),
+            shiftCompletion.completedShiftKeys,
+            shiftCompletion.completedTemplateIdsByShift,
+            pageQuickAccessMaps,
+            shiftTemplateById,
+          ),
+        ]),
+      );
+      const items = pageRows.map(({ assignment, shift }) => ({
+        ...(fullById.get(assignment.id) ?? assignment),
+        shifts: [shift],
+      }));
+
+      return {
+        items,
+        page,
+        limit,
+        total,
+        hasMore: page * limit < total,
+      };
+    }
+
+    const quickAccessMaps = await this.loadMobileQuickAccessMaps(filteredAssignments);
+    return filteredAssignments.map((wo) =>
+      this.serializeMobileAssignment(
+        wo,
+        worker.id,
+        projectById.get(wo.projectId),
+        shiftCompletion.completedShiftKeys,
+        shiftCompletion.completedTemplateIdsByShift,
+        quickAccessMaps,
+        shiftTemplateById,
+      ),
+    );
   }
 
   async updateMobileShiftConfirmation(
@@ -692,6 +764,14 @@ export class WorkOrdersService {
             (typeof record.endTime === 'string' ? record.endTime : ''),
           roleId: typeof role.id === 'string' ? role.id : '',
           roleName: typeof role.roleName === 'string' ? role.roleName : '',
+          latitude:
+            typeof record.addressLatitude === 'number'
+              ? record.addressLatitude
+              : workOrder.latitude ?? project?.latitude ?? undefined,
+          longitude:
+            typeof record.addressLongitude === 'number'
+              ? record.addressLongitude
+              : workOrder.longitude ?? project?.longitude ?? undefined,
           confirmationStatus:
             confirmation?.status === 'confirmed' || confirmation?.status === 'declined'
               ? confirmation.status

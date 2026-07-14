@@ -800,6 +800,11 @@ export class WorkOrdersService {
             (typeof record.endTime === 'string' ? record.endTime : ''),
           roleId: typeof role.id === 'string' ? role.id : '',
           roleName: typeof role.roleName === 'string' ? role.roleName : '',
+          address: typeof record.address === 'string' ? record.address : '',
+          crossStreetLocationDetail:
+            typeof record.crossStreetLocationDetail === 'string'
+              ? record.crossStreetLocationDetail
+              : '',
           latitude:
             typeof record.addressLatitude === 'number'
               ? record.addressLatitude
@@ -1363,6 +1368,7 @@ export class WorkOrdersService {
         createdByUserId: payload.createdByUserId,
         requesterUserId: payload.requesterUserId,
         address: payload.address,
+        crossStreetLocationDetail: payload.crossStreetLocationDetail,
         addressLatitude: payload.addressLatitude,
         addressLongitude: payload.addressLongitude,
         addressCity: payload.addressCity,

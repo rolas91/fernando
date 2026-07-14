@@ -58,6 +58,9 @@ export class WorkOrderShift {
   @Column({ type: 'text', nullable: true })
   address: string | null;
 
+  @Column({ name: 'cross_street_location_detail', type: 'text', nullable: true })
+  crossStreetLocationDetail: string | null;
+
   @Column({ name: 'address_latitude', type: 'double precision', nullable: true })
   addressLatitude: number | null;
   @Column({ name: 'address_longitude', type: 'double precision', nullable: true })

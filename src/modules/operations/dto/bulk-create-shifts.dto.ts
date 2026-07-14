@@ -61,6 +61,7 @@ export class BulkCreateShiftsDto {
   @IsOptional() @IsString() createdByUserId?: string;
   @IsOptional() @IsString() requesterUserId?: string;
   @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() crossStreetLocationDetail?: string;
   @IsOptional() @IsNumber() addressLatitude?: number;
   @IsOptional() @IsNumber() addressLongitude?: number;
   @IsOptional() @IsString() addressCity?: string;

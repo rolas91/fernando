@@ -20,6 +20,7 @@ export type ShiftWriteInput = {
   createdByUserId?: string | null;
   requesterUserId?: string | null;
   address?: string | null;
+  crossStreetLocationDetail?: string | null;
   addressLatitude?: number | null; addressLongitude?: number | null;
   addressCity?: string | null; addressState?: string | null; addressZipCode?: string | null; addressCountry?: string | null;
   requesterName?: string | null;
@@ -103,6 +104,7 @@ export class WorkOrderShiftsWriteService {
         createdByUserId: s.createdByUserId ?? null,
         requesterUserId: s.requesterUserId ?? null,
         address: s.address ?? null,
+        crossStreetLocationDetail: s.crossStreetLocationDetail?.trim() || null,
         addressLatitude: s.addressLatitude ?? null, addressLongitude: s.addressLongitude ?? null,
         addressCity: s.addressCity ?? null, addressState: s.addressState ?? null, addressZipCode: s.addressZipCode ?? null, addressCountry: s.addressCountry ?? null,
         requesterName: s.requesterName ?? null,
@@ -303,6 +305,7 @@ export class WorkOrderShiftsWriteService {
         createdByUserId: typeof raw.createdByUserId === 'string' ? raw.createdByUserId : null,
         requesterUserId: typeof raw.requesterUserId === 'string' ? raw.requesterUserId : null,
         address: typeof raw.address === 'string' ? raw.address : null,
+        crossStreetLocationDetail: typeof raw.crossStreetLocationDetail === 'string' ? raw.crossStreetLocationDetail : null,
         addressLatitude: typeof raw.addressLatitude === 'number' ? raw.addressLatitude : null,
         addressLongitude: typeof raw.addressLongitude === 'number' ? raw.addressLongitude : null,
         addressCity: typeof raw.addressCity === 'string' ? raw.addressCity : null,

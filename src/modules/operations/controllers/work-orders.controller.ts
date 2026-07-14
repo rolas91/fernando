@@ -81,6 +81,14 @@ export class WorkOrdersController {
     });
   }
 
+  @Get('mobile/assignments/:id')
+  findMobileAssignment(
+    @Req() req: ReqWithOpsUser,
+    @Param('id') id: string,
+  ) {
+    return this.workOrdersService.findMobileAssignmentForUser(req.user, id);
+  }
+
   @Patch('mobile/assignments/:id/shifts/:shiftId/confirmation')
   updateMobileShiftConfirmation(
     @Req() req: ReqWithOpsUser,

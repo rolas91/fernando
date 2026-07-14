@@ -291,6 +291,42 @@ export class WorkOrdersService {
     );
   }
 
+  async findMobileAssignmentForUser(
+    actor: UserAccessContext | undefined,
+    workOrderId: string,
+  ) {
+    const worker = await this.resolveWorkerForMobileUser(actor);
+    const rawWorkOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+    if (!rawWorkOrder) throw new NotFoundException('Assignment not found.');
+
+    const [workOrder] = await this.mergeShiftsWithRelational([rawWorkOrder]);
+    if (!workOrder || !this.workOrderHasAssignedWorker(workOrder, worker.id)) {
+      throw new NotFoundException('Assignment not found for this worker.');
+    }
+
+    const [project, shiftTemplates, shiftCompletion, quickAccessMaps] = await Promise.all([
+      workOrder.projectId
+        ? this.projectsRepo.findOne({ where: { id: workOrder.projectId } })
+        : Promise.resolve(null),
+      this.shiftCatalogRepo.find({ where: { status: 'active' } }),
+      this.resolveMobileShiftCompletion([workOrder]),
+      this.loadMobileQuickAccessMaps([workOrder]),
+    ]);
+    const shiftTemplateById = new Map(
+      shiftTemplates.map((shiftTemplate) => [shiftTemplate.id, shiftTemplate]),
+    );
+
+    return this.serializeMobileAssignment(
+      workOrder,
+      worker.id,
+      project ?? undefined,
+      shiftCompletion.completedShiftKeys,
+      shiftCompletion.completedTemplateIdsByShift,
+      quickAccessMaps,
+      shiftTemplateById,
+    );
+  }
+
   async updateMobileShiftConfirmation(
     actor: UserAccessContext | undefined,
     workOrderId: string,

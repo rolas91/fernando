@@ -50,6 +50,7 @@ type MobileAssignmentQuery = {
 type MobileShiftCompletion = {
   completedShiftKeys: Set<string>;
   completedTemplateIdsByShift: Map<string, Set<string>>;
+  completedAtByShift: Map<string, Date>;
 };
 
 export function countsTowardShiftCompletion(
@@ -229,6 +230,7 @@ export class WorkOrdersService {
           projectById.get(wo.projectId),
           shiftCompletion.completedShiftKeys,
           shiftCompletion.completedTemplateIdsByShift,
+          shiftCompletion.completedAtByShift,
           undefined,
           shiftTemplateById,
         ),
@@ -243,7 +245,7 @@ export class WorkOrdersService {
           }
           return true;
         })
-        .sort((a, b) => a.shift.date.localeCompare(b.shift.date) || a.shift.startTime.localeCompare(b.shift.startTime));
+        .sort((a, b) => b.shift.date.localeCompare(a.shift.date) || b.shift.startTime.localeCompare(a.shift.startTime));
       const total = rows.length;
       const pageRows = rows.slice((page - 1) * limit, page * limit);
       const pageWorkOrderIds = new Set(pageRows.map(({ assignment }) => assignment.id));
@@ -258,6 +260,7 @@ export class WorkOrdersService {
             projectById.get(wo.projectId),
             shiftCompletion.completedShiftKeys,
             shiftCompletion.completedTemplateIdsByShift,
+            shiftCompletion.completedAtByShift,
             pageQuickAccessMaps,
             shiftTemplateById,
           ),
@@ -285,6 +288,7 @@ export class WorkOrdersService {
         projectById.get(wo.projectId),
         shiftCompletion.completedShiftKeys,
         shiftCompletion.completedTemplateIdsByShift,
+        shiftCompletion.completedAtByShift,
         quickAccessMaps,
         shiftTemplateById,
       ),
@@ -322,6 +326,7 @@ export class WorkOrdersService {
       project ?? undefined,
       shiftCompletion.completedShiftKeys,
       shiftCompletion.completedTemplateIdsByShift,
+      shiftCompletion.completedAtByShift,
       quickAccessMaps,
       shiftTemplateById,
     );
@@ -585,6 +590,7 @@ export class WorkOrdersService {
       return {
         completedShiftKeys: new Set<string>(),
         completedTemplateIdsByShift: new Map<string, Set<string>>(),
+        completedAtByShift: new Map<string, Date>(),
       };
     }
 
@@ -604,6 +610,7 @@ export class WorkOrdersService {
     );
     const completedShiftKeys = new Set<string>();
     const completedTemplateIdsByShift = new Map<string, Set<string>>();
+    const completedAtByShift = new Map<string, Date>();
     const completedTimesheetWorkersByShift = new Map<string, Set<string>>();
 
     for (const submission of eligibleSubmissions) {
@@ -669,11 +676,19 @@ export class WorkOrdersService {
         const hasEveryRequired = requiredTemplates.every((template) =>
           completedTemplateIds.has(template.id),
         );
-        if (hasEveryRequired) completedShiftKeys.add(`${workOrder.id}:${shiftId}`);
+        if (hasEveryRequired) {
+          completedShiftKeys.add(shiftKey);
+          const completedAt = eligibleSubmissions
+            .filter((submission) => `${submission.workOrderId}:${submission.shiftId}` === shiftKey)
+            .map((submission) => submission.submittedAt ?? submission.updatedAt ?? submission.createdAt)
+            .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
+            .sort((a, b) => b.getTime() - a.getTime())[0];
+          if (completedAt) completedAtByShift.set(shiftKey, completedAt);
+        }
       }
     }
 
-    return { completedShiftKeys, completedTemplateIdsByShift };
+    return { completedShiftKeys, completedTemplateIdsByShift, completedAtByShift };
   }
 
   private async resolveCompletedMobileShiftKeys(workOrders: WorkOrder[]) {
@@ -745,6 +760,7 @@ export class WorkOrdersService {
     project?: Project,
     completedShiftKeys = new Set<string>(),
     completedTemplateIdsByShift = new Map<string, Set<string>>(),
+    completedAtByShift = new Map<string, Date>(),
     quickAccessMaps?: {
       workerById: Map<string, Worker>;
       equipmentById: Map<string, Equipment>;
@@ -820,6 +836,9 @@ export class WorkOrdersService {
           completed: completedShiftKeys.has(
             `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
           ),
+          completedAt: completedAtByShift
+            .get(`${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`)
+            ?.toISOString(),
           completedFormTemplateIds: [
             ...(completedTemplateIdsByShift.get(
               `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
@@ -828,7 +847,7 @@ export class WorkOrdersService {
         };
       })
       .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))
-      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+      .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
     const visibleShiftIds = new Set(workerShifts.map((shift) => shift.id).filter(Boolean));
     const quickAccess = this.buildMobileQuickAccess(
       workOrder,

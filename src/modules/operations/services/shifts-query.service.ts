@@ -128,6 +128,8 @@ export class ShiftsQueryService {
             startTime: role.startTime ?? undefined,
             requiredCertificationIds: [...role.requiredCertificationIds],
             requiredSkillIds: [...role.requiredSkillIds],
+            equipmentTypes: [...(role.equipmentTypes ?? [])],
+            materialTypes: [...(role.materialTypes ?? [])],
             assignedWorkers: workerList.map((w) => w.workerId),
             assignedEquipment: [...(equipmentByRole.get(role.id) ?? [])],
             assignedMaterials: [...(materialByRole.get(role.id) ?? [])],

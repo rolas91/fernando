@@ -387,6 +387,7 @@ export class FormContextResolutionService {
     const workerLabelById = await this.loadWorkerLabels([...workerIds]);
     const equipmentLabelById = await this.loadEquipmentLabels([...equipmentIds]);
     const materialLabelById = await this.loadMaterialLabels([...materialIds]);
+    const resourceRoles = shift ? await this.loadRoleResourceOptions(shift) : [];
 
     const ctx = {
       workOrder,
@@ -453,7 +454,46 @@ export class FormContextResolutionService {
       availablePaths: FORM_DATA_BINDING_PATHS,
       fieldPreviews,
       suggestedData,
+      resourceRoles,
     };
+  }
+
+  private async loadRoleResourceOptions(shift: ShiftLike) {
+    const roles = Array.isArray(shift.roles) ? shift.roles.filter(isRecord) : [];
+    const requestedEquipmentTypes = new Set<string>();
+    const requestedMaterialTypes = new Set<string>();
+    roles.forEach((role) => {
+      (Array.isArray(role.equipmentTypes) ? role.equipmentTypes : []).forEach((type) => {
+        if (typeof type === 'string' && type.trim()) requestedEquipmentTypes.add(type.trim());
+      });
+      (Array.isArray(role.materialTypes) ? role.materialTypes : []).forEach((type) => {
+        if (typeof type === 'string' && type.trim()) requestedMaterialTypes.add(type.trim());
+      });
+    });
+    const [equipment, materials] = await Promise.all([
+      requestedEquipmentTypes.size ? this.equipmentRepo.find() : Promise.resolve([]),
+      requestedMaterialTypes.size ? this.materialRepo.find() : Promise.resolve([]),
+    ]);
+    return roles.map((role) => {
+      const equipmentTypes = (Array.isArray(role.equipmentTypes) ? role.equipmentTypes : [])
+        .filter((type): type is string => typeof type === 'string' && Boolean(type.trim()))
+        .map((type) => type.trim());
+      const materialTypes = (Array.isArray(role.materialTypes) ? role.materialTypes : [])
+        .filter((type): type is string => typeof type === 'string' && Boolean(type.trim()))
+        .map((type) => type.trim());
+      return {
+        roleId: String(role.id ?? ''),
+        roleName: String(role.roleName ?? 'Role'),
+        equipmentTypes,
+        materialTypes,
+        equipment: equipment
+          .filter((item) => equipmentTypes.includes(item.type) && item.status !== 'retired')
+          .map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
+        materials: materials
+          .filter((item) => materialTypes.includes(item.type) && item.status !== 'retired')
+          .map((item) => ({ id: item.id, type: item.type, label: formatMaterial(item) })),
+      };
+    }).filter((role) => role.equipmentTypes.length > 0 || role.materialTypes.length > 0);
   }
 
   private async loadWorkerLabels(ids: string[]): Promise<Map<string, string>> {

@@ -48,6 +48,22 @@ export class WorkOrderShiftRole {
   })
   requiredSkillIds: string[];
 
+  @Column({
+    name: 'equipment_types',
+    type: 'text',
+    array: true,
+    default: '{}',
+  })
+  equipmentTypes: string[];
+
+  @Column({
+    name: 'material_types',
+    type: 'text',
+    array: true,
+    default: '{}',
+  })
+  materialTypes: string[];
+
   @ManyToOne(() => WorkOrderShift, (shift) => shift.roles, {
     onDelete: 'CASCADE',
   })

@@ -35,6 +35,8 @@ export type ShiftWriteInput = {
     startTime?: string | null;
     requiredCertificationIds?: string[];
     requiredSkillIds?: string[];
+    equipmentTypes?: string[];
+    materialTypes?: string[];
     assignedWorkers: Array<{ workerId: string; status?: ShiftWorkerConfirmationStatus; respondedAt?: string | null; requestedAt?: string | null; notificationChannel?: string | null }>;
     equipmentIds: string[];
     materialIds: string[];
@@ -129,6 +131,8 @@ export class WorkOrderShiftsWriteService {
             startTime: r.startTime ?? null,
             requiredCertificationIds: [...(r.requiredCertificationIds ?? [])],
             requiredSkillIds: [...(r.requiredSkillIds ?? [])],
+            equipmentTypes: [...(r.equipmentTypes ?? [])],
+            materialTypes: [...(r.materialTypes ?? [])],
           });
           for (const w of r.assignedWorkers) {
             workerRows.push({
@@ -333,6 +337,12 @@ export class WorkOrderShiftsWriteService {
           const materialIds = Array.isArray(rawRole.assignedMaterials)
             ? (rawRole.assignedMaterials as string[])
             : [];
+          const equipmentTypes = Array.isArray(rawRole.equipmentTypes)
+            ? (rawRole.equipmentTypes as string[])
+            : [];
+          const materialTypes = Array.isArray(rawRole.materialTypes)
+            ? (rawRole.materialTypes as string[])
+            : [];
           return {
             id: String(rawRole.id ?? '').trim(),
             roleName: String(rawRole.roleName ?? 'Worker'),
@@ -363,6 +373,8 @@ export class WorkOrderShiftsWriteService {
             }),
             equipmentIds,
             materialIds,
+            equipmentTypes,
+            materialTypes,
           };
         }),
       };

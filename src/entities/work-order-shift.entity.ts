@@ -83,6 +83,12 @@ export class WorkOrderShift {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  @Column({ name: 'planned_equipment', type: 'jsonb', default: () => "'[]'::jsonb" })
+  plannedEquipment: Array<{ type: string; estimatedQuantity: number }>;
+
+  @Column({ name: 'planned_materials', type: 'jsonb', default: () => "'[]'::jsonb" })
+  plannedMaterials: Array<{ type: string; estimatedQuantity: number }>;
+
   @Column({
     name: 'default_role_start_time',
     type: 'varchar',

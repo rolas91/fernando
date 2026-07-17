@@ -1361,6 +1361,8 @@ export class WorkOrdersService {
         workOrderId,
         shiftTemplateId: payload.shiftTemplateId || undefined,
         defaultRoleStartTime: payload.defaultRoleStartTime || payload.startTime,
+        plannedEquipment: payload.plannedEquipment ?? [],
+        plannedMaterials: payload.plannedMaterials ?? [],
         date,
         startTime: payload.startTime,
         endTime: payload.endTime,

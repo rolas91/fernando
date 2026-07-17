@@ -227,6 +227,16 @@ function findResourceRows(
   return [];
 }
 
+function findPlannedMaterialUsageRows(data: Record<string, unknown>) {
+  const value = data.roleMaterialUsage;
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (entry): entry is Record<string, unknown> =>
+      typeof entry === 'object' && entry !== null &&
+      typeof (entry as Record<string, unknown>).type === 'string',
+  );
+}
+
 function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {
   const roleNames = [
     ...(Array.isArray(row.roleNames) ? row.roleNames : [row.roleNames]),
@@ -1637,6 +1647,9 @@ export function buildWorkOrderPdf(
     });
     if (material) {
       ops.push(pdfText(fitText(material.description, 34), materialXs[0] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(fitText(material.size || '', 10), materialXs[1] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(fitText(material.quantity || '', 8), materialXs[2] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(fitText(material.price || '', 10), materialXs[3] + 2, top - 8.7, 5.2));
     }
     top -= materialRowHeight;
   }
@@ -2358,6 +2371,10 @@ export class FormSubmissionsService {
         }
       }
     }
+    for (const row of findResourceRows(submission.data ?? {}, 'equipmentId')) {
+      const equipmentId = String(row.equipmentId ?? '').trim();
+      if (equipmentId && !equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
+    }
     if (materialIds.length === 0) {
       for (const row of findResourceRows(submission.data ?? {}, 'materialId')) {
         const materialId = String(row.materialId ?? '').trim();
@@ -2502,7 +2519,7 @@ export class FormSubmissionsService {
     const materialsById = new Map(
       materialRecords.map((material) => [material.id, material]),
     );
-    const materials = materialIds.map((materialId) => {
+    const catalogMaterials = materialIds.map((materialId) => {
       const item = materialsById.get(materialId);
       return {
         identifier: item?.identifier || materialId,
@@ -2514,6 +2531,18 @@ export class FormSubmissionsService {
         price: '',
       };
     });
+    const submittedMaterials = findPlannedMaterialUsageRows(submission.data ?? {}).map((row) => ({
+      identifier: '',
+      description: String(row.type ?? '').trim(),
+      size: '',
+      quantity: String(Math.max(0, Number(row.actualQuantity) || 0)),
+      price: '',
+    }));
+    const submittedMaterialTypes = new Set(submittedMaterials.map((item) => item.description.toLowerCase()));
+    const materials = [
+      ...submittedMaterials,
+      ...catalogMaterials.filter((item) => !submittedMaterialTypes.has(String(item.size || item.description).toLowerCase())),
+    ];
 
     return {
       workOrder,

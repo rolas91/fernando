@@ -81,6 +81,8 @@ export class BulkCreateShiftsDto {
   @IsOptional() @IsString() requesterName?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) visibleDocumentTypes?: string[];
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsArray() plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
+  @IsOptional() @IsArray() plannedMaterials?: Array<{ type: string; estimatedQuantity: number }>;
 
   @IsOptional()
   @IsString()

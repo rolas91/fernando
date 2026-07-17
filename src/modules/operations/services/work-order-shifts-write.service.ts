@@ -26,6 +26,8 @@ export type ShiftWriteInput = {
   requesterName?: string | null;
   visibleDocumentTypes?: string[];
   notes?: string | null;
+  plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
+  plannedMaterials?: Array<{ type: string; estimatedQuantity: number }>;
   defaultRoleStartTime?: string | null;
   shiftTemplateId?: string | null;
   roles: Array<{
@@ -112,6 +114,8 @@ export class WorkOrderShiftsWriteService {
         requesterName: s.requesterName ?? null,
         visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
         notes: s.notes ?? null,
+        plannedEquipment: [...(s.plannedEquipment ?? [])],
+        plannedMaterials: [...(s.plannedMaterials ?? [])],
         defaultRoleStartTime: s.defaultRoleStartTime ?? null,
         shiftTemplateId: s.shiftTemplateId ?? null,
       }));
@@ -319,6 +323,8 @@ export class WorkOrderShiftsWriteService {
         requesterName: typeof raw.requesterName === 'string' ? raw.requesterName : null,
         visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes) ? raw.visibleDocumentTypes as string[] : [],
         notes: typeof raw.notes === 'string' ? raw.notes : null,
+        plannedEquipment: Array.isArray(raw.plannedEquipment) ? raw.plannedEquipment : [],
+        plannedMaterials: Array.isArray(raw.plannedMaterials) ? raw.plannedMaterials : [],
         defaultRoleStartTime:
           typeof raw.defaultRoleStartTime === 'string' ? raw.defaultRoleStartTime : null,
         shiftTemplateId:

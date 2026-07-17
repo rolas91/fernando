@@ -214,7 +214,12 @@ function findResourceRows(
   data: Record<string, unknown>,
   idKey: 'equipmentId' | 'materialId',
 ): Array<Record<string, unknown>> {
-  for (const value of Object.values(data)) {
+  const values: unknown[] = [...Object.values(data)];
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      values.push(...Object.values(value as Record<string, unknown>));
+    }
     if (!Array.isArray(value)) continue;
     const rows = value.filter(
       (entry): entry is Record<string, unknown> =>
@@ -228,13 +233,15 @@ function findResourceRows(
 }
 
 function findPlannedMaterialUsageRows(data: Record<string, unknown>) {
-  const value = data.roleMaterialUsage;
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (entry): entry is Record<string, unknown> =>
-      typeof entry === 'object' && entry !== null &&
-      typeof (entry as Record<string, unknown>).type === 'string',
-  );
+  const direct = data.roleMaterialUsage;
+  const nested = Object.values(data).flatMap((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+    const materials = (value as Record<string, unknown>).materials;
+    return Array.isArray(materials) ? materials : [];
+  });
+  const rows = [...(Array.isArray(direct) ? direct : []), ...nested];
+  return rows.filter((entry): entry is Record<string, unknown> =>
+    typeof entry === 'object' && entry !== null && typeof (entry as Record<string, unknown>).type === 'string');
 }
 
 function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {

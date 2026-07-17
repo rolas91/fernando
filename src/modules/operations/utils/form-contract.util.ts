@@ -19,7 +19,8 @@ type FieldType =
   | 'date'
   | 'textarea'
   | 'time'
-  | 'timesheet';
+  | 'timesheet'
+  | 'resource_usage';
 
 type FieldRules = {
   minLength?: number;
@@ -81,6 +82,7 @@ const SUPPORTED_TYPES: FieldType[] = [
   'textarea',
   'time',
   'timesheet',
+  'resource_usage',
 ];
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -429,6 +431,12 @@ export function validateSubmissionAgainstFields(
           `Field "${field.label}" timesheet entries require workerId`,
         );
       }
+    }
+    if (field.type === 'resource_usage') {
+      assert(isRecord(value), `Field "${field.label}" must contain equipment and materials`);
+      const record = value as Record<string, unknown>;
+      assert(Array.isArray(record.equipment), `Field "${field.label}" equipment must be an array`);
+      assert(Array.isArray(record.materials), `Field "${field.label}" materials must be an array`);
     }
   }
 }

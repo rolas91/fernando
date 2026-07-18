@@ -387,7 +387,7 @@ export class FormContextResolutionService {
     const workerLabelById = await this.loadWorkerLabels([...workerIds]);
     const equipmentLabelById = await this.loadEquipmentLabels([...equipmentIds]);
     const materialLabelById = await this.loadMaterialLabels([...materialIds]);
-    const resourcePlans = shift ? await this.loadPlannedResourceOptions(shift) : { equipment: [], materials: [], additionalEquipment: [], additionalMaterialTypes: [] };
+    const resourcePlans = shift ? await this.loadPlannedResourceOptions(shift) : { equipment: [], materials: [], additionalEquipment: [], additionalMaterials: [], additionalMaterialTypes: [] };
 
     const ctx = {
       workOrder,
@@ -479,6 +479,7 @@ export class FormContextResolutionService {
         items: materials.filter((item) => normalizedType(item.type) === normalizedType(row.type) && item.status !== 'retired').map((item) => ({ id: item.id, type: item.type, label: formatMaterial(item) })),
       })),
       additionalEquipment: equipment.filter((item) => item.status !== 'retired' && ![...requestedEquipmentTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
+      additionalMaterials: materials.filter((item) => item.status !== 'retired' && ![...requestedMaterialTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => ({ id: item.id, type: item.type, label: formatMaterial(item) })),
       additionalMaterialTypes: [...new Set(materials.filter((item) => item.status !== 'retired' && ![...requestedMaterialTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => item.type))].sort(),
     };
   }

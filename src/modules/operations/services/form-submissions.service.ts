@@ -241,7 +241,9 @@ function findPlannedMaterialUsageRows(data: Record<string, unknown>) {
   });
   const rows = [...(Array.isArray(direct) ? direct : []), ...nested];
   return rows.filter((entry): entry is Record<string, unknown> =>
-    typeof entry === 'object' && entry !== null && typeof (entry as Record<string, unknown>).type === 'string');
+    typeof entry === 'object' && entry !== null &&
+    typeof (entry as Record<string, unknown>).type === 'string' &&
+    (entry as Record<string, unknown>).actualQuantity !== undefined);
 }
 
 function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {
@@ -2389,6 +2391,10 @@ export class FormSubmissionsService {
           materialIds.push(materialId);
         }
       }
+    }
+    for (const row of findResourceRows(submission.data ?? {}, 'materialId')) {
+      const materialId = String(row.materialId ?? '').trim();
+      if (materialId && !materialIds.includes(materialId)) materialIds.push(materialId);
     }
 
     const [workerRecords, equipmentRecords, materialRecords, timesheets] =

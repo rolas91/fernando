@@ -833,6 +833,10 @@ export class WorkOrdersService {
             confirmation?.status === 'confirmed' || confirmation?.status === 'declined'
               ? confirmation.status
               : 'pending',
+          confirmationRequested: Boolean(
+            typeof confirmation?.requestedAt === 'string' && confirmation.requestedAt.trim() ||
+            typeof confirmation?.notificationChannel === 'string' && confirmation.notificationChannel.trim()
+          ),
           completed: completedShiftKeys.has(
             `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
           ),

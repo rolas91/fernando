@@ -90,7 +90,7 @@ export class AuthController {
   ) {
     const user = await this.usersService.findById(req.user.id);
     if (!user) {
-      throw new BadRequestException('Usuario no encontrado');
+      throw new BadRequestException('User not found');
     }
 
     const valid = await this.passwordHasher.compare(

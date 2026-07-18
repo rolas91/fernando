@@ -65,12 +65,12 @@ export class AuthService {
   async login(email: string, password: string): Promise<AuthResponse> {
     const user = await this.users.findByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const ok = await this.passwordHasher.compare(password, user.passwordHash);
     if (!ok) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     await this.users.touchLastLogin(user.id, new Date());

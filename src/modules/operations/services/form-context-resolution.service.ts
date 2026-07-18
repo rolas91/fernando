@@ -468,17 +468,18 @@ export class FormContextResolutionService {
       this.materialRepo.find(),
     ]);
     const quantity = (row: Record<string, unknown>) => Math.max(1, Number(row.estimatedQuantity) || 1);
+    const normalizedType = (value: unknown) => String(value ?? '').trim().toLocaleLowerCase();
     return {
       equipment: plannedEquipment.map((row) => ({
         type: String(row.type).trim(), estimatedQuantity: quantity(row),
-        items: equipment.filter((item) => item.type === String(row.type).trim() && item.status !== 'retired').map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
+        items: equipment.filter((item) => normalizedType(item.type) === normalizedType(row.type) && item.status !== 'retired').map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
       })),
       materials: plannedMaterials.map((row) => ({
         type: String(row.type).trim(), estimatedQuantity: quantity(row),
-        items: materials.filter((item) => item.type === String(row.type).trim() && item.status !== 'retired').map((item) => ({ id: item.id, type: item.type, label: formatMaterial(item) })),
+        items: materials.filter((item) => normalizedType(item.type) === normalizedType(row.type) && item.status !== 'retired').map((item) => ({ id: item.id, type: item.type, label: formatMaterial(item) })),
       })),
-      additionalEquipment: equipment.filter((item) => item.status !== 'retired' && !requestedEquipmentTypes.has(item.type)).map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
-      additionalMaterialTypes: [...new Set(materials.filter((item) => item.status !== 'retired' && !requestedMaterialTypes.has(item.type)).map((item) => item.type))].sort(),
+      additionalEquipment: equipment.filter((item) => item.status !== 'retired' && ![...requestedEquipmentTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
+      additionalMaterialTypes: [...new Set(materials.filter((item) => item.status !== 'retired' && ![...requestedMaterialTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => item.type))].sort(),
     };
   }
 

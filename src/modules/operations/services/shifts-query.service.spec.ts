@@ -146,4 +146,34 @@ describe('ShiftsQueryService', () => {
     ]);
     expect(await service.hasRelationalData('wo-1')).toBe(true);
   });
+
+  it('includes planned resources in batch shift reads', async () => {
+    const shiftsRepo = makeRepo();
+    shiftsRepo.find.mockResolvedValue([
+      {
+        id: 's1', workOrderId: 'wo-1', date: '2026-07-18',
+        startTime: '07:00', endTime: '15:00', visibleDocumentTypes: [],
+        plannedEquipment: [{ type: 'Excavator', estimatedQuantity: 2 }],
+        plannedMaterials: [{ type: 'Concrete', estimatedQuantity: 4 }],
+      },
+    ]);
+    const rolesRepo = makeRepo();
+    rolesRepo.createQueryBuilder.mockReturnValue(qb([]));
+    const workersRepo = makeRepo();
+    workersRepo.createQueryBuilder.mockReturnValue(qb([]));
+    const equipRepo = makeRepo();
+    equipRepo.createQueryBuilder.mockReturnValue(qb([]));
+    const matRepo = makeRepo();
+    matRepo.createQueryBuilder.mockReturnValue(qb([]));
+    const service = new ShiftsQueryService(
+      shiftsRepo as never, rolesRepo as never, workersRepo as never,
+      equipRepo as never, matRepo as never,
+    );
+
+    const result = await service.loadShiftsForWorkOrders(['wo-1']);
+    expect(result.get('wo-1')?.[0]).toMatchObject({
+      plannedEquipment: [{ type: 'Excavator', estimatedQuantity: 2 }],
+      plannedMaterials: [{ type: 'Concrete', estimatedQuantity: 4 }],
+    });
+  });
 });

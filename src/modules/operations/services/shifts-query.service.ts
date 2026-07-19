@@ -256,6 +256,8 @@ export class ShiftsQueryService {
             requesterName: shift.requesterName ?? undefined,
             visibleDocumentTypes: [...shift.visibleDocumentTypes],
             notes: shift.notes ?? undefined,
+            plannedEquipment: [...(shift.plannedEquipment ?? [])],
+            plannedMaterials: [...(shift.plannedMaterials ?? [])],
             defaultRoleStartTime: shift.defaultRoleStartTime ?? undefined,
             shiftTemplateId: shift.shiftTemplateId ?? undefined,
             roles: roleList.map((role) => {

@@ -2544,17 +2544,22 @@ export class FormSubmissionsService {
         price: '',
       };
     });
-    const submittedMaterials = findPlannedMaterialUsageRows(submission.data ?? {}).map((row) => ({
-      identifier: '',
-      description: String(row.type ?? '').trim(),
-      size: '',
-      quantity: String(Math.max(0, Number(row.actualQuantity) || 0)),
-      price: '',
-    }));
-    const submittedMaterialTypes = new Set(submittedMaterials.map((item) => item.description.toLowerCase()));
+    const submittedMaterialRows = findPlannedMaterialUsageRows(submission.data ?? {});
+    const submittedMaterialIds = new Set(submittedMaterialRows.map((row) => String(row.materialId ?? '').trim()).filter(Boolean));
+    const submittedMaterials = submittedMaterialRows.map((row) => {
+      const materialId = String(row.materialId ?? '').trim();
+      const item = materialId ? materialsById.get(materialId) : undefined;
+      return {
+        identifier: item?.identifier || materialId,
+        description: [item?.identifier, item?.name].filter(Boolean).join(' - ') || String(row.type ?? '').trim(),
+        size: item?.type || String(row.type ?? '').trim(),
+        quantity: String(Math.max(0, Number(row.actualQuantity) || 0)),
+        price: item?.price ? String(item.price) : '',
+      };
+    });
     const materials = [
       ...submittedMaterials,
-      ...catalogMaterials.filter((item) => !submittedMaterialTypes.has(String(item.size || item.description).toLowerCase())),
+      ...catalogMaterials.filter((_, index) => !submittedMaterialIds.has(materialIds[index])),
     ];
 
     return {

@@ -43,6 +43,7 @@ import type { UserAccessContext } from '../../access/ports/access.port';
 type MobileAssignmentQuery = {
   search?: string;
   filter?: 'all' | 'upcoming' | 'this_week' | 'completed';
+  today?: string;
   page?: number;
   limit?: number;
 };
@@ -213,13 +214,14 @@ export class WorkOrdersService {
       const page = Math.max(1, Math.trunc(query.page));
       const limit = Math.min(100, Math.max(1, Math.trunc(query.limit || 20)));
       const filter = query.filter || 'all';
-      const today = new Date();
-      today.setHours(12, 0, 0, 0);
-      const todayKey = today.toISOString().slice(0, 10);
+      const serverToday = new Date();
+      const serverTodayKey = `${serverToday.getFullYear()}-${String(serverToday.getMonth() + 1).padStart(2, '0')}-${String(serverToday.getDate()).padStart(2, '0')}`;
+      const todayKey = /^\d{4}-\d{2}-\d{2}$/.test(query.today || '') ? query.today as string : serverTodayKey;
+      const today = new Date(`${todayKey}T12:00:00Z`);
       const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
+      weekStart.setUTCDate(today.getUTCDate() - today.getUTCDay());
       const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
       const weekStartKey = weekStart.toISOString().slice(0, 10);
       const weekEndKey = weekEnd.toISOString().slice(0, 10);
 

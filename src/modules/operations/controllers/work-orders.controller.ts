@@ -70,12 +70,14 @@ export class WorkOrdersController {
     @Req() req: ReqWithOpsUser,
     @Query('search') search?: string,
     @Query('filter') filter?: 'all' | 'upcoming' | 'this_week' | 'completed',
+    @Query('today') today?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.workOrdersService.findMobileAssignmentsForUser(req.user, {
       search,
       filter,
+      today,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });

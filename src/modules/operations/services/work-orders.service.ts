@@ -24,6 +24,7 @@ import {
   assertAssignmentWithinProjectDates,
   assertShiftsWithinAssignmentDateRange,
 } from '../utils/work-order-shift-date-range.util';
+import { computeShiftStatus } from '../utils/shift-status.util';
 import {
   normalizeWorkOrderShifts,
   preserveOtherWorkerConfirmations,
@@ -808,6 +809,14 @@ export class WorkOrdersService {
             (candidate) =>
               mobileClockMinutes(candidate.startTime) === mobileClockMinutes(startTime),
           );
+        const effectiveStatus = computeShiftStatus({
+          workOrderId: workOrder.id,
+          shift: record,
+          completion: {
+            isShiftCompleted: (workOrderId, shiftId) =>
+              completedShiftKeys.has(`${workOrderId}:${shiftId}`),
+          },
+        }).status;
         return {
           id: typeof record.id === 'string' ? record.id : '',
           date: typeof record.date === 'string' ? record.date : '',
@@ -839,6 +848,7 @@ export class WorkOrdersService {
             typeof confirmation?.requestedAt === 'string' && confirmation.requestedAt.trim() ||
             typeof confirmation?.notificationChannel === 'string' && confirmation.notificationChannel.trim()
           ),
+          effectiveStatus,
           completed: completedShiftKeys.has(
             `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
           ),

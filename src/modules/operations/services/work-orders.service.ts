@@ -1427,6 +1427,8 @@ export class WorkOrdersService {
         addressZipCode: payload.addressZipCode,
         addressCountry: payload.addressCountry,
         requesterName: payload.requesterName,
+        requesterPhone: payload.requesterPhone,
+        requesterEmail: payload.requesterEmail,
         visibleDocumentTypes: payload.visibleDocumentTypes || [],
         notes: payload.notes,
         roles: payload.roles.map((role, roleIdx) => ({

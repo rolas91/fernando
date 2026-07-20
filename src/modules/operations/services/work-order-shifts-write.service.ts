@@ -24,6 +24,8 @@ export type ShiftWriteInput = {
   addressLatitude?: number | null; addressLongitude?: number | null;
   addressCity?: string | null; addressState?: string | null; addressZipCode?: string | null; addressCountry?: string | null;
   requesterName?: string | null;
+  requesterPhone?: string | null;
+  requesterEmail?: string | null;
   visibleDocumentTypes?: string[];
   notes?: string | null;
   plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
@@ -112,6 +114,8 @@ export class WorkOrderShiftsWriteService {
         addressLatitude: s.addressLatitude ?? null, addressLongitude: s.addressLongitude ?? null,
         addressCity: s.addressCity ?? null, addressState: s.addressState ?? null, addressZipCode: s.addressZipCode ?? null, addressCountry: s.addressCountry ?? null,
         requesterName: s.requesterName ?? null,
+        requesterPhone: s.requesterPhone?.trim() || null,
+        requesterEmail: s.requesterEmail?.trim().toLowerCase() || null,
         visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
         notes: s.notes ?? null,
         plannedEquipment: [...(s.plannedEquipment ?? [])],
@@ -321,6 +325,8 @@ export class WorkOrderShiftsWriteService {
         addressZipCode: typeof raw.addressZipCode === 'string' ? raw.addressZipCode : null,
         addressCountry: typeof raw.addressCountry === 'string' ? raw.addressCountry : null,
         requesterName: typeof raw.requesterName === 'string' ? raw.requesterName : null,
+        requesterPhone: typeof raw.requesterPhone === 'string' ? raw.requesterPhone : null,
+        requesterEmail: typeof raw.requesterEmail === 'string' ? raw.requesterEmail : null,
         visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes) ? raw.visibleDocumentTypes as string[] : [],
         notes: typeof raw.notes === 'string' ? raw.notes : null,
         plannedEquipment: Array.isArray(raw.plannedEquipment) ? raw.plannedEquipment : [],

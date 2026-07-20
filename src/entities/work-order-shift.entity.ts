@@ -77,6 +77,12 @@ export class WorkOrderShift {
   @Column({ name: 'requester_name', type: 'varchar', length: 200, nullable: true })
   requesterName: string | null;
 
+  @Column({ name: 'requester_phone', type: 'varchar', length: 64, nullable: true })
+  requesterPhone: string | null;
+
+  @Column({ name: 'requester_email', type: 'varchar', length: 255, nullable: true })
+  requesterEmail: string | null;
+
   @Column({ name: 'visible_document_types', type: 'jsonb', default: () => "'[]'::jsonb" })
   visibleDocumentTypes: string[];
 

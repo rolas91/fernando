@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsEmail,
   IsNumber,
   IsObject,
   IsOptional,
@@ -79,6 +80,8 @@ export class BulkCreateShiftsDto {
   @IsOptional() @IsString() addressZipCode?: string;
   @IsOptional() @IsString() addressCountry?: string;
   @IsOptional() @IsString() requesterName?: string;
+  @IsOptional() @IsString() requesterPhone?: string;
+  @IsOptional() @IsEmail() requesterEmail?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) visibleDocumentTypes?: string[];
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsArray() plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;

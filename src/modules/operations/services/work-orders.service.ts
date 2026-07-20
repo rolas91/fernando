@@ -176,7 +176,7 @@ export class WorkOrdersService {
       }),
     );
     const assigned = assignments.filter((wo) =>
-      this.workOrderHasAssignedWorker(wo, worker.id),
+      this.workOrderHasNotifiedWorker(wo, worker.id),
     );
     const projectIds = [...new Set(assigned.map((wo) => wo.projectId).filter(Boolean))];
     const projects =
@@ -307,7 +307,7 @@ export class WorkOrdersService {
     if (!rawWorkOrder) throw new NotFoundException('Assignment not found.');
 
     const [workOrder] = await this.mergeShiftsWithRelational([rawWorkOrder]);
-    if (!workOrder || !this.workOrderHasAssignedWorker(workOrder, worker.id)) {
+    if (!workOrder || !this.workOrderHasNotifiedWorker(workOrder, worker.id)) {
       throw new NotFoundException('Assignment not found for this worker.');
     }
 
@@ -570,7 +570,21 @@ export class WorkOrdersService {
     return worker;
   }
 
-  private workOrderHasAssignedWorker(workOrder: WorkOrder, workerId: string) {
+  private workerWasNotifiedForRole(
+    role: Record<string, unknown>,
+    workerId: string,
+  ): boolean {
+    const confirmations = Array.isArray(role.workerConfirmations)
+      ? (role.workerConfirmations as Record<string, unknown>[])
+      : [];
+    const confirmation = confirmations.find((item) => item.workerId === workerId);
+    return Boolean(
+      typeof confirmation?.requestedAt === 'string' && confirmation.requestedAt.trim() ||
+      typeof confirmation?.notificationChannel === 'string' && confirmation.notificationChannel.trim(),
+    );
+  }
+
+  private workOrderHasNotifiedWorker(workOrder: WorkOrder, workerId: string) {
     const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
     return shifts.some((shift) => {
       const roles = Array.isArray((shift as Record<string, unknown>).roles)
@@ -580,7 +594,7 @@ export class WorkOrdersService {
         const assignedWorkers = Array.isArray(role.assignedWorkers)
           ? role.assignedWorkers
           : [];
-        return assignedWorkers.includes(workerId);
+        return assignedWorkers.includes(workerId) && this.workerWasNotifiedForRole(role, workerId);
       });
     });
   }
@@ -783,7 +797,7 @@ export class WorkOrdersService {
           const assignedWorkers = Array.isArray(item.assignedWorkers)
             ? item.assignedWorkers
             : [];
-          return assignedWorkers.includes(workerId);
+          return assignedWorkers.includes(workerId) && this.workerWasNotifiedForRole(item, workerId);
         });
         if (!role) return null;
         const confirmations = Array.isArray(role.workerConfirmations)

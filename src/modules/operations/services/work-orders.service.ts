@@ -584,6 +584,17 @@ export class WorkOrdersService {
     );
   }
 
+  private workerDeclinedRole(
+    role: Record<string, unknown>,
+    workerId: string,
+  ): boolean {
+    const confirmations = Array.isArray(role.workerConfirmations)
+      ? (role.workerConfirmations as Record<string, unknown>[])
+      : [];
+    const confirmation = confirmations.find((item) => item.workerId === workerId);
+    return confirmation?.status === 'declined';
+  }
+
   private workOrderHasNotifiedWorker(workOrder: WorkOrder, workerId: string) {
     const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
     return shifts.some((shift) => {
@@ -594,7 +605,9 @@ export class WorkOrdersService {
         const assignedWorkers = Array.isArray(role.assignedWorkers)
           ? role.assignedWorkers
           : [];
-        return assignedWorkers.includes(workerId) && this.workerWasNotifiedForRole(role, workerId);
+        return assignedWorkers.includes(workerId) &&
+          this.workerWasNotifiedForRole(role, workerId) &&
+          !this.workerDeclinedRole(role, workerId);
       });
     });
   }
@@ -797,7 +810,9 @@ export class WorkOrdersService {
           const assignedWorkers = Array.isArray(item.assignedWorkers)
             ? item.assignedWorkers
             : [];
-          return assignedWorkers.includes(workerId) && this.workerWasNotifiedForRole(item, workerId);
+          return assignedWorkers.includes(workerId) &&
+            this.workerWasNotifiedForRole(item, workerId) &&
+            !this.workerDeclinedRole(item, workerId);
         });
         if (!role) return null;
         const confirmations = Array.isArray(role.workerConfirmations)

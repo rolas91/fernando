@@ -363,6 +363,12 @@ export class FormContextResolutionService {
       );
     }
 
+    const shiftTemplateId = shift ? shiftString(shift, 'shiftTemplateId') : '';
+    const shiftTemplate = shiftTemplateId
+      ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
+      : null;
+    const shiftTypeName = shiftTemplate?.name?.trim() || '';
+
     const workerIds = new Set(collectAllIdsAcrossShifts(workOrder, 'assignedWorkers'));
     if (shift) {
       for (const id of collectRoleIds(shift, 'assignedWorkers')) {
@@ -396,6 +402,7 @@ export class FormContextResolutionService {
       workOrderTypeName,
       projectTypeName,
       shift: shift ?? undefined,
+      shiftTypeName,
       workerLabelById,
       equipmentLabelById,
       materialLabelById,
@@ -523,6 +530,7 @@ export class FormContextResolutionService {
       workOrderTypeName: string;
       projectTypeName: string;
       shift?: ShiftLike;
+      shiftTypeName: string;
       workerLabelById: Map<string, string>;
       equipmentLabelById: Map<string, string>;
       materialLabelById: Map<string, string>;
@@ -623,6 +631,8 @@ export class FormContextResolutionService {
           return typeof s.startTime === 'string' ? s.startTime : null;
         case 'endTime':
           return typeof s.endTime === 'string' ? s.endTime : null;
+        case 'shiftTypeName':
+          return ctx.shiftTypeName || null;
         case 'address':
           return typeof s.address === 'string' ? s.address : null;
         case 'workerNames': {

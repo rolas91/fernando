@@ -1,5 +1,5 @@
 /** Default per-file cap before upload to Spaces (matches Multer). */
-export const SPACES_UPLOAD_DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
+export const SPACES_UPLOAD_DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
 
 /**
  * DigitalOcean Spaces: single PUT supports up to 5 GiB per object.

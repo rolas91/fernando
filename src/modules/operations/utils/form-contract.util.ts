@@ -227,6 +227,7 @@ function normalizeDataBinding(raw: unknown): FormFieldDataBinding | undefined {
   return {
     path,
     optional: asBoolean(raw.optional, true),
+    editable: asBoolean(raw.editable, true),
   };
 }
 

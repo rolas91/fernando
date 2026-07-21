@@ -186,6 +186,12 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
     requiresShift: true,
   },
   {
+    path: 'shift.shiftTypeName',
+    description: 'Shift type name from the shift catalog',
+    requiresShift: true,
+    example: 'On Call',
+  },
+  {
     path: 'shift.address',
     description: 'Address assigned specifically to the shift',
     requiresShift: true,
@@ -237,6 +243,8 @@ export type FormFieldDataBinding = {
   path: string;
   /** When true, missing server data is not an error (manual fill). Defaults to true. */
   optional?: boolean;
+  /** When false, a resolved prefilled value is read-only in clients. Defaults to true. */
+  editable?: boolean;
 };
 
 export function canonicalDataBindingPath(raw: string): string {

@@ -41,7 +41,7 @@ export class MaterialsService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
-    await this.materialsRepo.remove(item);
+    await this.materialsRepo.softRemove(item);
     this.realtime.emitTableUpdated('materials');
     return { success: true };
   }

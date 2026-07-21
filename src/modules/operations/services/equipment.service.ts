@@ -43,7 +43,7 @@ export class EquipmentService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
-    await this.equipmentRepo.remove(item);
+    await this.equipmentRepo.softRemove(item);
     this.realtime.emitTableUpdated('equipment');
     return { success: true };
   }

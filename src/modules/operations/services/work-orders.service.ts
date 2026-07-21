@@ -831,6 +831,7 @@ export class WorkOrdersService {
               completedShiftKeys.has(`${workOrderId}:${shiftId}`),
           },
         }).status;
+        if (effectiveStatus === 'shift_cancelled') return null;
         return {
           id: typeof record.id === 'string' ? record.id : '',
           date: typeof record.date === 'string' ? record.date : '',

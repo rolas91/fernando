@@ -65,11 +65,11 @@ export class CreateProjectDto {
 
   @IsOptional()
   @IsString()
-  startDate?: string;
+  startDate?: string | null;
 
   @IsOptional()
   @IsString()
-  endDate?: string;
+  endDate?: string | null;
 
   @IsOptional()
   @IsString()

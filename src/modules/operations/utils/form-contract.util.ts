@@ -49,6 +49,7 @@ type FieldUi = {
   helperText?: string;
   layout?: 'full' | 'half';
   defaultValue?: string | number | boolean;
+  lunchTakenDefault?: boolean;
   quickTags?: string[];
   tagTone?: 'blue' | 'amber' | 'slate';
   containerClassName?: string;
@@ -205,6 +206,9 @@ function normalizeUi(type: FieldType, input: unknown): FieldUi | undefined {
   if (layout === 'full' || layout === 'half') ui.layout = layout;
   if (typeof input.defaultValue === 'string' || typeof input.defaultValue === 'number' || typeof input.defaultValue === 'boolean') {
     ui.defaultValue = input.defaultValue;
+  }
+  if (typeof input.lunchTakenDefault === 'boolean') {
+    ui.lunchTakenDefault = input.lunchTakenDefault;
   }
   if (quickTags) ui.quickTags = quickTags;
   if (tagTone === 'blue' || tagTone === 'amber' || tagTone === 'slate') ui.tagTone = tagTone;

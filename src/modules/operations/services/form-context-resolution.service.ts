@@ -758,6 +758,7 @@ export class FormContextResolutionService {
           Number(timesheet?.overtimeHours ?? 0) +
           Number(timesheet?.doubleTimeHours ?? 0),
         lunchTaken: timesheet?.lunchTaken ?? false,
+        hasExistingTimesheet: Boolean(timesheet),
         employeeNote: timesheet?.employeeNote ?? '',
         signature: timesheet?.signature ? parseJsonValue(timesheet.signature) : '',
         status: timesheet?.status || 'pending',

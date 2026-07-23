@@ -69,6 +69,9 @@ const DEFAULT_SETTINGS: Pick<
     noLunchCreditHours: 1,
     noLunchCreditTarget: 'ot',
     noLunchCreditEffectiveDate: '2026-07-08',
+    yesLunchDeductionEnabled: false,
+    yesLunchDeductionMinimumHours: 0,
+    yesLunchDeductionHours: 0,
   },
   workerTypes: [
     'Full-Time Employee',

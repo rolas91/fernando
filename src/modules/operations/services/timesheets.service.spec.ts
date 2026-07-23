@@ -78,6 +78,20 @@ describe('calculateTimesheetHours', () => {
     ).toEqual({ st: 8, ot: 1, dt: 0, total: 9 });
   });
 
+  it('deducts configured unpaid time when lunch and break were taken', () => {
+    expect(
+      calculateTimesheetHours(
+        { startTime: '07:00', endTime: '16:00', lunchTaken: true },
+        {
+          ...rules,
+          yesLunchDeductionEnabled: true,
+          yesLunchDeductionMinimumHours: 7,
+          yesLunchDeductionHours: 1,
+        },
+      ),
+    ).toEqual({ st: 8, ot: 0, dt: 0, total: 8 });
+  });
+
   it('allows the credit rule to be disabled', () => {
     expect(
       calculateTimesheetHours(

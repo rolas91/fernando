@@ -445,6 +445,9 @@ export type TimesheetCalculationRules = {
   noLunchCreditHours: number;
   noLunchCreditTarget: 'st' | 'ot';
   noLunchCreditEffectiveDate: string;
+  yesLunchDeductionEnabled: boolean;
+  yesLunchDeductionMinimumHours: number;
+  yesLunchDeductionHours: number;
 };
 
 export function timesheetCalculationRules(
@@ -464,6 +467,12 @@ export function timesheetCalculationRules(
         ? 'ot'
         : 'st',
     noLunchCreditEffectiveDate: stringValue(rules?.noLunchCreditEffectiveDate),
+    yesLunchDeductionEnabled: booleanValue(rules?.yesLunchDeductionEnabled, false),
+    yesLunchDeductionMinimumHours: nonNegativeNumber(
+      rules?.yesLunchDeductionMinimumHours,
+      0,
+    ),
+    yesLunchDeductionHours: nonNegativeNumber(rules?.yesLunchDeductionHours, 0),
   };
 }
 
@@ -496,10 +505,17 @@ export function calculateTimesheetHours(row: {
   }
 
   const totalHours = (end - start) / 60;
+  const lunchDeduction =
+    rules.yesLunchDeductionEnabled &&
+    row.lunchTaken === true &&
+    totalHours > rules.yesLunchDeductionMinimumHours
+      ? rules.yesLunchDeductionHours
+      : 0;
+  const payableHours = Math.max(0, totalHours - lunchDeduction);
   const regularLimit = rules.regularHoursLimit;
   const doubleTimeThreshold = Math.max(rules.doubleTimeThreshold, regularLimit);
-  const dt = Math.max(0, totalHours - doubleTimeThreshold);
-  const ot = Math.max(0, Math.min(totalHours, doubleTimeThreshold) - regularLimit);
+  const dt = Math.max(0, payableHours - doubleTimeThreshold);
+  const ot = Math.max(0, Math.min(payableHours, doubleTimeThreshold) - regularLimit);
   const lunchCredit =
     rules.noLunchCreditEnabled &&
     row.lunchTaken === false &&
@@ -510,7 +526,7 @@ export function calculateTimesheetHours(row: {
     stringValue(row.date) || stringValue(row.shiftDate),
     rules,
   );
-  const st = Math.min(totalHours, regularLimit) + (target === 'st' ? lunchCredit : 0);
+  const st = Math.min(payableHours, regularLimit) + (target === 'st' ? lunchCredit : 0);
   const creditedOt = ot + (target === 'ot' ? lunchCredit : 0);
 
   return {

@@ -220,7 +220,8 @@ export class WorkOrdersService {
       const todayKey = /^\d{4}-\d{2}-\d{2}$/.test(query.today || '') ? query.today as string : serverTodayKey;
       const today = new Date(`${todayKey}T12:00:00Z`);
       const weekStart = new Date(today);
-      weekStart.setUTCDate(today.getUTCDate() - today.getUTCDay());
+      const day = today.getUTCDay();
+      weekStart.setUTCDate(today.getUTCDate() + (day === 0 ? -6 : 1 - day));
       const weekEnd = new Date(weekStart);
       weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
       const weekStartKey = weekStart.toISOString().slice(0, 10);
@@ -849,6 +850,7 @@ export class WorkOrdersService {
         if (effectiveStatus === 'shift_cancelled') return null;
         return {
           id: typeof record.id === 'string' ? record.id : '',
+          shiftName: typeof record.shiftName === 'string' ? record.shiftName : '',
           date: typeof record.date === 'string' ? record.date : '',
           shiftTypeName: resolvedShiftTemplate?.name || '',
           startTime,
@@ -1376,6 +1378,9 @@ export class WorkOrdersService {
     if (!Array.isArray(payload.roles) || payload.roles.length === 0) {
       throw new BadRequestException('At least one role is required.');
     }
+    if (!payload.shiftName?.trim()) {
+      throw new BadRequestException('Shift Name is required.');
+    }
 
     const seen = new Set<string>();
     const uniqueDates = payload.dates.filter((d) => {
@@ -1424,6 +1429,7 @@ export class WorkOrdersService {
       created.push({
         id: `s_bulk_${nowId}_${date.replace(/-/g, '')}`,
         workOrderId,
+        shiftName: payload.shiftName.trim(),
         shiftTemplateId: payload.shiftTemplateId || undefined,
         defaultRoleStartTime: payload.defaultRoleStartTime || payload.startTime,
         plannedEquipment: payload.plannedEquipment ?? [],

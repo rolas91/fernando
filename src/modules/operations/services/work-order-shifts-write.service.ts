@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
@@ -12,6 +12,7 @@ import { WorkOrderShiftRoleMaterial } from '../../../entities/work-order-shift-r
 
 export type ShiftWriteInput = {
   id: string;
+  shiftName: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -76,6 +77,10 @@ export class WorkOrderShiftsWriteService {
     workOrderId: string,
     shifts: ShiftWriteInput[],
   ): Promise<void> {
+    const unnamedShift = shifts.find((shift) => !shift.shiftName?.trim());
+    if (unnamedShift) {
+      throw new BadRequestException('Shift Name is required for every shift.');
+    }
     await this.dataSource.transaction(async (manager) => {
       const shiftRepo = manager.getRepository(WorkOrderShift);
       const roleRepo = manager.getRepository(WorkOrderShiftRole);
@@ -102,6 +107,7 @@ export class WorkOrderShiftsWriteService {
       const shiftRows = shifts.map((s) => ({
         id: s.id,
         workOrderId,
+        shiftName: s.shiftName.trim(),
         date: s.date,
         startTime: s.startTime,
         endTime: s.endTime,
@@ -309,6 +315,7 @@ export class WorkOrderShiftsWriteService {
       const roles = Array.isArray(raw.roles) ? raw.roles : [];
       return {
         id,
+        shiftName: String(raw.shiftName ?? '').trim(),
         date,
         startTime,
         endTime,

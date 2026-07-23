@@ -7,6 +7,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsNotEmpty,
   ValidateNested,
 } from 'class-validator';
 
@@ -53,6 +54,10 @@ export class BulkShiftRoleDto {
 }
 
 export class BulkCreateShiftsDto {
+  @IsString()
+  @IsNotEmpty()
+  shiftName: string;
+
   /** Base shift template. The backend will clone this for each date. */
   @IsString()
   baseDate: string;

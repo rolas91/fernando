@@ -22,6 +22,9 @@ export class WorkOrderShift {
   @Column({ name: 'work_order_id', type: 'varchar', length: 64 })
   workOrderId: string;
 
+  @Column({ name: 'shift_name', type: 'varchar', length: 180 })
+  shiftName: string;
+
   @Column({ type: 'date' })
   date: string;
 

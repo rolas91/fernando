@@ -102,6 +102,7 @@ export class ShiftsQueryService {
       return {
         id: shift.id,
         workOrderId: shift.workOrderId,
+        shiftName: shift.shiftName,
         date: shift.date,
         startTime: shift.startTime,
         endTime: shift.endTime,
@@ -243,6 +244,7 @@ export class ShiftsQueryService {
           return {
             id: shift.id,
             workOrderId: shift.workOrderId,
+            shiftName: shift.shiftName,
             date: shift.date,
             startTime: shift.startTime,
             endTime: shift.endTime,

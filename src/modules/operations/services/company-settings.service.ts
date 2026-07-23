@@ -33,7 +33,14 @@ export class CompanySettingsService {
 
   async update(id: string, dto: UpdateCompanySettingsDto) {
     const item = await this.findOne(id);
-    Object.assign(item, dto);
+    const next = { ...dto };
+    if (dto.overtimeRules) {
+      next.overtimeRules = {
+        ...(item.overtimeRules || {}),
+        ...dto.overtimeRules,
+      };
+    }
+    Object.assign(item, next);
     const saved = await this.repo.save(item);
     this.realtime.emitTableUpdated('company_settings');
     return saved;

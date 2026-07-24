@@ -1,4 +1,5 @@
-import { IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumberString, IsOptional, IsString, Matches } from 'class-validator';
 
 export class CreateMaterialDto {
   @IsString()
@@ -17,6 +18,14 @@ export class CreateMaterialDto {
   @IsOptional()
   @IsString()
   brand?: string;
+
+  @IsOptional()
+  @Type(() => String)
+  @IsNumberString()
+  @Matches(/^(?:0|[1-9]\d*)(?:\.\d+)?$/, {
+    message: 'price must be greater than or equal to zero',
+  })
+  price?: string;
 
   @IsString()
   status: string;

@@ -804,10 +804,18 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     id: 'work_shift',
     key: 'workShift',
     label: 'Work Shift',
-    type: 'dropdown',
+    type: 'text',
     required: true,
-    options: ['Day', 'Swing', 'Night'],
-    ui: { section: 'Work Order Details', layout: 'full', defaultValue: 'Day' },
+    dataBinding: {
+      path: 'shift.shiftTypeName',
+      optional: false,
+      editable: false,
+    },
+    ui: {
+      section: 'Work Order Details',
+      layout: 'full',
+      helperText: 'Automatically loaded from the selected shift.',
+    },
   },
   {
     id: 'worker_timesheets',

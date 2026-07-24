@@ -1320,7 +1320,6 @@ export function buildWorkOrderPdf(
     fieldValue(data, ['work_order_number', 'workOrderNumber']) ||
     submission.workOrderId ||
     compactId(submission.id, 16);
-  const shiftText = String(shift).toLowerCase();
   const left = 17.64;
   const width = 576.72;
   const accent: [number, number, number] = [0.929, 0.451, 0.463];
@@ -1377,21 +1376,7 @@ export function buildWorkOrderPdf(
   const shiftX = left + topWidths[0] + topWidths[1];
   ops.push(pdfRect(shiftX, top - 15.75, topWidths[2], 15.75));
   ops.push(pdfText('WORK SHIFT', shiftX + 2, top - 5.5, 5.25, 'F2'));
-  const drawShiftChoice = (
-    label: string,
-    checked: boolean,
-    x: number,
-  ) => {
-    ops.push(pdfRect(x, top - 12, 5, 5));
-    if (checked) {
-      ops.push(pdfLine(x + 1, top - 10, x + 2.2, top - 11.2));
-      ops.push(pdfLine(x + 2.2, top - 11.2, x + 4.4, top - 7.8));
-    }
-    ops.push(pdfText(label, x + 8, top - 11, 5.25, 'F2'));
-  };
-  drawShiftChoice('DAY', shiftText.includes('day'), shiftX + 65);
-  drawShiftChoice('SWING', shiftText.includes('swing'), shiftX + 111);
-  drawShiftChoice('NIGHT', shiftText.includes('night'), shiftX + 164);
+  ops.push(pdfText(fitText(shift, 30) || '-', shiftX + 2, top - 12, 6));
   top -= 15.75;
 
   const checkWeights = [1.5, 1.35, 1.15, 1.25, 1.45];

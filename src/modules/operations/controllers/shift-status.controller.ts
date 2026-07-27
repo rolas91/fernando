@@ -14,6 +14,7 @@ import { ShiftStatusService } from '../services/shift-status.service';
 import { WorkOrderShiftsWriteService } from '../services/work-order-shifts-write.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { IntegrationsService } from '../../integrations/integrations.service';
+import { WorkOrdersService } from '../services/work-orders.service';
 
 @ApiTags('operations')
 @Controller('work-orders/shifts')
@@ -21,6 +22,7 @@ import { IntegrationsService } from '../../integrations/integrations.service';
 export class ShiftStatusController {
   constructor(
     private readonly shiftStatus: ShiftStatusService,
+    private readonly workOrders: WorkOrdersService,
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly realtime: RealtimeGateway,
     private readonly integrations: IntegrationsService,
@@ -69,6 +71,7 @@ export class ShiftStatusController {
     @Param('shiftId') shiftId: string,
     @Body('status') status: string,
   ) {
+    await this.workOrders.assertShiftMutable(workOrderId, shiftId);
     const updated = await this.shiftsWrite.setShiftManualStatus({
       workOrderId,
       shiftId,
@@ -88,6 +91,7 @@ export class ShiftStatusController {
     @Param('workOrderId') workOrderId: string,
     @Param('shiftId') shiftId: string,
   ) {
+    await this.workOrders.assertShiftMutable(workOrderId, shiftId);
     const updated = await this.shiftsWrite.cancelShift({ workOrderId, shiftId });
     const notifications = updated
       ? await this.integrations.notifyShiftCancellation(workOrderId, shiftId)

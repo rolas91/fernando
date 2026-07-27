@@ -348,6 +348,14 @@ export class WorkOrdersService {
 
     const worker = await this.resolveWorkerForMobileUser(actor);
     const workOrder = await this.findOne(workOrderId);
+    const completedShiftKeys = (
+      await this.resolveMobileShiftCompletion([workOrder])
+    ).completedShiftKeys;
+    if (completedShiftKeys.has(`${workOrderId}:${shiftId}`)) {
+      throw new ForbiddenException(
+        'Completed shifts cannot be modified.',
+      );
+    }
     const shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
     this.logger.log(
       `[mobile-confirmation] shift request workOrder=${workOrderId} shift=${shiftId} worker=${worker.id} email=${worker.email} status=${status}`,
@@ -422,6 +430,9 @@ export class WorkOrdersService {
 
     const worker = await this.resolveWorkerForMobileUser(actor);
     const workOrder = await this.findOne(workOrderId);
+    const completedShiftKeys = (
+      await this.resolveMobileShiftCompletion([workOrder])
+    ).completedShiftKeys;
     const shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
     let updatedCount = 0;
     const touchedShifts: string[] = [];
@@ -436,6 +447,7 @@ export class WorkOrdersService {
     const nextShifts = shifts.map((shift) => {
       const shiftId = typeof shift.id === 'string' ? shift.id : '';
       if (!shiftId) return shift;
+      if (completedShiftKeys.has(`${workOrderId}:${shiftId}`)) return shift;
       const shiftRoles = Array.isArray(shift.roles) ? shift.roles : [];
       let shiftUpdated = false;
 
@@ -724,6 +736,27 @@ export class WorkOrdersService {
 
   private async resolveCompletedMobileShiftKeys(workOrders: WorkOrder[]) {
     return (await this.resolveMobileShiftCompletion(workOrders)).completedShiftKeys;
+  }
+
+  async assertShiftMutable(
+    workOrderId: string,
+    shiftId: string,
+  ): Promise<void> {
+    const workOrder = await this.findOne(workOrderId);
+    const shiftExists = (workOrder.shifts ?? []).some(
+      (shift) => String((shift as Record<string, unknown>).id || '') === shiftId,
+    );
+    if (!shiftExists) {
+      throw new NotFoundException(`Shift ${shiftId} not found`);
+    }
+    const completedShiftKeys = (
+      await this.resolveMobileShiftCompletion([workOrder])
+    ).completedShiftKeys;
+    if (completedShiftKeys.has(`${workOrderId}:${shiftId}`)) {
+      throw new ForbiddenException(
+        `Completed shift ${shiftId} cannot be modified.`,
+      );
+    }
   }
 
   private isTimesheetTemplate(template: FormTemplate) {
@@ -1290,6 +1323,62 @@ export class WorkOrdersService {
     }
   }
 
+  private shiftMutationFingerprint(value: unknown): string {
+    const normalize = (entry: unknown, key = ''): unknown => {
+      if (
+        ['effectiveStatus', 'completed', 'completedAt'].includes(key)
+      ) {
+        return undefined;
+      }
+      if (Array.isArray(entry)) {
+        return entry.map((item) => normalize(item));
+      }
+      if (entry && typeof entry === 'object') {
+        return Object.fromEntries(
+          Object.entries(entry as Record<string, unknown>)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([childKey, childValue]) => [
+              childKey,
+              normalize(childValue, childKey),
+            ])
+            .filter(([, childValue]) => childValue !== undefined),
+        );
+      }
+      return entry;
+    };
+    return JSON.stringify(normalize(value));
+  }
+
+  private assertCompletedShiftsUnchanged(
+    workOrderId: string,
+    completedShiftKeys: Set<string>,
+    previousShifts: Record<string, unknown>[],
+    nextShifts: Record<string, unknown>[],
+  ) {
+    const nextById = new Map(
+      nextShifts.map((shift) => [String(shift.id || ''), shift]),
+    );
+    for (const previousShift of previousShifts) {
+      const shiftId = String(previousShift.id || '');
+      if (
+        !shiftId ||
+        !completedShiftKeys.has(`${workOrderId}:${shiftId}`)
+      ) {
+        continue;
+      }
+      const nextShift = nextById.get(shiftId);
+      if (
+        !nextShift ||
+        this.shiftMutationFingerprint(previousShift) !==
+          this.shiftMutationFingerprint(nextShift)
+      ) {
+        throw new ForbiddenException(
+          `Completed shift ${shiftId} cannot be modified or deleted.`,
+        );
+      }
+    }
+  }
+
   async create(dto: CreateWorkOrderDto, actor?: UserAccessContext) {
     await this.applyProjectAssignmentDateBounds(dto.projectId, dto.startDate, dto.endDate);
 
@@ -1344,6 +1433,11 @@ export class WorkOrdersService {
     actor?: UserAccessContext,
   ) {
     const workOrder = await this.findOne(id);
+    const completedShiftKeys =
+      dto.shifts !== undefined
+        ? (await this.resolveMobileShiftCompletion([workOrder]))
+            .completedShiftKeys
+        : new Set<string>();
     /** Must be captured before Object.assign: dto replaces entity.shifts, and normalize needs true DB-merge baseline. */
     const previousShiftsSnapshot: Record<string, unknown>[] =
       dto.shifts !== undefined
@@ -1360,6 +1454,12 @@ export class WorkOrdersService {
       );
       this.assertWorkOrderDelegationChangesAllowed(
         actor,
+        previousShiftsSnapshot,
+        workOrder.shifts as Record<string, unknown>[],
+      );
+      this.assertCompletedShiftsUnchanged(
+        id,
+        completedShiftKeys,
         previousShiftsSnapshot,
         workOrder.shifts as Record<string, unknown>[],
       );
@@ -1558,6 +1658,16 @@ export class WorkOrdersService {
 
   async remove(id: string) {
     const workOrder = await this.findOne(id);
+    const completedShiftKeys = (
+      await this.resolveMobileShiftCompletion([workOrder])
+    ).completedShiftKeys;
+    if (
+      [...completedShiftKeys].some((key) => key.startsWith(`${id}:`))
+    ) {
+      throw new ForbiddenException(
+        'Assignments containing completed shifts cannot be deleted.',
+      );
+    }
     await this.workOrdersRepo.softRemove(workOrder);
     this.realtime.emitTableUpdated('work_orders');
     return { success: true, trashed: true };

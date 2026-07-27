@@ -33,7 +33,7 @@ describe('countsTowardShiftCompletion', () => {
 });
 
 describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
-  function buildService(): {
+  function buildService(completed = false): {
     service: WorkOrdersService;
     saved: { value: WorkOrder | null };
   } {
@@ -71,10 +71,36 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
-      {} as never,
+      {
+        find: jest.fn(async () =>
+          completed
+            ? [
+                {
+                  workOrderId: 'wo-1',
+                  shiftId: 'shift-1',
+                  templateId: 'template-wo',
+                  status: 'submitted',
+                  data: {},
+                },
+              ]
+            : [],
+        ),
+      } as never,
+      {
+        find: jest.fn(async () =>
+          completed
+            ? [
+                {
+                  id: 'template-wo',
+                  name: 'Work Order Form',
+                  category: 'Work Order',
+                  isRequired: true,
+                },
+              ]
+            : [],
+        ),
+      } as never,
       workerRepo,
-      {} as never,
       {} as never,
       realtime,
       {} as never,
@@ -169,6 +195,42 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
     const b = confirmations.find((c) => c.workerId === 'worker-b');
     expect(a?.status).toBe('confirmed');
     expect(b?.status).toBe('confirmed');
+  });
+
+  it('rejects confirmation changes after the shift is completed', async () => {
+    const { service, saved } = buildService(true);
+    saved.value = {
+      id: 'wo-1',
+      projectId: 'proj-1',
+      title: 'Completed WO',
+      shifts: [
+        {
+          id: 'shift-1',
+          roles: [
+            {
+              id: 'role-1',
+              roleName: 'Flagger',
+              requiredCount: 1,
+              assignedWorkers: ['worker-b'],
+              assignedEquipment: [],
+              assignedMaterials: [],
+            },
+          ],
+        },
+      ],
+      formTemplateIds: ['template-wo'],
+    } as WorkOrder;
+
+    await expect(
+      service.updateMobileShiftConfirmation(
+        {
+          email: 'b@example.com',
+        } as UserAccessContext,
+        'wo-1',
+        'shift-1',
+        'confirmed',
+      ),
+    ).rejects.toThrow('Completed shifts cannot be modified');
   });
 
   it('preserves the other worker confirmation when worker re-confirms the whole assignment via mobile', async () => {
@@ -424,9 +486,8 @@ describe('WorkOrdersService.findOne shifts merge', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
+      { find: jest.fn(async () => []) } as never,
+      { find: jest.fn(async () => []) } as never,
       {} as never,
       {} as never,
       {} as never,

@@ -1326,7 +1326,14 @@ export class WorkOrdersService {
   private shiftMutationFingerprint(value: unknown): string {
     const normalize = (entry: unknown, key = ''): unknown => {
       if (
-        ['effectiveStatus', 'completed', 'completedAt'].includes(key)
+        [
+          'effectiveStatus',
+          'completed',
+          'completedAt',
+          'createdAt',
+          'updatedAt',
+          'workerConfirmations',
+        ].includes(key)
       ) {
         return undefined;
       }
@@ -1446,6 +1453,15 @@ export class WorkOrdersService {
           ) as Record<string, unknown>[])
         : [];
 
+    if (dto.shifts !== undefined) {
+      this.assertCompletedShiftsUnchanged(
+        id,
+        completedShiftKeys,
+        previousShiftsSnapshot,
+        dto.shifts as Record<string, unknown>[],
+      );
+    }
+
     Object.assign(workOrder, dto);
     if (dto.shifts !== undefined) {
       workOrder.shifts = normalizeWorkOrderShifts(
@@ -1454,12 +1470,6 @@ export class WorkOrdersService {
       );
       this.assertWorkOrderDelegationChangesAllowed(
         actor,
-        previousShiftsSnapshot,
-        workOrder.shifts as Record<string, unknown>[],
-      );
-      this.assertCompletedShiftsUnchanged(
-        id,
-        completedShiftKeys,
         previousShiftsSnapshot,
         workOrder.shifts as Record<string, unknown>[],
       );

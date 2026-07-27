@@ -69,6 +69,60 @@ export class WorkersService {
     return this.serializeWorker(worker);
   }
 
+  async findMyProfile(actor: UserAccessContext | undefined) {
+    const email = actor?.email?.trim().toLowerCase();
+    if (!email) {
+      throw new ForbiddenException('Authenticated user email is required.');
+    }
+    const worker = await this.workersRepo.findOne({
+      where: { email },
+      relations: {
+        workerCertifications: { certification: true },
+        skills: true,
+        workerRoles: true,
+      },
+    });
+    if (!worker) {
+      throw new NotFoundException(
+        `Worker profile for ${email} was not found.`,
+      );
+    }
+
+    return {
+      id: worker.id,
+      firstName: worker.firstName,
+      lastName: worker.lastName,
+      email: worker.email,
+      phone: worker.phone,
+      type: worker.type,
+      role: worker.role,
+      status: worker.status,
+      primaryAddress: worker.primaryAddress,
+      city: worker.city,
+      state: worker.state,
+      zipCode: worker.zipCode,
+      country: worker.country,
+      workerRoles: (worker.workerRoles || []).map((role) => ({
+        id: role.id,
+        name: role.name,
+        description: role.description,
+      })),
+      certifications: (worker.workerCertifications || []).map(
+        (assignment) => ({
+          id: assignment.certificationId,
+          name: assignment.certification?.name || assignment.certificationId,
+          description: assignment.certification?.description || '',
+          expirationDate: assignment.expirationDate || undefined,
+        }),
+      ),
+      skills: (worker.skills || []).map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        description: skill.description,
+      })),
+    };
+  }
+
   private serializeWorker(worker: Worker) {
     const {
       workerCertifications,

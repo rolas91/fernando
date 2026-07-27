@@ -233,6 +233,68 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
     ).rejects.toThrow('Completed shifts cannot be modified');
   });
 
+  it('allows adding another shift while preserving a completed shift', () => {
+    const { service } = buildService();
+    const completed = {
+      id: 'shift-completed',
+      shiftName: 'Completed',
+      date: '2026-07-20',
+      startTime: '07:00',
+      endTime: '15:00',
+      roles: [
+        {
+          id: 'role-1',
+          roleName: 'Flagger',
+          requiredCount: 1,
+          assignedWorkers: ['worker-a'],
+          assignedEquipment: [],
+          assignedMaterials: [],
+          workerConfirmations: [
+            {
+              workerId: 'worker-a',
+              status: 'confirmed',
+              respondedAt: '2026-07-19T10:00:00.000Z',
+            },
+          ],
+        },
+      ],
+    };
+    const clientCopy = JSON.parse(JSON.stringify(completed)) as Record<
+      string,
+      unknown
+    >;
+    const clientRole = (
+      clientCopy.roles as Array<Record<string, unknown>>
+    )[0];
+    delete clientRole.workerConfirmations;
+
+    expect(() =>
+      (
+        service as unknown as {
+          assertCompletedShiftsUnchanged: (
+            workOrderId: string,
+            completedKeys: Set<string>,
+            previous: Record<string, unknown>[],
+            next: Record<string, unknown>[],
+          ) => void;
+        }
+      ).assertCompletedShiftsUnchanged(
+        'wo-1',
+        new Set(['wo-1:shift-completed']),
+        [completed],
+        [
+          clientCopy,
+          {
+            id: 'shift-new',
+            shiftName: 'New Shift',
+            date: '2026-07-21',
+            roles: [],
+          },
+        ],
+      ),
+    ).not.toThrow();
+  });
+
   it('preserves the other worker confirmation when worker re-confirms the whole assignment via mobile', async () => {
     const { service, saved } = buildService();
     const workOrder: WorkOrder = {

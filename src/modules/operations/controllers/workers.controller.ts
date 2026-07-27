@@ -86,6 +86,11 @@ export class WorkersController {
     return this.workersService.registerFcmTokenForActor(dto.token, req.user);
   }
 
+  @Get('me/profile')
+  findMyProfile(@Req() req: ReqWithOpsUser) {
+    return this.workersService.findMyProfile(req.user);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.workersService.findOne(id);

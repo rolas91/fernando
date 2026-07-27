@@ -99,6 +99,13 @@ export class WorkOrderShift {
   plannedMaterials: Array<{ type: string; estimatedQuantity: number }>;
 
   @Column({
+    name: 'work_order_authorized_worker_ids',
+    type: 'jsonb',
+    default: () => "'[]'::jsonb",
+  })
+  workOrderAuthorizedWorkerIds: string[];
+
+  @Column({
     name: 'default_role_start_time',
     type: 'varchar',
     length: 16,

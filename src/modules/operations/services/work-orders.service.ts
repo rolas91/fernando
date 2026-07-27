@@ -892,6 +892,11 @@ export class WorkOrdersService {
               `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
             ) ?? new Set<string>()),
           ],
+          canManageWorkOrder: Array.isArray(
+            record.workOrderAuthorizedWorkerIds,
+          )
+            ? record.workOrderAuthorizedWorkerIds.includes(workerId)
+            : false,
         };
       })
       .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))
@@ -1244,10 +1249,52 @@ export class WorkOrdersService {
     return projectParts.join(', ');
   }
 
-  async create(dto: CreateWorkOrderDto) {
+  private assertWorkOrderDelegationChangesAllowed(
+    actor: UserAccessContext | undefined,
+    previousShifts: Record<string, unknown>[],
+    nextShifts: Record<string, unknown>[],
+  ) {
+    if (!actor || actor.role === 'admin' || actor.roles.includes('admin')) {
+      return;
+    }
+
+    const normalizedIds = (shift: Record<string, unknown> | undefined) =>
+      Array.isArray(shift?.workOrderAuthorizedWorkerIds)
+        ? [
+            ...new Set(
+              shift.workOrderAuthorizedWorkerIds
+                .filter((value): value is string => typeof value === 'string')
+                .map((value) => value.trim())
+                .filter(Boolean),
+            ),
+          ].sort()
+        : [];
+    const previousById = new Map(
+      previousShifts.map((shift) => [String(shift.id || ''), normalizedIds(shift)]),
+    );
+
+    const changed = nextShifts.some((shift) => {
+      const shiftId = String(shift.id || '');
+      const previous = previousById.get(shiftId) ?? [];
+      const next = normalizedIds(shift);
+      return (
+        previous.length !== next.length ||
+        previous.some((workerId, index) => workerId !== next[index])
+      );
+    });
+
+    if (changed) {
+      throw new ForbiddenException(
+        'Only an admin can grant or revoke shift-specific Work Order Form access.',
+      );
+    }
+  }
+
+  async create(dto: CreateWorkOrderDto, actor?: UserAccessContext) {
     await this.applyProjectAssignmentDateBounds(dto.projectId, dto.startDate, dto.endDate);
 
     const shifts = normalizeWorkOrderShifts(dto.shifts);
+    this.assertWorkOrderDelegationChangesAllowed(actor, [], shifts);
     assertShiftsWithinAssignmentDateRange(dto.startDate, dto.endDate, shifts);
     await this.assertAssignedWorkersMeetRoleCertifications(shifts);
     const orderNumber = (dto.orderNumber?.trim())
@@ -1291,7 +1338,11 @@ export class WorkOrdersService {
     });
   }
 
-  async update(id: string, dto: UpdateWorkOrderDto) {
+  async update(
+    id: string,
+    dto: UpdateWorkOrderDto,
+    actor?: UserAccessContext,
+  ) {
     const workOrder = await this.findOne(id);
     /** Must be captured before Object.assign: dto replaces entity.shifts, and normalize needs true DB-merge baseline. */
     const previousShiftsSnapshot: Record<string, unknown>[] =
@@ -1306,6 +1357,11 @@ export class WorkOrdersService {
       workOrder.shifts = normalizeWorkOrderShifts(
         dto.shifts,
         previousShiftsSnapshot,
+      );
+      this.assertWorkOrderDelegationChangesAllowed(
+        actor,
+        previousShiftsSnapshot,
+        workOrder.shifts as Record<string, unknown>[],
       );
     }
     assertShiftsWithinAssignmentDateRange(
@@ -1369,8 +1425,16 @@ export class WorkOrdersService {
   async bulkCreateShifts(
     workOrderId: string,
     payload: BulkCreateShiftsDto,
+    actor?: UserAccessContext,
   ) {
     const workOrder = await this.findOne(workOrderId);
+    this.assertWorkOrderDelegationChangesAllowed(actor, [], [
+      {
+        id: '__bulk_shift__',
+        workOrderAuthorizedWorkerIds:
+          payload.workOrderAuthorizedWorkerIds ?? [],
+      },
+    ]);
 
     if (!Array.isArray(payload.dates) || payload.dates.length === 0) {
       throw new BadRequestException('At least one date is required.');
@@ -1378,10 +1442,6 @@ export class WorkOrdersService {
     if (!Array.isArray(payload.roles) || payload.roles.length === 0) {
       throw new BadRequestException('At least one role is required.');
     }
-    if (!payload.shiftName?.trim()) {
-      throw new BadRequestException('Shift Name is required.');
-    }
-
     const seen = new Set<string>();
     const uniqueDates = payload.dates.filter((d) => {
       if (typeof d !== 'string' || !d.trim()) return false;
@@ -1429,11 +1489,13 @@ export class WorkOrdersService {
       created.push({
         id: `s_bulk_${nowId}_${date.replace(/-/g, '')}`,
         workOrderId,
-        shiftName: payload.shiftName.trim(),
+        shiftName: payload.shiftName?.trim() ?? '',
         shiftTemplateId: payload.shiftTemplateId || undefined,
         defaultRoleStartTime: payload.defaultRoleStartTime || payload.startTime,
         plannedEquipment: payload.plannedEquipment ?? [],
         plannedMaterials: payload.plannedMaterials ?? [],
+        workOrderAuthorizedWorkerIds:
+          payload.workOrderAuthorizedWorkerIds ?? [],
         date,
         startTime: payload.startTime,
         endTime: payload.endTime,

@@ -122,6 +122,7 @@ export class ShiftsQueryService {
         notes: shift.notes ?? undefined,
         plannedEquipment: [...(shift.plannedEquipment ?? [])],
         plannedMaterials: [...(shift.plannedMaterials ?? [])],
+        workOrderAuthorizedWorkerIds: [...(shift.workOrderAuthorizedWorkerIds ?? [])],
         defaultRoleStartTime: shift.defaultRoleStartTime ?? undefined,
         shiftTemplateId: shift.shiftTemplateId ?? undefined,
         roles: roleList.map((role) => {
@@ -264,6 +265,7 @@ export class ShiftsQueryService {
             notes: shift.notes ?? undefined,
             plannedEquipment: [...(shift.plannedEquipment ?? [])],
             plannedMaterials: [...(shift.plannedMaterials ?? [])],
+            workOrderAuthorizedWorkerIds: [...(shift.workOrderAuthorizedWorkerIds ?? [])],
             defaultRoleStartTime: shift.defaultRoleStartTime ?? undefined,
             shiftTemplateId: shift.shiftTemplateId ?? undefined,
             roles: roleList.map((role) => {

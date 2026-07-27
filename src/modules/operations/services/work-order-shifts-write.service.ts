@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
@@ -31,6 +31,7 @@ export type ShiftWriteInput = {
   notes?: string | null;
   plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
   plannedMaterials?: Array<{ type: string; estimatedQuantity: number }>;
+  workOrderAuthorizedWorkerIds?: string[];
   defaultRoleStartTime?: string | null;
   shiftTemplateId?: string | null;
   roles: Array<{
@@ -77,10 +78,6 @@ export class WorkOrderShiftsWriteService {
     workOrderId: string,
     shifts: ShiftWriteInput[],
   ): Promise<void> {
-    const unnamedShift = shifts.find((shift) => !shift.shiftName?.trim());
-    if (unnamedShift) {
-      throw new BadRequestException('Shift Name is required for every shift.');
-    }
     await this.dataSource.transaction(async (manager) => {
       const shiftRepo = manager.getRepository(WorkOrderShift);
       const roleRepo = manager.getRepository(WorkOrderShiftRole);
@@ -104,31 +101,44 @@ export class WorkOrderShiftsWriteService {
       }
       if (shifts.length === 0) return;
 
-      const shiftRows = shifts.map((s) => ({
-        id: s.id,
-        workOrderId,
-        shiftName: s.shiftName.trim(),
-        date: s.date,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        status: s.status?.trim() || null,
-        cancelled: s.cancelled ?? false,
-        createdByUserId: s.createdByUserId ?? null,
-        requesterUserId: s.requesterUserId ?? null,
-        address: s.address ?? null,
-        crossStreetLocationDetail: s.crossStreetLocationDetail?.trim() || null,
-        addressLatitude: s.addressLatitude ?? null, addressLongitude: s.addressLongitude ?? null,
-        addressCity: s.addressCity ?? null, addressState: s.addressState ?? null, addressZipCode: s.addressZipCode ?? null, addressCountry: s.addressCountry ?? null,
-        requesterName: s.requesterName ?? null,
-        requesterPhone: s.requesterPhone?.trim() || null,
-        requesterEmail: s.requesterEmail?.trim().toLowerCase() || null,
-        visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
-        notes: s.notes ?? null,
-        plannedEquipment: [...(s.plannedEquipment ?? [])],
-        plannedMaterials: [...(s.plannedMaterials ?? [])],
-        defaultRoleStartTime: s.defaultRoleStartTime ?? null,
-        shiftTemplateId: s.shiftTemplateId ?? null,
-      }));
+      const shiftRows = shifts.map((s) => {
+        const assignedWorkerIds = new Set(
+          s.roles.flatMap((role) => role.assignedWorkers.map((worker) => worker.workerId)),
+        );
+        const workOrderAuthorizedWorkerIds = [
+          ...new Set(
+            (s.workOrderAuthorizedWorkerIds ?? [])
+              .map((workerId) => workerId.trim())
+              .filter((workerId) => workerId && assignedWorkerIds.has(workerId)),
+          ),
+        ];
+        return {
+          id: s.id,
+          workOrderId,
+          shiftName: s.shiftName?.trim() ?? '',
+          date: s.date,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          status: s.status?.trim() || null,
+          cancelled: s.cancelled ?? false,
+          createdByUserId: s.createdByUserId ?? null,
+          requesterUserId: s.requesterUserId ?? null,
+          address: s.address ?? null,
+          crossStreetLocationDetail: s.crossStreetLocationDetail?.trim() || null,
+          addressLatitude: s.addressLatitude ?? null, addressLongitude: s.addressLongitude ?? null,
+          addressCity: s.addressCity ?? null, addressState: s.addressState ?? null, addressZipCode: s.addressZipCode ?? null, addressCountry: s.addressCountry ?? null,
+          requesterName: s.requesterName ?? null,
+          requesterPhone: s.requesterPhone?.trim() || null,
+          requesterEmail: s.requesterEmail?.trim().toLowerCase() || null,
+          visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
+          notes: s.notes ?? null,
+          plannedEquipment: [...(s.plannedEquipment ?? [])],
+          plannedMaterials: [...(s.plannedMaterials ?? [])],
+          workOrderAuthorizedWorkerIds,
+          defaultRoleStartTime: s.defaultRoleStartTime ?? null,
+          shiftTemplateId: s.shiftTemplateId ?? null,
+        };
+      });
       if (shiftRows.length > 0) await shiftRepo.insert(shiftRows as any);
 
       const roleRows: any[] = [];
@@ -338,6 +348,11 @@ export class WorkOrderShiftsWriteService {
         notes: typeof raw.notes === 'string' ? raw.notes : null,
         plannedEquipment: Array.isArray(raw.plannedEquipment) ? raw.plannedEquipment : [],
         plannedMaterials: Array.isArray(raw.plannedMaterials) ? raw.plannedMaterials : [],
+        workOrderAuthorizedWorkerIds: Array.isArray(raw.workOrderAuthorizedWorkerIds)
+          ? raw.workOrderAuthorizedWorkerIds.filter(
+              (workerId): workerId is string => typeof workerId === 'string',
+            )
+          : [],
         defaultRoleStartTime:
           typeof raw.defaultRoleStartTime === 'string' ? raw.defaultRoleStartTime : null,
         shiftTemplateId:

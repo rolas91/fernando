@@ -96,6 +96,7 @@ import { WorkersService } from './services/workers.service';
 import { WorkerRolesService } from './services/worker-roles.service';
 import { OperationsAuthGuard } from './operations-auth.guard';
 import { SpacesStorageService } from './services/spaces-storage.service';
+import { ShiftWorkOrderAccessService } from './services/shift-work-order-access.service';
 import { ShiftChatGateway } from './gateways/shift-chat.gateway';
 import { CatalogImportModule } from './import/catalog-import.module';
 import { PagedListsController } from './controllers/paged-lists.controller';
@@ -206,6 +207,7 @@ import { PagedListsController } from './controllers/paged-lists.controller';
     OperationsAuthGuard,
     ShiftsQueryService,
     WorkOrderShiftsWriteService,
+    ShiftWorkOrderAccessService,
     NumberingService,
   ],
   exports: [
@@ -236,6 +238,7 @@ import { PagedListsController } from './controllers/paged-lists.controller';
     CompanySettingsService,
     ShiftsQueryService,
     WorkOrderShiftsWriteService,
+    ShiftWorkOrderAccessService,
   ],
 })
 export class OperationsModule {}

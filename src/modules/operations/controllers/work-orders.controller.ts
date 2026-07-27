@@ -161,14 +161,18 @@ export class WorkOrdersController {
 
   @Post()
   @ApiBody({ type: CreateWorkOrderDto })
-  create(@Body() dto: CreateWorkOrderDto) {
-    return this.workOrdersService.create(dto);
+  create(@Body() dto: CreateWorkOrderDto, @Req() req: ReqWithOpsUser) {
+    return this.workOrdersService.create(dto, req.user);
   }
 
   @Patch(':id')
   @ApiBody({ type: UpdateWorkOrderDto })
-  update(@Param('id') id: string, @Body() dto: UpdateWorkOrderDto) {
-    return this.workOrdersService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateWorkOrderDto,
+    @Req() req: ReqWithOpsUser,
+  ) {
+    return this.workOrdersService.update(id, dto, req.user);
   }
 
   @Post(':id/shifts/bulk-create')
@@ -176,8 +180,9 @@ export class WorkOrdersController {
   bulkCreateShifts(
     @Param('id') id: string,
     @Body() dto: BulkCreateShiftsDto,
+    @Req() req: ReqWithOpsUser,
   ) {
-    return this.workOrdersService.bulkCreateShifts(id, dto);
+    return this.workOrdersService.bulkCreateShifts(id, dto, req.user);
   }
 
   @Delete(':id')

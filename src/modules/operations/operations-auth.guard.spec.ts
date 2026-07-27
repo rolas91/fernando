@@ -1,19 +1,17 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { OperationsAuthGuard } from './operations-auth.guard';
 
-type Verified = {
-  userId: string;
-  role: 'admin' | 'manager' | 'scheduler' | 'viewer';
-};
+type Verified = { sub: string };
 
 describe('OperationsAuthGuard', () => {
   const verifyAccessToken = jest.fn<Verified | null, [string]>();
+  const getUserAccessContext = jest.fn();
 
   const guard = new OperationsAuthGuard(
     {
       verifyAccessToken,
     } as never,
-    {} as never,
+    { getUserAccessContext } as never,
   );
 
   const makeContext = (req: {
@@ -32,10 +30,11 @@ describe('OperationsAuthGuard', () => {
 
   afterEach(() => {
     verifyAccessToken.mockReset();
+    getUserAccessContext.mockReset();
     process.env.AUTH_DEV_BYPASS = prevEnv;
   });
 
-  it('throws 401 when token is missing and bypass disabled', () => {
+  it('throws 401 when token is missing and bypass disabled', async () => {
     process.env.AUTH_DEV_BYPASS = 'false';
     const context = makeContext({
       method: 'GET',
@@ -43,26 +42,38 @@ describe('OperationsAuthGuard', () => {
       headers: {},
     });
 
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
-  it('throws 401 when token is invalid and bypass disabled', () => {
+  it('throws 401 when token is invalid and bypass disabled', async () => {
     process.env.AUTH_DEV_BYPASS = 'false';
-    verifyAccessToken.mockReturnValueOnce(null);
+    verifyAccessToken.mockImplementationOnce(() => {
+      throw new Error('invalid token');
+    });
     const context = makeContext({
       method: 'GET',
       originalUrl: '/workers',
       headers: { authorization: 'Bearer bad-token' },
     });
 
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
-  it('throws 403 when viewer tries to write workers', () => {
+  it('throws 403 when viewer tries to write workers', async () => {
     process.env.AUTH_DEV_BYPASS = 'false';
     verifyAccessToken.mockReturnValueOnce({
-      userId: 'u1',
+      sub: 'u1',
+    });
+    getUserAccessContext.mockResolvedValueOnce({
+      id: 'u1',
+      email: 'viewer@example.com',
       role: 'viewer',
+      roles: ['viewer'],
+      permissions: ['workers.read'],
     });
     const context = makeContext({
       method: 'POST',
@@ -70,17 +81,24 @@ describe('OperationsAuthGuard', () => {
       headers: { authorization: 'Bearer viewer-token' },
     });
 
-    expect(() => guard.canActivate(context)).toThrow(
-      'Role viewer cannot write workers',
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      'User viewer@example.com cannot write workers',
     );
   });
 
-  it('allows scheduler to write work-orders', () => {
+  it('allows scheduler to write work-orders', async () => {
     process.env.AUTH_DEV_BYPASS = 'false';
     verifyAccessToken.mockReturnValueOnce({
-      userId: 'u2',
-      role: 'scheduler',
+      sub: 'u2',
     });
+    const scheduler = {
+      id: 'u2',
+      email: 'scheduler@example.com',
+      role: 'scheduler',
+      roles: ['scheduler'],
+      permissions: ['work-orders.write'],
+    };
+    getUserAccessContext.mockResolvedValueOnce(scheduler);
     const req = {
       method: 'PATCH',
       originalUrl: '/work-orders/123',
@@ -91,11 +109,11 @@ describe('OperationsAuthGuard', () => {
     };
     const context = makeContext(req);
 
-    expect(guard.canActivate(context)).toBe(true);
-    expect(req.user).toEqual({ id: 'u2', role: 'scheduler' });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(req.user).toEqual(scheduler);
   });
 
-  it('allows missing token when dev bypass is enabled', () => {
+  it('allows missing token when dev bypass is enabled', async () => {
     process.env.AUTH_DEV_BYPASS = 'true';
     const context = makeContext({
       method: 'POST',
@@ -103,6 +121,6 @@ describe('OperationsAuthGuard', () => {
       headers: {},
     });
 
-    expect(guard.canActivate(context)).toBe(true);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 });

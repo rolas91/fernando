@@ -21,6 +21,7 @@ import { UpdateFormSubmissionDto } from '../dto/update-form-submission.dto';
 import { SpacesStorageService } from './spaces-storage.service';
 import { TimesheetsService } from './timesheets.service';
 import { ShiftsQueryService } from './shifts-query.service';
+import { ShiftWorkOrderAccessService } from './shift-work-order-access.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -277,6 +278,18 @@ function isTimesheetTemplate(template: FormTemplate | null) {
     category.includes('time sheet') ||
     name.includes('timesheet') ||
     name.includes('time sheet')
+  );
+}
+
+function isWorkOrderTemplate(template: FormTemplate | null) {
+  if (!template) return false;
+  const category = normalizedTemplateText(template.category);
+  const name = normalizedTemplateText(template.name);
+  return (
+    category.includes('work order') ||
+    category.includes('workorder') ||
+    name.includes('work order') ||
+    name.includes('workorder')
   );
 }
 
@@ -1743,6 +1756,7 @@ export class FormSubmissionsService {
     private readonly spacesStorage: SpacesStorageService,
     private readonly timesheetsService: TimesheetsService,
     private readonly shiftsQuery: ShiftsQueryService,
+    private readonly shiftWorkOrderAccess: ShiftWorkOrderAccessService,
   ) {}
 
   findAll(
@@ -1793,6 +1807,13 @@ export class FormSubmissionsService {
     const template = dto.templateId
       ? await this.templatesRepo.findOne({ where: { id: dto.templateId } })
       : null;
+    if (isWorkOrderTemplate(template)) {
+      await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
+        actor,
+        dto.workOrderId,
+        dto.shiftId,
+      );
+    }
     const data = await this.prepareTimesheetData(
       normalizeSubmissionData(dto.data),
       template,
@@ -1848,6 +1869,13 @@ export class FormSubmissionsService {
     const template = templateId
       ? await this.templatesRepo.findOne({ where: { id: templateId } })
       : null;
+    if (isWorkOrderTemplate(template)) {
+      await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
+        actor,
+        dto.workOrderId || item.workOrderId,
+        dto.shiftId || item.shiftId,
+      );
+    }
     const data =
       dto.data !== undefined
         ? await this.prepareTimesheetData(

@@ -19,6 +19,7 @@ import { CreateFormTemplateDto } from '../dto/create-form-template.dto';
 import { UpdateFormTemplateDto } from '../dto/update-form-template.dto';
 import { FormContextResolutionService } from '../services/form-context-resolution.service';
 import { FormTemplatesService } from '../services/form-templates.service';
+import { ShiftWorkOrderAccessService } from '../services/shift-work-order-access.service';
 
 type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
@@ -51,6 +52,7 @@ export class FormTemplatesController {
   constructor(
     private readonly service: FormTemplatesService,
     private readonly contextResolution: FormContextResolutionService,
+    private readonly shiftWorkOrderAccess: ShiftWorkOrderAccessService,
   ) {}
 
   @Get()
@@ -58,10 +60,16 @@ export class FormTemplatesController {
     @Query('projectId') projectId?: string,
     @Query('role') role?: string,
     @Query('workOrderId') workOrderId?: string,
+    @Query('shiftId') shiftId?: string,
     @Req() req?: ReqWithOpsUser,
   ) {
     const filterForActor = (templates: Awaited<ReturnType<FormTemplatesService['findAll']>>) =>
-      this.filterTemplatesForActor(templates, req?.user);
+      this.filterTemplatesForActor(
+        templates,
+        req?.user,
+        workOrderId,
+        shiftId,
+      );
     if (projectId || role || workOrderId) {
       return this.service
         .findAssigned({ projectId, role, workOrderId })
@@ -75,7 +83,7 @@ export class FormTemplatesController {
    * Query: workOrderId (obligatorio), shiftId (opcional, para rutas shift.*).
    */
   @Get(':id/context-preview')
-  contextPreview(
+  async contextPreview(
     @Param('id') id: string,
     @Query('workOrderId') workOrderId?: string,
     @Query('shiftId') shiftId?: string,
@@ -86,9 +94,17 @@ export class FormTemplatesController {
     if (!w) {
       throw new BadRequestException('workOrderId query parameter is required');
     }
-    return this.contextResolution.previewTemplateForWorkOrder(id, w, shiftId, req?.user, {
+    const preview = await this.contextResolution.previewTemplateForWorkOrder(id, w, shiftId, req?.user, {
       timesheetScope: timesheetScope === 'own' || timesheetScope === 'all' ? timesheetScope : undefined,
     });
+    return {
+      ...preview,
+      canManageWorkOrder: await this.shiftWorkOrderAccess.canManageShiftWorkOrder(
+        req?.user,
+        w,
+        shiftId,
+      ),
+    };
   }
 
   @Get(':id')
@@ -113,17 +129,30 @@ export class FormTemplatesController {
     return this.service.remove(id);
   }
 
-  private filterTemplatesForActor(
+  private async filterTemplatesForActor(
     templates: Awaited<ReturnType<FormTemplatesService['findAll']>>,
     actor?: UserAccessContext,
+    workOrderId?: string,
+    shiftId?: string,
   ) {
     if (!actor) return templates;
     if (actor.permissions.includes('form-submissions.write')) return templates;
+    const canManageShiftWorkOrder =
+      await this.shiftWorkOrderAccess.canManageShiftWorkOrder(
+        actor,
+        workOrderId,
+        shiftId,
+      );
     return templates.filter((template) => {
       const category = templateCategoryKey(template);
       if (category === 'timesheet') return actor.permissions.includes('mobile.timesheets.submit');
       if (category === 'incident') return actor.permissions.includes('mobile.incidents.submit');
-      if (category === 'workorder') return actor.permissions.includes('mobile.work-orders.submit');
+      if (category === 'workorder') {
+        return (
+          actor.permissions.includes('mobile.work-orders.submit') ||
+          canManageShiftWorkOrder
+        );
+      }
       return true;
     });
   }

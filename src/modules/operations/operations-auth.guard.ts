@@ -13,6 +13,7 @@ import type { UserAccessContext } from '../access/ports/access.port';
 import { OPERATIONS_RESOURCE_PERMISSIONS } from '../access/access-policy';
 import { AccessService } from '../access/services/access.service';
 import { AuthTokenService } from '../auth/services/auth-token.service';
+import { ShiftWorkOrderAccessService } from './services/shift-work-order-access.service';
 
 type Action = 'read' | 'write';
 
@@ -24,6 +25,8 @@ export class OperationsAuthGuard implements CanActivate {
     @Optional()
     @InjectRepository(FormTemplate)
     private readonly formTemplatesRepo?: Repository<FormTemplate>,
+    @Optional()
+    private readonly shiftWorkOrderAccess?: ShiftWorkOrderAccessService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -142,7 +145,18 @@ export class OperationsAuthGuard implements CanActivate {
     }
 
     if (category.includes('work order') || category.includes('workorder')) {
-      return user.permissions.includes('mobile.work-orders.submit');
+      return (
+        user.permissions.includes('mobile.work-orders.submit') ||
+        Boolean(
+          await this.shiftWorkOrderAccess?.canManageShiftWorkOrder(
+            user,
+            typeof req.body?.workOrderId === 'string'
+              ? req.body.workOrderId
+              : undefined,
+            typeof req.body?.shiftId === 'string' ? req.body.shiftId : undefined,
+          ),
+        )
+      );
     }
 
     return false;

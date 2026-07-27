@@ -40,6 +40,7 @@ import { ShiftsQueryService } from './shifts-query.service';
 import { SpacesStorageService } from './spaces-storage.service';
 import { NumberingService } from './numbering.service';
 import type { UserAccessContext } from '../../access/ports/access.port';
+import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
 
 type MobileAssignmentQuery = {
   search?: string;
@@ -574,7 +575,7 @@ export class WorkOrdersService {
     const email = actor?.email?.trim().toLowerCase();
     if (!email) throw new ForbiddenException('Authenticated user email is required.');
 
-    const worker = await this.workerRepo.findOne({ where: { email } });
+    const worker = await findWorkerForActor(this.workerRepo, actor);
     if (!worker) {
       throw new ForbiddenException(
         'No worker profile is linked to this user email.',

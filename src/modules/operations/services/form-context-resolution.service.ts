@@ -11,6 +11,7 @@ import { Timesheet } from '../../../entities/timesheet.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { FORM_DATA_BINDING_PATHS } from '../utils/form-data-binding.registry';
+import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import {
   DynamicFormField,
@@ -767,9 +768,7 @@ export class FormContextResolutionService {
   }
 
   private async resolveWorkerIdForActor(actor?: UserAccessContext) {
-    const email = actor?.email?.trim().toLowerCase();
-    if (!email) return '';
-    const worker = await this.workerRepo.findOne({ where: { email } });
+    const worker = await findWorkerForActor(this.workerRepo, actor);
     return worker?.id || '';
   }
 }

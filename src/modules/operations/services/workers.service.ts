@@ -10,6 +10,7 @@ import { Skill } from '../../../entities/skill.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkerCertification } from '../../../entities/worker-certification.entity';
 import { WorkerRole } from '../../../entities/worker-role.entity';
+import { User } from '../../../entities/user.entity';
 import { AccessService } from '../../access/services/access.service';
 import { PasswordHasherService } from '../../auth/services/password-hasher.service';
 import { UsersService } from '../../users/services/users.service';
@@ -21,6 +22,7 @@ import {
 import { UpdateWorkerDto } from '../dto/update-worker.dto';
 import { SpacesStorageService } from './spaces-storage.service';
 import type { UserAccessContext } from '../../access/ports/access.port';
+import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
 
 type LinkedAppRole = 'admin' | 'manager' | 'scheduler' | 'viewer';
 
@@ -74,13 +76,10 @@ export class WorkersService {
     if (!email) {
       throw new ForbiddenException('Authenticated user email is required.');
     }
-    const worker = await this.workersRepo.findOne({
-      where: { email },
-      relations: {
-        workerCertifications: { certification: true },
-        skills: true,
-        workerRoles: true,
-      },
+    const worker = await findWorkerForActor(this.workersRepo, actor, {
+      workerCertifications: { certification: true },
+      skills: true,
+      workerRoles: true,
     });
     if (!worker) {
       throw new NotFoundException(
@@ -238,7 +237,7 @@ export class WorkersService {
     phone: string;
     password: string;
     role: LinkedAppRole;
-  }): Promise<void> {
+  }): Promise<User> {
     const passwordHash = await this.passwordHasher.hash(payload.password);
     const user = await this.usersService.create({
       email: payload.email.trim().toLowerCase(),
@@ -255,6 +254,19 @@ export class WorkersService {
       await this.usersService.delete(user.id);
       throw roleErr;
     }
+    return user;
+  }
+
+  private async linkMatchingExistingAppUser(worker: Worker) {
+    if (worker.userId || !worker.email?.trim()) return;
+    const user = await this.usersService.findByEmail(worker.email);
+    if (!user) return;
+    const alreadyLinked = await this.workersRepo.findOne({
+      where: { userId: user.id },
+    });
+    if (alreadyLinked && alreadyLinked.id !== worker.id) return;
+    worker.userId = user.id;
+    await this.workersRepo.save(worker);
   }
 
   private async replaceWorkerCertifications(
@@ -319,6 +331,7 @@ export class WorkersService {
         : [];
     const entity = this.workersRepo.create({
       ...rest,
+      email: dto.email.trim().toLowerCase(),
       skills,
       workerRoles,
       hourlyRate:
@@ -327,6 +340,9 @@ export class WorkersService {
     this.finalizeWorkerPostalFields(entity);
     this.syncLegacyTypeField(entity, workerRoles);
     const saved = await this.workersRepo.save(entity);
+    if (createAppUser !== true) {
+      await this.linkMatchingExistingAppUser(saved);
+    }
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);
     }
@@ -336,8 +352,9 @@ export class WorkersService {
       appUserPassword &&
       appUserRole
     ) {
+      let linkedUser: User | null = null;
       try {
-        await this.provisionLinkedAppUser({
+        linkedUser = await this.provisionLinkedAppUser({
           email: dto.email,
           firstName: dto.firstName,
           lastName: dto.lastName,
@@ -345,7 +362,12 @@ export class WorkersService {
           password: appUserPassword,
           role: appUserRole,
         });
+        saved.userId = linkedUser.id;
+        await this.workersRepo.save(saved);
       } catch (err) {
+        if (linkedUser) {
+          await this.usersService.delete(linkedUser.id);
+        }
         await this.workersRepo.delete(saved.id);
         throw err;
       }
@@ -396,6 +418,9 @@ export class WorkersService {
         : worker.workerRoles || [];
     Object.assign(worker, {
       ...rest,
+      ...(dto.email !== undefined
+        ? { email: dto.email.trim().toLowerCase() }
+        : {}),
       skills,
       workerRoles,
       hourlyRate:
@@ -404,6 +429,9 @@ export class WorkersService {
     this.finalizeWorkerPostalFields(worker);
     this.syncLegacyTypeField(worker, workerRoles);
     const saved = await this.workersRepo.save(worker);
+    if (createAppUser !== true) {
+      await this.linkMatchingExistingAppUser(saved);
+    }
     if (certificationAssignments !== undefined) {
       await this.replaceWorkerCertifications(saved.id, certificationAssignments);
     }
@@ -413,7 +441,7 @@ export class WorkersService {
       appUserPassword &&
       appUserRole
     ) {
-      await this.provisionLinkedAppUser({
+      const linkedUser = await this.provisionLinkedAppUser({
         email: saved.email || '',
         firstName: saved.firstName || '',
         lastName: saved.lastName || '',
@@ -421,6 +449,13 @@ export class WorkersService {
         password: appUserPassword,
         role: appUserRole,
       });
+      saved.userId = linkedUser.id;
+      try {
+        await this.workersRepo.save(saved);
+      } catch (error) {
+        await this.usersService.delete(linkedUser.id);
+        throw error;
+      }
     }
 
     this.realtime.emitTableUpdated('workers');
@@ -446,9 +481,7 @@ export class WorkersService {
       throw new ForbiddenException('Authenticated user email is required.');
     }
 
-    const worker = await this.workersRepo.findOne({
-      where: { email: actor.email.trim().toLowerCase() },
-    });
+    const worker = await findWorkerForActor(this.workersRepo, actor);
     if (!worker) {
       throw new NotFoundException(
         `Worker profile for ${actor.email} was not found.`,

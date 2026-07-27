@@ -3,14 +3,17 @@ import {
   CreateDateColumn,
   Entity,
   JoinTable,
+  JoinColumn,
   ManyToMany,
   OneToMany,
+  OneToOne,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Skill } from './skill.entity';
 import { WorkerRole } from './worker-role.entity';
 import { WorkerCertification } from './worker-certification.entity';
+import { User } from './user.entity';
 
 @Entity('workers')
 export class Worker {
@@ -25,6 +28,13 @@ export class Worker {
 
   @Column({ type: 'varchar', length: 255, default: '' })
   email: string;
+
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId: string | null;
+
+  @OneToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'user_id' })
+  user?: User | null;
 
   @Column({ type: 'varchar', length: 64, default: '' })
   phone: string;

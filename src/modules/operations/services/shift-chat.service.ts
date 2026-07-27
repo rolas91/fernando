@@ -17,6 +17,7 @@ import { SpacesStorageService } from './spaces-storage.service';
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { ShiftsQueryService } from './shifts-query.service';
+import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
 
 @Injectable()
 export class ShiftChatService {
@@ -206,9 +207,7 @@ export class ShiftChatService {
   }
 
   private async resolveWorkerForActor(actor: UserAccessContext | undefined) {
-    const email = actor?.email?.trim().toLowerCase();
-    if (!email) return null;
-    return this.workersRepo.findOne({ where: { email } });
+    return findWorkerForActor(this.workersRepo, actor);
   }
 
   private isPrivilegedChatActor(actor: UserAccessContext | undefined) {

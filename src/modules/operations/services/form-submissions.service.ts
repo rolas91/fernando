@@ -28,6 +28,7 @@ import {
   validateSubmissionAgainstFields,
 } from '../utils/form-contract.util';
 import { loadCommercialPdfLogoImage } from '../utils/commercial-pdf.util';
+import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
 
 function pdfEscape(value: string): string {
   return value
@@ -2006,9 +2007,7 @@ export class FormSubmissionsService {
   }
 
   private async resolveWorkerIdForActor(actor?: UserAccessContext) {
-    const email = actor?.email?.trim().toLowerCase();
-    if (!email) return '';
-    const worker = await this.workersRepo.findOne({ where: { email } });
+    const worker = await findWorkerForActor(this.workersRepo, actor);
     return worker?.id || actor?.id || '';
   }
 

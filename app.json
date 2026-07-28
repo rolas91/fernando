@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "cb03e126-929b-4c3a-bedb-7b36597fab58"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.drtrafficcontrol.backend",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

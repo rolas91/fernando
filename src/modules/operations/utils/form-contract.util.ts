@@ -39,6 +39,7 @@ type FieldRules = {
   maxFileSizeMb?: number;
   acceptedMimeTypes?: string[];
   hiddenForMobileRoles?: string[];
+  requiresShiftWorkOrderAccessOnMobile?: boolean;
 };
 
 type FieldUi = {
@@ -133,6 +134,10 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
   const maxFileSizeMb = asNumber(input.maxFileSizeMb);
   const acceptedMimeTypes = asStringArray(input.acceptedMimeTypes);
   const hiddenForMobileRoles = asStringArray(input.hiddenForMobileRoles);
+  const requiresShiftWorkOrderAccessOnMobile = asBoolean(
+    input.requiresShiftWorkOrderAccessOnMobile,
+    false,
+  );
 
   if (type === 'text' || type === 'textarea') {
     if (minLength !== undefined) rules.minLength = minLength;
@@ -169,8 +174,13 @@ function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined
     if (acceptedMimeTypes) rules.acceptedMimeTypes = acceptedMimeTypes;
   }
 
-  if (type === 'signature' && hiddenForMobileRoles) {
-    rules.hiddenForMobileRoles = hiddenForMobileRoles;
+  if (type === 'signature') {
+    if (hiddenForMobileRoles) {
+      rules.hiddenForMobileRoles = hiddenForMobileRoles;
+    }
+    if (requiresShiftWorkOrderAccessOnMobile) {
+      rules.requiresShiftWorkOrderAccessOnMobile = true;
+    }
   }
 
   return Object.keys(rules).length > 0 ? rules : undefined;
@@ -282,14 +292,28 @@ const HHMM_RE = /^\d{2}:\d{2}$/;
 export function validateSubmissionAgainstFields(
   fields: DynamicFormField[],
   data: Record<string, unknown> | undefined,
-  options?: { mobileRole?: string },
+  options?: {
+    mobileRole?: string;
+    canManageShiftWorkOrder?: boolean;
+  },
 ) {
   const payload = data || {};
   const mobileRole = options?.mobileRole?.trim().toLowerCase() || '';
 
   for (const field of fields) {
+    const legacyShiftAccessRule =
+      field.type === 'signature' &&
+      field.rules?.hiddenForMobileRoles
+        ?.map((role) => role.trim().toLowerCase())
+        .includes('viewer');
+    const requiresShiftAccess =
+      field.rules?.requiresShiftWorkOrderAccessOnMobile ||
+      legacyShiftAccessRule;
+    if (requiresShiftAccess && !options?.canManageShiftWorkOrder) continue;
+
     const hiddenForRole = field.rules?.hiddenForMobileRoles
       ?.map((role) => role.trim().toLowerCase())
+      .filter((role) => !(legacyShiftAccessRule && role === 'viewer'))
       .includes(mobileRole);
     if (hiddenForRole) continue;
 

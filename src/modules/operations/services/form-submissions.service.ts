@@ -1808,12 +1808,21 @@ export class FormSubmissionsService {
     const template = dto.templateId
       ? await this.templatesRepo.findOne({ where: { id: dto.templateId } })
       : null;
+    let canManageShiftWorkOrder = false;
     if (isWorkOrderTemplate(template)) {
       await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
         actor,
         dto.workOrderId,
         dto.shiftId,
       );
+      canManageShiftWorkOrder = true;
+    } else if (template) {
+      canManageShiftWorkOrder =
+        await this.shiftWorkOrderAccess.canManageShiftWorkOrder(
+          actor,
+          dto.workOrderId,
+          dto.shiftId,
+        );
     }
     const data = await this.prepareTimesheetData(
       normalizeSubmissionData(dto.data),
@@ -1826,7 +1835,10 @@ export class FormSubmissionsService {
       validateSubmissionAgainstFields(
         normalizeFormFields(template.fields),
         data,
-        { mobileRole: this.mobileValidationRole(template, actor) },
+        {
+          mobileRole: this.mobileValidationRole(template, actor),
+          canManageShiftWorkOrder,
+        },
       );
     }
 
@@ -1870,12 +1882,21 @@ export class FormSubmissionsService {
     const template = templateId
       ? await this.templatesRepo.findOne({ where: { id: templateId } })
       : null;
+    let canManageShiftWorkOrder = false;
     if (isWorkOrderTemplate(template)) {
       await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
         actor,
         dto.workOrderId || item.workOrderId,
         dto.shiftId || item.shiftId,
       );
+      canManageShiftWorkOrder = true;
+    } else if (template) {
+      canManageShiftWorkOrder =
+        await this.shiftWorkOrderAccess.canManageShiftWorkOrder(
+          actor,
+          dto.workOrderId || item.workOrderId,
+          dto.shiftId || item.shiftId,
+        );
     }
     const data =
       dto.data !== undefined
@@ -1894,7 +1915,10 @@ export class FormSubmissionsService {
       validateSubmissionAgainstFields(
         normalizeFormFields(template.fields),
         data,
-        { mobileRole: this.mobileValidationRole(template, actor) },
+        {
+          mobileRole: this.mobileValidationRole(template, actor),
+          canManageShiftWorkOrder,
+        },
       );
     }
 

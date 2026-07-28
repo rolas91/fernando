@@ -888,19 +888,9 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
   {
     id: 'worker_signature',
     key: 'workerSignature',
-    label: 'Employee / Foreman Signature',
+    label: 'Worker Signature',
     type: 'signature',
     required: true,
-    rules: { hiddenForMobileRoles: ['viewer'] },
-    ui: { section: 'Notes & Signature', layout: 'full' },
-  },
-  {
-    id: 'customer_approval_signature',
-    key: 'customerApprovalSignature',
-    label: 'Customer Contract / Approval',
-    type: 'signature',
-    required: false,
-    rules: { hiddenForMobileRoles: ['viewer'] },
     ui: { section: 'Notes & Signature', layout: 'full' },
   },
   {
@@ -910,6 +900,17 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     type: 'checkbox',
     required: true,
     ui: { section: 'Notes & Signature', layout: 'full', defaultValue: true },
+  },
+];
+
+const TIMESHEET_FORM_FIELDS: Record<string, unknown>[] = [
+  {
+    id: 'field_1779422736586_adc7h',
+    key: 'field_1779422736586',
+    label: 'Worker Timesheets',
+    type: 'timesheet',
+    required: false,
+    dataBinding: { path: 'shift.timesheetWorkers', optional: true },
   },
 ];
 
@@ -987,7 +988,7 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
     label: 'Location',
     type: 'text',
     required: true,
-    dataBinding: { path: 'shift.address', optional: true },
+    dataBinding: { path: 'workOrder.assignmentAddress', optional: true },
     ui: {
       section: 'Incident Details',
       layout: 'full',
@@ -1154,7 +1155,14 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
 const DEFAULT_FORM_TEMPLATES: Array<
   Pick<
     FormTemplate,
-    'id' | 'name' | 'description' | 'category' | 'fields' | 'assignedProjects' | 'assignedRoles'
+    | 'id'
+    | 'name'
+    | 'description'
+    | 'category'
+    | 'isRequired'
+    | 'fields'
+    | 'assignedProjects'
+    | 'assignedRoles'
   >
 > = [
   {
@@ -1162,15 +1170,27 @@ const DEFAULT_FORM_TEMPLATES: Array<
     name: 'Work Order Form',
     description: 'Daily work order completion form for field crews.',
     category: 'Work Order',
+    isRequired: true,
     fields: WORK_ORDER_FORM_FIELDS,
     assignedProjects: [],
     assignedRoles: ['worker', 'foreman', 'admin', 'manager'],
+  },
+  {
+    id: 'ft_1779422754097',
+    name: 'TimeSheet',
+    description: '',
+    category: 'Timesheet',
+    isRequired: true,
+    fields: TIMESHEET_FORM_FIELDS,
+    assignedProjects: [],
+    assignedRoles: [],
   },
   {
     id: 'incident_report_field_report',
     name: 'Incident Report',
     description: 'Field incident report for injuries, damage, unsafe events, and near misses.',
     category: 'Incident Report',
+    isRequired: true,
     fields: INCIDENT_REPORT_FORM_FIELDS,
     assignedProjects: [],
     assignedRoles: ['worker', 'foreman', 'admin', 'manager'],
@@ -1382,6 +1402,7 @@ async function seedFormTemplates(dataSource: DataSource) {
     existing.name = template.name;
     existing.description = template.description;
     existing.category = template.category;
+    existing.isRequired = template.isRequired;
     existing.fields = fields;
     existing.assignedProjects = template.assignedProjects;
     existing.assignedRoles = template.assignedRoles;

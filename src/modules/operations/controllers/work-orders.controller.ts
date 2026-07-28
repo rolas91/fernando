@@ -18,6 +18,7 @@ import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateWorkOrderDto } from '../dto/create-work-order.dto';
 import { DeleteWorkOrderUploadDto } from '../dto/delete-work-order-upload.dto';
 import { UpdateWorkOrderDto } from '../dto/update-work-order.dto';
+import { UpdateWorkOrderShiftDetailDto } from '../dto/update-work-order-shift-detail.dto';
 import { BulkCreateShiftsDto } from '../dto/bulk-create-shifts.dto';
 import { WorkOrdersService } from '../services/work-orders.service';
 import { SpacesStorageService } from '../services/spaces-storage.service';
@@ -173,6 +174,22 @@ export class WorkOrdersController {
     @Req() req: ReqWithOpsUser,
   ) {
     return this.workOrdersService.update(id, dto, req.user);
+  }
+
+  @Patch(':id/shifts/:shiftId/detail')
+  @ApiBody({ type: UpdateWorkOrderShiftDetailDto })
+  updateShiftFromDetail(
+    @Param('id') id: string,
+    @Param('shiftId') shiftId: string,
+    @Body() dto: UpdateWorkOrderShiftDetailDto,
+    @Req() req: ReqWithOpsUser,
+  ) {
+    return this.workOrdersService.updateShiftFromDetail(
+      id,
+      shiftId,
+      dto.shift,
+      req.user,
+    );
   }
 
   @Post(':id/shifts/bulk-create')

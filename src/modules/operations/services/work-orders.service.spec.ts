@@ -575,6 +575,57 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
     ).not.toThrow();
   });
 
+  it('allows the selected completed shift to be edited through Shift Detail only', () => {
+    const { service } = buildService();
+    const previous = {
+      id: 'shift-completed',
+      shiftName: 'Original name',
+      date: '2026-07-20',
+      roles: [],
+    };
+    const edited = { ...previous, shiftName: 'Corrected name' };
+
+    expect(() =>
+      (
+        service as unknown as {
+          assertCompletedShiftsUnchanged: (
+            workOrderId: string,
+            completedKeys: Set<string>,
+            previousShifts: Record<string, unknown>[],
+            nextShifts: Record<string, unknown>[],
+            mutableCompletedShiftId?: string,
+          ) => void;
+        }
+      ).assertCompletedShiftsUnchanged(
+        'wo-1',
+        new Set(['wo-1:shift-completed']),
+        [previous],
+        [edited],
+        'shift-completed',
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      (
+        service as unknown as {
+          assertCompletedShiftsUnchanged: (
+            workOrderId: string,
+            completedKeys: Set<string>,
+            previousShifts: Record<string, unknown>[],
+            nextShifts: Record<string, unknown>[],
+            mutableCompletedShiftId?: string,
+          ) => void;
+        }
+      ).assertCompletedShiftsUnchanged(
+        'wo-1',
+        new Set(['wo-1:shift-completed']),
+        [previous],
+        [edited],
+        'another-shift',
+      ),
+    ).toThrow('Completed shift shift-completed cannot be modified or deleted');
+  });
+
   it('preserves the other worker confirmation when worker re-confirms the whole assignment via mobile', async () => {
     const { service, saved } = buildService();
     const workOrder: WorkOrder = {

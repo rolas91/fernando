@@ -1500,6 +1500,7 @@ export class WorkOrdersService {
     completedShiftKeys: Set<string>,
     previousShifts: Record<string, unknown>[],
     nextShifts: Record<string, unknown>[],
+    mutableCompletedShiftId?: string,
   ) {
     const nextById = new Map(
       nextShifts.map((shift) => [String(shift.id || ''), shift]),
@@ -1508,6 +1509,7 @@ export class WorkOrdersService {
       const shiftId = String(previousShift.id || '');
       if (
         !shiftId ||
+        shiftId === mutableCompletedShiftId ||
         !completedShiftKeys.has(`${workOrderId}:${shiftId}`)
       ) {
         continue;
@@ -1577,6 +1579,7 @@ export class WorkOrdersService {
     id: string,
     dto: UpdateWorkOrderDto,
     actor?: UserAccessContext,
+    options?: { mutableCompletedShiftId?: string },
   ) {
     const workOrder = await this.findOne(id);
     const completedShiftKeys =
@@ -1598,6 +1601,7 @@ export class WorkOrdersService {
         completedShiftKeys,
         previousShiftsSnapshot,
         dto.shifts as Record<string, unknown>[],
+        options?.mutableCompletedShiftId,
       );
     }
 
@@ -1692,6 +1696,32 @@ export class WorkOrdersService {
       });
     }
     return saved;
+  }
+
+  async updateShiftFromDetail(
+    workOrderId: string,
+    shiftId: string,
+    shift: Record<string, unknown>,
+    actor?: UserAccessContext,
+  ) {
+    const workOrder = await this.findOne(workOrderId);
+    const shifts = workOrder.shifts ?? [];
+    const shiftIndex = shifts.findIndex(
+      (item) => typeof item.id === 'string' && item.id === shiftId,
+    );
+    if (shiftIndex < 0) {
+      throw new NotFoundException(`Shift ${shiftId} not found`);
+    }
+
+    const nextShifts = shifts.map((item, index) =>
+      index === shiftIndex ? { ...shift, id: shiftId } : item,
+    );
+    return this.update(
+      workOrderId,
+      { shifts: nextShifts } as UpdateWorkOrderDto,
+      actor,
+      { mutableCompletedShiftId: shiftId },
+    );
   }
 
   /**

@@ -45,6 +45,50 @@ export class TimesheetsService {
       where: { workOrderId, shiftId },
       order: { variant: 'ASC', workerId: 'ASC' },
     });
+    const workOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+    const shifts = await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId);
+    const shift = (shifts ?? []).find((entry) => stringValue(entry.id) === shiftId);
+    const roles = Array.isArray(shift?.roles)
+      ? (shift.roles as Record<string, unknown>[])
+      : [];
+    const workersWithRows = new Set(rows.map((row) => row.workerId));
+    const missingAssignedRows = roles.flatMap((role) => {
+      const assignedWorkers = Array.isArray(role.assignedWorkers)
+        ? role.assignedWorkers.filter(
+            (workerId): workerId is string => typeof workerId === 'string' && Boolean(workerId),
+          )
+        : [];
+      return assignedWorkers
+        .filter((workerId) => !workersWithRows.has(workerId))
+        .map((workerId) => {
+          workersWithRows.add(workerId);
+          return {
+            workerId,
+            projectId: workOrder?.projectId || '',
+            workOrderId,
+            shiftId,
+            shiftDate: stringValue(shift?.date),
+            startTime:
+              stringValue(role.startTime) ||
+              stringValue(shift?.defaultRoleStartTime) ||
+              stringValue(shift?.startTime),
+            endTime: stringValue(shift?.endTime),
+            breakMinutes: 0,
+            lunchTaken: false,
+            status: 'pending',
+          };
+        });
+    });
+    if (missingAssignedRows.length > 0) {
+      const initialized = await this.upsertShiftRows(missingAssignedRows, {
+        workOrderId,
+        shiftId,
+        projectId: workOrder?.projectId || '',
+        variants: ['client', 'internal'],
+        emitRealtime: false,
+      });
+      rows.push(...initialized);
+    }
     const clientWorkers = new Set(
       rows.filter((row) => row.variant === 'client').map((row) => row.workerId),
     );
@@ -158,6 +202,7 @@ export class TimesheetsService {
           scheduledTimes.endTime,
         );
         const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
+        const breakMinutes = numberValue(row.breakMinutes, existing?.breakMinutes ?? 0);
         const timesheetDate =
           stringValue(row.shiftDate) ||
           stringValue(row.date) ||
@@ -171,6 +216,7 @@ export class TimesheetsService {
             scheduledEndTime: scheduledTimes.endTime,
             date: timesheetDate,
             lunchTaken,
+            breakMinutes,
           },
           calculationRules,
         );
@@ -189,7 +235,7 @@ export class TimesheetsService {
           date: timesheetDate,
           clockIn,
           clockOut,
-          breakMinutes: numberValue(row.breakMinutes, existing?.breakMinutes ?? 0),
+          breakMinutes,
           regularHours: String(hours.st),
           overtimeHours: String(hours.ot),
           doubleTimeHours: String(hours.dt),
@@ -327,6 +373,7 @@ export class TimesheetsService {
     const clockOut = updates.clockOut ?? item.clockOut;
     const date = updates.date ?? item.date;
     const lunchTaken = updates.lunchTaken ?? item.lunchTaken;
+    const breakMinutes = updates.breakMinutes ?? item.breakMinutes;
     let calculatedHours:
       | { regularHours: string; overtimeHours: string; doubleTimeHours: string }
       | Record<string, never> = {};
@@ -334,7 +381,8 @@ export class TimesheetsService {
       updates.clockIn !== undefined ||
       updates.clockOut !== undefined ||
       updates.date !== undefined ||
-      updates.lunchTaken !== undefined
+      updates.lunchTaken !== undefined ||
+      updates.breakMinutes !== undefined
     ) {
       const scheduled = await this.getScheduledShiftTimes(
         item.workOrderId,
@@ -350,6 +398,7 @@ export class TimesheetsService {
           scheduledEndTime: scheduled.endTime,
           date,
           lunchTaken,
+          breakMinutes,
         },
         await this.getCalculationRules(),
       );
@@ -602,6 +651,7 @@ export function calculateTimesheetHours(row: {
   date?: string;
   shiftDate?: string;
   lunchTaken?: boolean;
+  breakMinutes?: number;
 }, rules: TimesheetCalculationRules = timesheetCalculationRules()) {
   const startLabel = stringValue(row.startTime) || stringValue(row.clockIn);
   const endLabel = stringValue(row.endTime) || stringValue(row.clockOut);
@@ -620,7 +670,9 @@ export function calculateTimesheetHours(row: {
     throw new BadRequestException('Timesheet End Time must be greater than Start Time.');
   }
 
-  const totalHours = (end - start) / 60;
+  const elapsedHours = (end - start) / 60;
+  const breakHours = Math.max(0, Number(row.breakMinutes) || 0) / 60;
+  const totalHours = Math.max(0, elapsedHours - breakHours);
   const lunchDeduction =
     rules.yesLunchDeductionEnabled &&
     row.lunchTaken === true &&
@@ -694,6 +746,7 @@ export function normalizeTimesheetSubmissionRow(
       scheduledEndTime: stringValue(row.scheduledEndTime),
       date: stringValue(row.shiftDate) || stringValue(row.date),
       lunchTaken,
+      breakMinutes: numberValue(row.breakMinutes, 0),
     },
     rules,
   );

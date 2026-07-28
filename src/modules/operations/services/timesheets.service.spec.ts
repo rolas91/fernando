@@ -101,6 +101,20 @@ describe('calculateTimesheetHours', () => {
     ).toEqual({ st: 8, ot: 1, dt: 0, total: 9 });
   });
 
+  it('deducts break minutes before distributing ST, OT, and DT', () => {
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '07:00',
+          endTime: '16:00',
+          breakMinutes: 30,
+          lunchTaken: true,
+        },
+        rules,
+      ),
+    ).toEqual({ st: 8, ot: 0.5, dt: 0, total: 8.5 });
+  });
+
   it('calculates an overnight shift using the next-day end time', () => {
     expect(
       calculateTimesheetHours(

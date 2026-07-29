@@ -41,6 +41,7 @@ import { SpacesStorageService } from './spaces-storage.service';
 import { NumberingService } from './numbering.service';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
+import { IntegrationsService } from '../../integrations/integrations.service';
 
 type MobileAssignmentQuery = {
   search?: string;
@@ -55,6 +56,140 @@ type MobileShiftCompletion = {
   completedTemplateIdsByShift: Map<string, Set<string>>;
   completedAtByShift: Map<string, Date>;
 };
+
+type WorkOrderAccessNotificationChange = {
+  shiftId: string;
+  shiftDate: string;
+  roleId?: string;
+  workerId: string;
+  granted: boolean;
+};
+
+function shiftRecords(shifts: unknown): Record<string, unknown>[] {
+  return Array.isArray(shifts)
+    ? shifts.filter(
+        (shift): shift is Record<string, unknown> =>
+          Boolean(shift) && typeof shift === 'object' && !Array.isArray(shift),
+      )
+    : [];
+}
+
+function stringIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is string =>
+          typeof item === 'string' && Boolean(item.trim()),
+      )
+    : [];
+}
+
+function shiftWorkerNotificationContext(shift: Record<string, unknown>) {
+  const notified = new Set<string>();
+  const assigned = new Set<string>();
+  const roleByWorker = new Map<string, string>();
+  const roles = Array.isArray(shift.roles) ? shift.roles : [];
+  for (const rawRole of roles) {
+    if (!rawRole || typeof rawRole !== 'object' || Array.isArray(rawRole))
+      continue;
+    const role = rawRole as Record<string, unknown>;
+    const roleId = typeof role.id === 'string' ? role.id : '';
+    for (const workerId of stringIds(role.assignedWorkers)) {
+      assigned.add(workerId);
+      if (roleId && !roleByWorker.has(workerId))
+        roleByWorker.set(workerId, roleId);
+    }
+    const confirmations = Array.isArray(role.workerConfirmations)
+      ? role.workerConfirmations
+      : [];
+    for (const rawConfirmation of confirmations) {
+      if (
+        !rawConfirmation ||
+        typeof rawConfirmation !== 'object' ||
+        Array.isArray(rawConfirmation)
+      ) {
+        continue;
+      }
+      const confirmation = rawConfirmation as Record<string, unknown>;
+      const workerId =
+        typeof confirmation.workerId === 'string'
+          ? confirmation.workerId.trim()
+          : '';
+      const wasNotified =
+        (typeof confirmation.requestedAt === 'string' &&
+          Boolean(confirmation.requestedAt.trim())) ||
+        (typeof confirmation.notificationChannel === 'string' &&
+          Boolean(confirmation.notificationChannel.trim()));
+      if (workerId && wasNotified) notified.add(workerId);
+    }
+  }
+  return { notified, assigned, roleByWorker };
+}
+
+export function workOrderAccessNotificationChanges(
+  previousShifts: unknown,
+  nextShifts: unknown,
+): WorkOrderAccessNotificationChange[] {
+  const previousById = new Map(
+    shiftRecords(previousShifts)
+      .filter((shift) => typeof shift.id === 'string')
+      .map((shift) => [shift.id as string, shift]),
+  );
+  const changes: WorkOrderAccessNotificationChange[] = [];
+
+  for (const nextShift of shiftRecords(nextShifts)) {
+    const shiftId = typeof nextShift.id === 'string' ? nextShift.id : '';
+    const previousShift = shiftId ? previousById.get(shiftId) : undefined;
+    if (!shiftId || !previousShift) continue;
+
+    const previousAccess = new Set(
+      stringIds(previousShift.workOrderAuthorizedWorkerIds),
+    );
+    const nextAccess = new Set(
+      stringIds(nextShift.workOrderAuthorizedWorkerIds),
+    );
+    const previousContext = shiftWorkerNotificationContext(previousShift);
+    const nextContext = shiftWorkerNotificationContext(nextShift);
+    const shiftDate =
+      typeof nextShift.date === 'string' ? nextShift.date : '';
+
+    for (const workerId of nextAccess) {
+      if (
+        previousAccess.has(workerId) ||
+        !previousContext.notified.has(workerId) ||
+        !nextContext.assigned.has(workerId)
+      ) {
+        continue;
+      }
+      changes.push({
+        shiftId,
+        shiftDate,
+        roleId: nextContext.roleByWorker.get(workerId),
+        workerId,
+        granted: true,
+      });
+    }
+
+    for (const workerId of previousAccess) {
+      if (
+        nextAccess.has(workerId) ||
+        !previousContext.notified.has(workerId) ||
+        !nextContext.assigned.has(workerId)
+      ) {
+        continue;
+      }
+      changes.push({
+        shiftId,
+        shiftDate,
+        roleId:
+          nextContext.roleByWorker.get(workerId) ||
+          previousContext.roleByWorker.get(workerId),
+        workerId,
+        granted: false,
+      });
+    }
+  }
+  return changes;
+}
 
 export function countsTowardShiftCompletion(
   submission: Pick<FormSubmission, 'shiftId' | 'status' | 'pdfUrl'>,
@@ -123,6 +258,7 @@ export class WorkOrdersService {
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly shiftsQuery: ShiftsQueryService,
     private readonly numbering: NumberingService,
+    private readonly integrations: IntegrationsService,
   ) {}
 
   async findAll() {
@@ -1475,6 +1611,13 @@ export class WorkOrdersService {
         workOrder.shifts as Record<string, unknown>[],
       );
     }
+    const accessNotificationChanges =
+      dto.shifts !== undefined
+        ? workOrderAccessNotificationChanges(
+            previousShiftsSnapshot,
+            workOrder.shifts,
+          )
+        : [];
     assertShiftsWithinAssignmentDateRange(
       workOrder.startDate,
       workOrder.endDate,
@@ -1526,6 +1669,26 @@ export class WorkOrdersService {
       );
     }
     await this.refreshShifts(saved);
+    if (accessNotificationChanges.length > 0) {
+      const notificationResults = await Promise.allSettled(
+        accessNotificationChanges.map((change) =>
+          this.integrations.notifyWorkOrderAccessChange({
+            ...change,
+            workOrderId: saved.id,
+            workOrderName:
+              saved.title || saved.orderNumber || 'your assignment',
+          }),
+        ),
+      );
+      notificationResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const change = accessNotificationChanges[index];
+          this.logger.warn(
+            `Failed to notify worker ${change.workerId} about Work Order access change for shift ${change.shiftId}: ${String(result.reason)}`,
+          );
+        }
+      });
+    }
     return saved;
   }
 

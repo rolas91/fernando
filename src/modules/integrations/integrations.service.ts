@@ -24,6 +24,7 @@ type GeocodeInput = {
 
 type NotificationBody = {
   action?: 'send_sms' | 'send_whatsapp' | 'send_email' | 'send_in_app';
+  title?: string;
   phone?: string;
   message?: string;
   workerName?: string;
@@ -157,6 +158,71 @@ export class IntegrationsService {
     );
 
     return { success: true, simulated: false, provider, locations: geocoded };
+  }
+
+  async notifyWorkOrderAccessChange(input: {
+    workOrderId: string;
+    shiftId: string;
+    roleId?: string;
+    workerId: string;
+    workOrderName: string;
+    shiftDate: string;
+    granted: boolean;
+  }) {
+    const worker = await this.workersRepo.findOne({
+      where: { id: input.workerId },
+    });
+    if (!worker) return null;
+
+    const title = input.granted
+      ? 'Work Order access granted'
+      : 'Work Order access removed';
+    const datePhrase = input.shiftDate ? ` on ${input.shiftDate}` : '';
+    const message = input.granted
+      ? `You can now complete the timesheet and submit the Work Order for ${input.workOrderName}${datePhrase}.`
+      : `Your access to complete the timesheet and submit the Work Order for ${input.workOrderName}${datePhrase} has been removed. Your shift assignment has not changed.`;
+    const result = await this.sendFirebaseCloudMessage({
+      action: 'send_in_app',
+      title,
+      message,
+      email: worker.email,
+      workerName: `${worker.firstName} ${worker.lastName}`.trim(),
+      confirmation: {
+        workOrderId: input.workOrderId,
+        shiftId: input.shiftId,
+        roleId: input.roleId,
+        workerId: input.workerId,
+        shiftDate: input.shiftDate,
+      },
+    });
+    const deliveryStatus = result.success
+      ? result.simulated
+        ? 'simulated'
+        : 'sent'
+      : 'failed';
+
+    const saved = await this.notificationsRepo.save(
+      this.notificationsRepo.create({
+        id: `notif_${randomBytes(12).toString('hex')}`,
+        type: input.granted
+          ? 'work_order_access_granted'
+          : 'work_order_access_removed',
+        channel: 'in_app',
+        title,
+        message,
+        timestamp: new Date(),
+        read: false,
+        link: input.workOrderId,
+        workerId: input.workerId,
+        workOrderId: input.workOrderId,
+        shiftId: input.shiftId,
+        roleId: input.roleId || null,
+        deliveryStatus,
+        providerMessageId: result.messageId || result.error || null,
+      }),
+    );
+    this.realtime.emitTableUpdated('notifications');
+    return saved;
   }
 
   async sendNotification(body: NotificationBody, baseUrl: string) {
@@ -1005,7 +1071,7 @@ export class IntegrationsService {
     const messages: ExpoPushMessage[] = validTokens.map((token) => ({
       to: token,
       sound: 'default',
-      title: 'Shift assignment notification',
+      title: body.title || 'Shift assignment notification',
       body: body.message || 'Notification',
       data: {
         channel: 'in_app',

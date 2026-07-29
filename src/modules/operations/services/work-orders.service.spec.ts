@@ -1,4 +1,12 @@
-import { countsTowardShiftCompletion, WorkOrdersService } from './work-orders.service';
+jest.mock('../../integrations/integrations.service', () => ({
+  IntegrationsService: class IntegrationsService {},
+}));
+
+import {
+  countsTowardShiftCompletion,
+  workOrderAccessNotificationChanges,
+  WorkOrdersService,
+} from './work-orders.service';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { UserAccessContext } from '../../access/ports/access.port';
@@ -29,6 +37,94 @@ describe('countsTowardShiftCompletion', () => {
         pdfUrl: '',
       }),
     ).toBe(false);
+  });
+});
+
+describe('workOrderAccessNotificationChanges', () => {
+  const shift = (
+    authorizedWorkerIds: string[],
+    options: { notified?: boolean; assigned?: boolean } = {},
+  ) => ({
+    id: 'shift-1',
+    date: '2026-07-28',
+    workOrderAuthorizedWorkerIds: authorizedWorkerIds,
+    roles: [
+      {
+        id: 'role-1',
+        assignedWorkers:
+          options.assigned === false ? [] : ['worker-1'],
+        workerConfirmations:
+          options.notified === false
+            ? []
+            : [
+                {
+                  workerId: 'worker-1',
+                  requestedAt: '2026-07-27T12:00:00.000Z',
+                },
+              ],
+      },
+    ],
+  });
+
+  it('does not notify for an unrelated shift edit', () => {
+    expect(
+      workOrderAccessNotificationChanges(
+        [shift(['worker-1'])],
+        [{ ...shift(['worker-1']), startTime: '09:00' }],
+      ),
+    ).toEqual([]);
+  });
+
+  it('notifies when access is removed from a previously notified assigned worker', () => {
+    expect(
+      workOrderAccessNotificationChanges(
+        [shift(['worker-1'])],
+        [shift([])],
+      ),
+    ).toEqual([
+      {
+        shiftId: 'shift-1',
+        shiftDate: '2026-07-28',
+        roleId: 'role-1',
+        workerId: 'worker-1',
+        granted: false,
+      },
+    ]);
+  });
+
+  it('does not notify an assigned worker who never received the shift notification', () => {
+    expect(
+      workOrderAccessNotificationChanges(
+        [shift(['worker-1'], { notified: false })],
+        [shift([], { notified: false })],
+      ),
+    ).toEqual([]);
+  });
+
+  it('notifies when access is granted to a previously notified assigned worker', () => {
+    expect(
+      workOrderAccessNotificationChanges(
+        [shift([])],
+        [shift(['worker-1'])],
+      ),
+    ).toEqual([
+      {
+        shiftId: 'shift-1',
+        shiftDate: '2026-07-28',
+        roleId: 'role-1',
+        workerId: 'worker-1',
+        granted: true,
+      },
+    ]);
+  });
+
+  it('does not send a duplicate access removal when the worker leaves the shift', () => {
+    expect(
+      workOrderAccessNotificationChanges(
+        [shift(['worker-1'])],
+        [shift([], { assigned: false })],
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -107,6 +203,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       { updateWorkerConfirmation: jest.fn() } as never,
       shiftsQuery,
       { nextWorkOrderNumber: jest.fn(async () => 'ASN-2026-0001') } as never,
+      { notifyWorkOrderAccessChange: jest.fn() } as never,
     );
     return { service, saved };
   }
@@ -557,6 +654,7 @@ describe('WorkOrdersService.findOne shifts merge', () => {
       {} as never,
       shiftsQuery,
       { nextWorkOrderNumber: jest.fn(async () => 'ASN-2026-0001') } as never,
+      { notifyWorkOrderAccessChange: jest.fn() } as never,
     );
     return { service, repo };
   }

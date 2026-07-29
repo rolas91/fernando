@@ -4,8 +4,6 @@ import { In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../../entities/work-order-shift-role-worker.entity';
-import { WorkOrderShiftRoleEquipment } from '../../../entities/work-order-shift-role-equipment.entity';
-import { WorkOrderShiftRoleMaterial } from '../../../entities/work-order-shift-role-material.entity';
 
 /**
  * Read-only query service for the relational representation of work order shifts.
@@ -24,10 +22,6 @@ export class ShiftsQueryService {
     private readonly rolesRepo: Repository<WorkOrderShiftRole>,
     @InjectRepository(WorkOrderShiftRoleWorker)
     private readonly workerAssignmentsRepo: Repository<WorkOrderShiftRoleWorker>,
-    @InjectRepository(WorkOrderShiftRoleEquipment)
-    private readonly equipmentAssignmentsRepo: Repository<WorkOrderShiftRoleEquipment>,
-    @InjectRepository(WorkOrderShiftRoleMaterial)
-    private readonly materialAssignmentsRepo: Repository<WorkOrderShiftRoleMaterial>,
   ) {}
 
   /**
@@ -50,44 +44,18 @@ export class ShiftsQueryService {
       .orderBy('role.id', 'ASC')
       .getMany();
 
-    const [workerRows, equipmentRows, materialRows] = await Promise.all([
-      this.workerAssignmentsRepo
+    const workerRows = await this.workerAssignmentsRepo
         .createQueryBuilder('w')
         .innerJoin('work_order_shift_roles', 'role', 'role.id = w.role_id')
         .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
         .where('shift.work_order_id = :workOrderId', { workOrderId })
-        .getMany(),
-      this.equipmentAssignmentsRepo
-        .createQueryBuilder('e')
-        .innerJoin('work_order_shift_roles', 'role', 'role.id = e.role_id')
-        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
-        .where('shift.work_order_id = :workOrderId', { workOrderId })
-        .getMany(),
-      this.materialAssignmentsRepo
-        .createQueryBuilder('m')
-        .innerJoin('work_order_shift_roles', 'role', 'role.id = m.role_id')
-        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
-        .where('shift.work_order_id = :workOrderId', { workOrderId })
-        .getMany(),
-    ]);
+        .getMany();
 
     const workerByRole = new Map<string, WorkOrderShiftRoleWorker[]>();
     for (const w of workerRows) {
       const list = workerByRole.get(w.roleId) ?? [];
       list.push(w);
       workerByRole.set(w.roleId, list);
-    }
-    const equipmentByRole = new Map<string, string[]>();
-    for (const e of equipmentRows) {
-      const list = equipmentByRole.get(e.roleId) ?? [];
-      list.push(e.equipmentId);
-      equipmentByRole.set(e.roleId, list);
-    }
-    const materialByRole = new Map<string, string[]>();
-    for (const m of materialRows) {
-      const list = materialByRole.get(m.roleId) ?? [];
-      list.push(m.materialId);
-      materialByRole.set(m.roleId, list);
     }
 
     const rolesByShift = new Map<string, WorkOrderShiftRole[]>();
@@ -137,11 +105,7 @@ export class ShiftsQueryService {
             startTime: role.startTime ?? undefined,
             requiredCertificationIds: [...role.requiredCertificationIds],
             requiredSkillIds: [...role.requiredSkillIds],
-            equipmentTypes: [...(role.equipmentTypes ?? [])],
-            materialTypes: [...(role.materialTypes ?? [])],
             assignedWorkers: workerList.map((w) => w.workerId),
-            assignedEquipment: [...(equipmentByRole.get(role.id) ?? [])],
-            assignedMaterials: [...(materialByRole.get(role.id) ?? [])],
             workerConfirmations: workerList.map((w) => {
               const out: Record<string, unknown> = {
                 workerId: w.workerId,
@@ -181,7 +145,7 @@ export class ShiftsQueryService {
     });
     if (shiftRows.length === 0) return out;
 
-    const [roleRows, workerRows, equipmentRows, materialRows] = await Promise.all([
+    const [roleRows, workerRows] = await Promise.all([
       this.rolesRepo
         .createQueryBuilder('role')
         .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
@@ -194,18 +158,6 @@ export class ShiftsQueryService {
         .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
         .where('shift.work_order_id IN (:...workOrderIds)', { workOrderIds })
         .getMany(),
-      this.equipmentAssignmentsRepo
-        .createQueryBuilder('e')
-        .innerJoin('work_order_shift_roles', 'role', 'role.id = e.role_id')
-        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
-        .where('shift.work_order_id IN (:...workOrderIds)', { workOrderIds })
-        .getMany(),
-      this.materialAssignmentsRepo
-        .createQueryBuilder('m')
-        .innerJoin('work_order_shift_roles', 'role', 'role.id = m.role_id')
-        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
-        .where('shift.work_order_id IN (:...workOrderIds)', { workOrderIds })
-        .getMany(),
     ]);
 
     const workerByRole = new Map<string, WorkOrderShiftRoleWorker[]>();
@@ -213,18 +165,6 @@ export class ShiftsQueryService {
       const list = workerByRole.get(w.roleId) ?? [];
       list.push(w);
       workerByRole.set(w.roleId, list);
-    }
-    const equipmentByRole = new Map<string, string[]>();
-    for (const e of equipmentRows) {
-      const list = equipmentByRole.get(e.roleId) ?? [];
-      list.push(e.equipmentId);
-      equipmentByRole.set(e.roleId, list);
-    }
-    const materialByRole = new Map<string, string[]>();
-    for (const m of materialRows) {
-      const list = materialByRole.get(m.roleId) ?? [];
-      list.push(m.materialId);
-      materialByRole.set(m.roleId, list);
     }
     const rolesByShift = new Map<string, WorkOrderShiftRole[]>();
     for (const role of roleRows) {
@@ -284,8 +224,6 @@ export class ShiftsQueryService {
                 requiredCertificationIds: [...role.requiredCertificationIds],
                 requiredSkillIds: [...role.requiredSkillIds],
                 assignedWorkers: workerList.map((w) => w.workerId),
-                assignedEquipment: [...(equipmentByRole.get(role.id) ?? [])],
-                assignedMaterials: [...(materialByRole.get(role.id) ?? [])],
                 workerConfirmations: workerList.map((w) => {
                   const conf: Record<string, unknown> = {
                     workerId: w.workerId,

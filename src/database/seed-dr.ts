@@ -17,8 +17,6 @@ import { WorkerRole } from '../entities/worker-role.entity';
 import { WorkOrder } from '../entities/work-order.entity';
 import { WorkOrderShift } from '../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../entities/work-order-shift-role.entity';
-import { WorkOrderShiftRoleEquipment } from '../entities/work-order-shift-role-equipment.entity';
-import { WorkOrderShiftRoleMaterial } from '../entities/work-order-shift-role-material.entity';
 import { WorkOrderShiftRoleWorker } from '../entities/work-order-shift-role-worker.entity';
 import { WorkOrderType } from '../entities/work-order-type.entity';
 import { AccessService } from '../modules/access/services/access.service';
@@ -1481,8 +1479,6 @@ type SeedShiftFixture = {
     requiredCertificationIds: string[];
     requiredSkillIds: string[];
     assignedWorkers: Array<{ workerId: string; status: 'pending' | 'confirmed' | 'declined' }>;
-    equipmentIds: string[];
-    materialIds: string[];
   }>;
 };
 
@@ -1570,8 +1566,6 @@ function buildSeedShiftFixtures(): SeedShiftFixture[] {
             { workerId: 'wkr_demo_fernando', status: 'confirmed' },
             { workerId: 'wkr_demo_rolando', status: 'pending' },
           ],
-          equipmentIds: ['eq_demo_cone'],
-          materialIds: ['mat_demo_sign'],
         },
       ],
     },
@@ -1594,8 +1588,6 @@ function buildSeedShiftFixtures(): SeedShiftFixture[] {
             { workerId: 'wkr_demo_fernando', status: 'confirmed' },
             { workerId: 'wkr_demo_rolando', status: 'confirmed' },
           ],
-          equipmentIds: ['eq_demo_cone', 'eq_demo_arrow'],
-          materialIds: ['mat_demo_sign'],
         },
         {
           roleId: 'r_demo_2_lead',
@@ -1607,8 +1599,6 @@ function buildSeedShiftFixtures(): SeedShiftFixture[] {
           assignedWorkers: [
             { workerId: 'wkr_demo_jhon', status: 'pending' },
           ],
-          equipmentIds: [],
-          materialIds: [],
         },
       ],
     },
@@ -1630,8 +1620,6 @@ function buildSeedShiftFixtures(): SeedShiftFixture[] {
           assignedWorkers: [
             { workerId: 'wkr_demo_rolando', status: 'pending' },
           ],
-          equipmentIds: ['eq_demo_arrow'],
-          materialIds: [],
         },
       ],
     },
@@ -1654,8 +1642,6 @@ function buildSeedShiftsJson(fixtures: SeedShiftFixture[]): Record<string, unkno
       requiredCertificationIds: [...r.requiredCertificationIds],
       requiredSkillIds: [...r.requiredSkillIds],
       assignedWorkers: r.assignedWorkers.map((w) => w.workerId),
-      assignedEquipment: [...r.equipmentIds],
-      assignedMaterials: [...r.materialIds],
       workerConfirmations: r.assignedWorkers.map((w) => ({
         workerId: w.workerId,
         status: w.status,
@@ -1676,8 +1662,6 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
   const shiftRepo = dataSource.getRepository(WorkOrderShift);
   const roleRepo = dataSource.getRepository(WorkOrderShiftRole);
   const roleWorkerRepo = dataSource.getRepository(WorkOrderShiftRoleWorker);
-  const roleEquipmentRepo = dataSource.getRepository(WorkOrderShiftRoleEquipment);
-  const roleMaterialRepo = dataSource.getRepository(WorkOrderShiftRoleMaterial);
 
   const existingClient = await clientRepo.findOne({ where: { id: SEED_DEMO_CLIENT.id } });
   if (!existingClient) {
@@ -1906,25 +1890,6 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
         );
       }
 
-      for (const equipId of role.equipmentIds) {
-        const existing = await roleEquipmentRepo.findOne({
-          where: { roleId: role.roleId, equipmentId: equipId },
-        });
-        if (existing) continue;
-        await roleEquipmentRepo.save(
-          roleEquipmentRepo.create({ roleId: role.roleId, equipmentId: equipId }),
-        );
-      }
-
-      for (const matId of role.materialIds) {
-        const existing = await roleMaterialRepo.findOne({
-          where: { roleId: role.roleId, materialId: matId },
-        });
-        if (existing) continue;
-        await roleMaterialRepo.save(
-          roleMaterialRepo.create({ roleId: role.roleId, materialId: matId }),
-        );
-      }
     }
   }
 

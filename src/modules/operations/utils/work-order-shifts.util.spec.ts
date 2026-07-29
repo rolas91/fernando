@@ -13,8 +13,6 @@ const shiftsWithOneConfirmed = [
         id: 'role-1',
         requiredCount: 2,
         assignedWorkers: ['worker-a', 'worker-b'],
-        assignedEquipment: [],
-        assignedMaterials: [],
         workerConfirmations: [
           { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
           { workerId: 'worker-b', status: 'pending' },
@@ -25,6 +23,31 @@ const shiftsWithOneConfirmed = [
 ];
 
 describe('updateShiftWorkerConfirmation', () => {
+  it('strips obsolete role resource fields from incoming payloads', () => {
+    const normalized = normalizeWorkOrderShifts([
+      {
+        id: 'shift-legacy-resources',
+        roles: [
+          {
+            id: 'role-legacy-resources',
+            roleName: 'Flagger',
+            requiredCount: 1,
+            assignedWorkers: [],
+            assignedEquipment: ['equipment-1'],
+            assignedMaterials: ['material-1'],
+            equipmentTypes: ['Truck'],
+            materialTypes: ['Cone'],
+          },
+        ],
+      },
+    ]);
+
+    expect(normalized[0].roles?.[0]).not.toHaveProperty('assignedEquipment');
+    expect(normalized[0].roles?.[0]).not.toHaveProperty('assignedMaterials');
+    expect(normalized[0].roles?.[0]).not.toHaveProperty('equipmentTypes');
+    expect(normalized[0].roles?.[0]).not.toHaveProperty('materialTypes');
+  });
+
   it('normalizes and deduplicates Work Order Types on the shift', () => {
     const normalized = normalizeWorkOrderShifts([
       {
@@ -85,8 +108,6 @@ describe('normalizeWorkOrderShifts - role id regeneration', () => {
             roleName: 'Flagger',
             requiredCount: 2,
             assignedWorkers: ['worker-a', 'worker-b'],
-            assignedEquipment: [],
-            assignedMaterials: [],
             workerConfirmations: [
               { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
               { workerId: 'worker-b', status: 'pending' },
@@ -104,8 +125,6 @@ describe('normalizeWorkOrderShifts - role id regeneration', () => {
             roleName: 'Flagger',
             requiredCount: 2,
             assignedWorkers: ['worker-a', 'worker-b'],
-            assignedEquipment: [],
-            assignedMaterials: [],
           },
         ],
       },
@@ -130,8 +149,6 @@ describe('preserveOtherWorkerConfirmations', () => {
         roleName: 'Flagger',
         requiredCount: 2,
         assignedWorkers: ['worker-a', 'worker-b'],
-        assignedEquipment: [],
-        assignedMaterials: [],
         workerConfirmations: [
           { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
           { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-06T11:00:00.000Z' },
@@ -176,8 +193,6 @@ describe('preserveOtherWorkerConfirmations', () => {
             roleName: 'Foreman',
             requiredCount: 1,
             assignedWorkers: ['worker-c'],
-            assignedEquipment: [],
-            assignedMaterials: [],
             workerConfirmations: [
               { workerId: 'worker-c', status: 'confirmed' },
             ],
@@ -200,8 +215,6 @@ describe('preserveOtherWorkerConfirmations', () => {
             roleName: 'Foreman',
             requiredCount: 1,
             assignedWorkers: ['worker-c'],
-            assignedEquipment: [],
-            assignedMaterials: [],
             workerConfirmations: [
               { workerId: 'worker-c', status: 'pending' },
             ],

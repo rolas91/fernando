@@ -33,23 +33,6 @@ export class BulkShiftRoleDto {
   @IsArray()
   assignedWorkers?: string[];
 
-  @IsOptional()
-  @IsArray()
-  assignedEquipment?: string[];
-
-  @IsOptional()
-  @IsArray()
-  assignedMaterials?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  equipmentTypes?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  materialTypes?: string[];
 }
 
 export class BulkCreateShiftsDto {

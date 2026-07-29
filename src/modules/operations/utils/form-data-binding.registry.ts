@@ -207,16 +207,6 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
     requiresShift: true,
   },
   {
-    path: 'shift.equipmentSummary',
-    description: 'Brief list of equipment assigned to the shift (identifier - name)',
-    requiresShift: true,
-  },
-  {
-    path: 'shift.materialsSummary',
-    description: 'Materials assigned to the shift',
-    requiresShift: true,
-  },
-  {
     path: 'shift.rolesSummary',
     description: 'Required roles summary for the shift (role x quantity)',
     requiresShift: true,
@@ -224,16 +214,6 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
   {
     path: 'workOrder.allWorkerNames',
     description: 'All unique workers across assignment shifts, comma-separated',
-    requiresShift: false,
-  },
-  {
-    path: 'workOrder.allEquipmentSummary',
-    description: 'Unique equipment used across all shifts (identifier - name)',
-    requiresShift: false,
-  },
-  {
-    path: 'workOrder.allMaterialsSummary',
-    description: 'Unique materials across all shifts',
     requiresShift: false,
   },
 ];

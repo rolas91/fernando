@@ -25,8 +25,6 @@ import { Timesheet } from '../../entities/timesheet.entity';
 import { WorkOrder } from '../../entities/work-order.entity';
 import { WorkOrderShift } from '../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../entities/work-order-shift-role.entity';
-import { WorkOrderShiftRoleEquipment } from '../../entities/work-order-shift-role-equipment.entity';
-import { WorkOrderShiftRoleMaterial } from '../../entities/work-order-shift-role-material.entity';
 import { WorkOrderShiftRoleWorker } from '../../entities/work-order-shift-role-worker.entity';
 import { WorkOrderSequence } from '../../entities/work-order-sequence.entity';
 import { WorkOrderType } from '../../entities/work-order-type.entity';
@@ -140,8 +138,6 @@ import { PagedListsController } from './controllers/paged-lists.controller';
       WorkOrderShift,
       WorkOrderShiftRole,
       WorkOrderShiftRoleWorker,
-      WorkOrderShiftRoleEquipment,
-      WorkOrderShiftRoleMaterial,
       WorkOrderSequence,
     ]),
   ],

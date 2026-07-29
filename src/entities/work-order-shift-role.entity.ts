@@ -11,8 +11,6 @@ import {
 } from 'typeorm';
 import { WorkOrderShift } from './work-order-shift.entity';
 import { WorkOrderShiftRoleWorker } from './work-order-shift-role-worker.entity';
-import { WorkOrderShiftRoleEquipment } from './work-order-shift-role-equipment.entity';
-import { WorkOrderShiftRoleMaterial } from './work-order-shift-role-material.entity';
 
 @Entity('work_order_shift_roles')
 @Index('idx_work_order_shift_roles_shift', ['shiftId'])
@@ -48,22 +46,6 @@ export class WorkOrderShiftRole {
   })
   requiredSkillIds: string[];
 
-  @Column({
-    name: 'equipment_types',
-    type: 'text',
-    array: true,
-    default: '{}',
-  })
-  equipmentTypes: string[];
-
-  @Column({
-    name: 'material_types',
-    type: 'text',
-    array: true,
-    default: '{}',
-  })
-  materialTypes: string[];
-
   @ManyToOne(() => WorkOrderShift, (shift) => shift.roles, {
     onDelete: 'CASCADE',
   })
@@ -72,20 +54,6 @@ export class WorkOrderShiftRole {
 
   @OneToMany(() => WorkOrderShiftRoleWorker, (w) => w.role, { cascade: true })
   workerAssignments?: WorkOrderShiftRoleWorker[];
-
-  @OneToMany(
-    () => WorkOrderShiftRoleEquipment,
-    (e) => e.role,
-    { cascade: true },
-  )
-  equipmentAssignments?: WorkOrderShiftRoleEquipment[];
-
-  @OneToMany(
-    () => WorkOrderShiftRoleMaterial,
-    (m) => m.role,
-    { cascade: true },
-  )
-  materialAssignments?: WorkOrderShiftRoleMaterial[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

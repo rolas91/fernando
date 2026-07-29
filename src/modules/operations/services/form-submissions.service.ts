@@ -871,21 +871,14 @@ function generatedPdfFileName(
   );
   if (!context) return `${safeSubmissionId}.pdf`;
 
-  const roles = Array.isArray(context.shift?.roles)
-    ? context.shift.roles
+  const plannedMaterials = Array.isArray(context.shift?.plannedMaterials)
+    ? context.shift.plannedMaterials
         .map(recordValue)
-        .filter((role): role is Record<string, unknown> => role !== null)
+        .filter((resource): resource is Record<string, unknown> => resource !== null)
     : [];
   const materialTypes = [
     ...context.materials.map((material) => material.type || ''),
-    ...roles.flatMap((role) =>
-      Array.isArray(role.materialTypes)
-        ? role.materialTypes.filter(
-            (value): value is string =>
-              typeof value === 'string' && value.trim().length > 0,
-          )
-        : [],
-    ),
+    ...plannedMaterials.map((resource) => String(resource.type || '')),
   ]
     .map((value) => value.trim())
     .filter(
@@ -2939,17 +2932,11 @@ export class FormSubmissionsService {
           workerStart.set(workerId, roleStart);
         }
       }
-      for (const materialId of this.stringArray(role.assignedMaterials)) {
-        if (!materialIds.includes(materialId)) materialIds.push(materialId);
-      }
-      for (const equipmentId of this.stringArray(role.assignedEquipment)) {
-        if (!equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
-      }
     }
 
     // Fallback: when the work order has no rows in the relational shift
     // tables (new WO created with shifts:[] before the user added a shift),
-    // harvest workers/equipment/materials from the submission form data.
+    // harvest workers from the submission form data.
     if (workerIds.length === 0) {
       for (const row of submittedTimesheetRows) {
         const workerId = String(row.workerId ?? '').trim();
@@ -2958,25 +2945,9 @@ export class FormSubmissionsService {
         }
       }
     }
-    if (equipmentIds.length === 0) {
-      for (const row of submittedEquipmentRows) {
-        const equipmentId = String(row.equipmentId ?? '').trim();
-        if (equipmentId && !equipmentIds.includes(equipmentId)) {
-          equipmentIds.push(equipmentId);
-        }
-      }
-    }
     for (const row of submittedEquipmentRows) {
       const equipmentId = String(row.equipmentId ?? '').trim();
       if (equipmentId && !equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
-    }
-    if (materialIds.length === 0) {
-      for (const row of submittedMaterialResourceRows) {
-        const materialId = String(row.materialId ?? '').trim();
-        if (materialId && !materialIds.includes(materialId)) {
-          materialIds.push(materialId);
-        }
-      }
     }
     for (const row of submittedMaterialResourceRows) {
       const materialId = String(row.materialId ?? '').trim();

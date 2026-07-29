@@ -7,8 +7,6 @@ import {
   WorkOrderShiftRoleWorker,
   type ShiftWorkerConfirmationStatus,
 } from '../../../entities/work-order-shift-role-worker.entity';
-import { WorkOrderShiftRoleEquipment } from '../../../entities/work-order-shift-role-equipment.entity';
-import { WorkOrderShiftRoleMaterial } from '../../../entities/work-order-shift-role-material.entity';
 
 export type ShiftWriteInput = {
   id: string;
@@ -44,11 +42,7 @@ export type ShiftWriteInput = {
     startTime?: string | null;
     requiredCertificationIds?: string[];
     requiredSkillIds?: string[];
-    equipmentTypes?: string[];
-    materialTypes?: string[];
     assignedWorkers: Array<{ workerId: string; status?: ShiftWorkerConfirmationStatus; respondedAt?: string | null; requestedAt?: string | null; notificationChannel?: string | null }>;
-    equipmentIds: string[];
-    materialIds: string[];
   }>;
 };
 
@@ -70,10 +64,6 @@ export class WorkOrderShiftsWriteService {
     private readonly rolesRepo: Repository<WorkOrderShiftRole>,
     @InjectRepository(WorkOrderShiftRoleWorker)
     private readonly workerAssignmentsRepo: Repository<WorkOrderShiftRoleWorker>,
-    @InjectRepository(WorkOrderShiftRoleEquipment)
-    private readonly equipmentAssignmentsRepo: Repository<WorkOrderShiftRoleEquipment>,
-    @InjectRepository(WorkOrderShiftRoleMaterial)
-    private readonly materialAssignmentsRepo: Repository<WorkOrderShiftRoleMaterial>,
   ) {}
 
   /** Replace all shifts/roles/assignments for a work order atomically. */
@@ -85,8 +75,6 @@ export class WorkOrderShiftsWriteService {
       const shiftRepo = manager.getRepository(WorkOrderShift);
       const roleRepo = manager.getRepository(WorkOrderShiftRole);
       const workerRepo = manager.getRepository(WorkOrderShiftRoleWorker);
-      const equipRepo = manager.getRepository(WorkOrderShiftRoleEquipment);
-      const matRepo = manager.getRepository(WorkOrderShiftRoleMaterial);
 
       const existingShifts = await shiftRepo.find({ where: { workOrderId } });
       const existingShiftIds = existingShifts.map((s) => s.id);
@@ -96,8 +84,6 @@ export class WorkOrderShiftsWriteService {
         const existingRoleIds = existingRoles.map((r) => r.id);
         if (existingRoleIds.length > 0) {
           await workerRepo.delete({ roleId: In(existingRoleIds) });
-          await equipRepo.delete({ roleId: In(existingRoleIds) });
-          await matRepo.delete({ roleId: In(existingRoleIds) });
           await roleRepo.delete({ id: In(existingRoleIds) });
         }
         await shiftRepo.delete({ id: In(existingShiftIds) });
@@ -149,8 +135,6 @@ export class WorkOrderShiftsWriteService {
 
       const roleRows: any[] = [];
       const workerRows: any[] = [];
-      const equipRows: any[] = [];
-      const matRows: any[] = [];
       for (const s of shifts) {
         for (const r of s.roles) {
           roleRows.push({
@@ -161,8 +145,6 @@ export class WorkOrderShiftsWriteService {
             startTime: r.startTime ?? null,
             requiredCertificationIds: [...(r.requiredCertificationIds ?? [])],
             requiredSkillIds: [...(r.requiredSkillIds ?? [])],
-            equipmentTypes: [...(r.equipmentTypes ?? [])],
-            materialTypes: [...(r.materialTypes ?? [])],
           });
           for (const w of r.assignedWorkers) {
             workerRows.push({
@@ -174,19 +156,11 @@ export class WorkOrderShiftsWriteService {
               notificationChannel: w.notificationChannel ?? null,
             });
           }
-          for (const equipId of r.equipmentIds) {
-            equipRows.push({ roleId: r.id, equipmentId: equipId });
-          }
-          for (const matId of r.materialIds) {
-            matRows.push({ roleId: r.id, materialId: matId });
-          }
         }
       }
 
       if (roleRows.length > 0) await roleRepo.insert(roleRows as any);
       if (workerRows.length > 0) await workerRepo.insert(workerRows as any);
-      if (equipRows.length > 0) await equipRepo.insert(equipRows as any);
-      if (matRows.length > 0) await matRepo.insert(matRows as any);
     });
   }
 
@@ -245,8 +219,6 @@ export class WorkOrderShiftsWriteService {
       const shiftRepo = manager.getRepository(WorkOrderShift);
       const roleRepo = manager.getRepository(WorkOrderShiftRole);
       const workerRepo = manager.getRepository(WorkOrderShiftRoleWorker);
-      const equipRepo = manager.getRepository(WorkOrderShiftRoleEquipment);
-      const matRepo = manager.getRepository(WorkOrderShiftRoleMaterial);
 
       const shifts = await shiftRepo.find({ where: { workOrderId } });
       const shiftIds = shifts.map((s) => s.id);
@@ -256,8 +228,6 @@ export class WorkOrderShiftsWriteService {
       const roleIds = roles.map((r) => r.id);
       if (roleIds.length > 0) {
         await workerRepo.delete({ roleId: In(roleIds) });
-        await equipRepo.delete({ roleId: In(roleIds) });
-        await matRepo.delete({ roleId: In(roleIds) });
         await roleRepo.delete({ id: In(roleIds) });
       }
       await shiftRepo.delete({ id: In(shiftIds) });
@@ -378,18 +348,6 @@ export class WorkOrderShiftsWriteService {
             ? (rawRole.workerConfirmations as Record<string, unknown>[])
             : [];
           const byWorker = new Map(confirmations.map((c) => [String(c.workerId ?? ''), c]));
-          const equipmentIds = Array.isArray(rawRole.assignedEquipment)
-            ? (rawRole.assignedEquipment as string[])
-            : [];
-          const materialIds = Array.isArray(rawRole.assignedMaterials)
-            ? (rawRole.assignedMaterials as string[])
-            : [];
-          const equipmentTypes = Array.isArray(rawRole.equipmentTypes)
-            ? (rawRole.equipmentTypes as string[])
-            : [];
-          const materialTypes = Array.isArray(rawRole.materialTypes)
-            ? (rawRole.materialTypes as string[])
-            : [];
           return {
             id: String(rawRole.id ?? '').trim(),
             roleName: String(rawRole.roleName ?? 'Worker'),
@@ -418,10 +376,6 @@ export class WorkOrderShiftsWriteService {
                     : null,
               };
             }),
-            equipmentIds,
-            materialIds,
-            equipmentTypes,
-            materialTypes,
           };
         }),
       };

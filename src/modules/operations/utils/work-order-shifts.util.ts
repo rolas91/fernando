@@ -15,10 +15,6 @@ type ShiftRoleLike = {
   requiredCertificationIds?: unknown;
   requiredSkillIds?: unknown;
   assignedWorkers?: unknown;
-  assignedEquipment?: unknown;
-  assignedMaterials?: unknown;
-  equipmentTypes?: unknown;
-  materialTypes?: unknown;
   workerConfirmations?: unknown;
   [key: string]: unknown;
 };
@@ -138,6 +134,10 @@ export function normalizeWorkOrderShifts(
     const nextRoles = Array.isArray(shiftRecord.roles) ? shiftRecord.roles : [];
     const normalizedRoles = nextRoles.map((role) => {
       const roleRecord = asObject(role) as ShiftRoleLike;
+      delete roleRecord.assignedEquipment;
+      delete roleRecord.assignedMaterials;
+      delete roleRecord.equipmentTypes;
+      delete roleRecord.materialTypes;
       const roleId =
         typeof roleRecord.id === 'string' ? roleRecord.id.trim() : '';
       const requiredCount = asPositiveInt(roleRecord.requiredCount);
@@ -145,10 +145,6 @@ export function normalizeWorkOrderShifts(
         0,
         requiredCount,
       );
-      const assignedEquipment = asStringArray(roleRecord.assignedEquipment);
-      const assignedMaterials = asStringArray(roleRecord.assignedMaterials);
-      const equipmentTypes = asStringArray(roleRecord.equipmentTypes);
-      const materialTypes = asStringArray(roleRecord.materialTypes);
       const requiredCertificationIds = asStringArray(
         roleRecord.requiredCertificationIds ?? roleRecord.requiredSkillIds,
       );
@@ -206,10 +202,6 @@ export function normalizeWorkOrderShifts(
         requiredCertificationIds,
         requiredSkillIds,
         assignedWorkers,
-        assignedEquipment,
-        assignedMaterials,
-        equipmentTypes,
-        materialTypes,
         workerConfirmations,
       };
     });

@@ -52,7 +52,7 @@ function findShiftById(
 
 function collectRoleIds(
   shift: ShiftLike,
-  key: 'assignedWorkers' | 'assignedEquipment' | 'assignedMaterials',
+  key: 'assignedWorkers',
 ): string[] {
   const roles = shift.roles;
   if (!Array.isArray(roles)) return [];
@@ -70,7 +70,7 @@ function collectRoleIds(
 
 function collectAllIdsAcrossShifts(
   workOrder: WorkOrder,
-  key: 'assignedWorkers' | 'assignedEquipment' | 'assignedMaterials',
+  key: 'assignedWorkers',
 ): string[] {
   const out = new Set<string>();
   for (const shift of asShiftArray(workOrder.shifts)) {
@@ -377,23 +377,7 @@ export class FormContextResolutionService {
       }
     }
 
-    const equipmentIds = new Set(collectAllIdsAcrossShifts(workOrder, 'assignedEquipment'));
-    if (shift) {
-      for (const id of collectRoleIds(shift, 'assignedEquipment')) {
-        equipmentIds.add(id);
-      }
-    }
-
-    const materialIds = new Set(collectAllIdsAcrossShifts(workOrder, 'assignedMaterials'));
-    if (shift) {
-      for (const id of collectRoleIds(shift, 'assignedMaterials')) {
-        materialIds.add(id);
-      }
-    }
-
     const workerLabelById = await this.loadWorkerLabels([...workerIds]);
-    const equipmentLabelById = await this.loadEquipmentLabels([...equipmentIds]);
-    const materialLabelById = await this.loadMaterialLabels([...materialIds]);
     const resourcePlans = shift ? await this.loadPlannedResourceOptions(shift) : { equipment: [], materials: [], additionalEquipment: [], additionalMaterials: [], additionalMaterialTypes: [] };
     const shiftWorkOrderTypes = shift && Array.isArray(shift.workOrderTypes)
       ? shift.workOrderTypes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -408,8 +392,6 @@ export class FormContextResolutionService {
       shift: shift ?? undefined,
       shiftTypeName,
       workerLabelById,
-      equipmentLabelById,
-      materialLabelById,
       workerTimesheetByShiftId: shift
         ? await this.loadWorkerTimesheetRows(workOrder, shift, template, actor, options?.timesheetScope)
         : [],
@@ -507,26 +489,6 @@ export class FormContextResolutionService {
     return map;
   }
 
-  private async loadEquipmentLabels(ids: string[]): Promise<Map<string, string>> {
-    const map = new Map<string, string>();
-    if (ids.length === 0) return map;
-    const rows = await this.equipmentRepo.find({ where: { id: In(ids) } });
-    for (const e of rows) {
-      map.set(e.id, formatEquipment(e));
-    }
-    return map;
-  }
-
-  private async loadMaterialLabels(ids: string[]): Promise<Map<string, string>> {
-    const map = new Map<string, string>();
-    if (ids.length === 0) return map;
-    const rows = await this.materialRepo.find({ where: { id: In(ids) } });
-    for (const m of rows) {
-      map.set(m.id, formatMaterial(m));
-    }
-    return map;
-  }
-
   private resolvePath(
     ctx: {
       workOrder: WorkOrder;
@@ -537,8 +499,6 @@ export class FormContextResolutionService {
       shift?: ShiftLike;
       shiftTypeName: string;
       workerLabelById: Map<string, string>;
-      equipmentLabelById: Map<string, string>;
-      materialLabelById: Map<string, string>;
       workerTimesheetByShiftId: Record<string, unknown>[];
     },
     path: string,
@@ -590,14 +550,6 @@ export class FormContextResolutionService {
           const ids = collectAllIdsAcrossShifts(wo, 'assignedWorkers');
           return joinLabels(ids, ctx.workerLabelById, '');
         }
-        case 'allEquipmentSummary': {
-          const ids = collectAllIdsAcrossShifts(wo, 'assignedEquipment');
-          return joinLabels(ids, ctx.equipmentLabelById, '');
-        }
-        case 'allMaterialsSummary': {
-          const ids = collectAllIdsAcrossShifts(wo, 'assignedMaterials');
-          return joinLabels(ids, ctx.materialLabelById, '');
-        }
         default:
           return null;
       }
@@ -646,14 +598,6 @@ export class FormContextResolutionService {
         }
         case 'timesheetWorkers':
           return ctx.workerTimesheetByShiftId;
-        case 'equipmentSummary': {
-          const ids = collectRoleIds(s, 'assignedEquipment');
-          return joinLabels(ids, ctx.equipmentLabelById, '');
-        }
-        case 'materialsSummary': {
-          const ids = collectRoleIds(s, 'assignedMaterials');
-          return joinLabels(ids, ctx.materialLabelById, '');
-        }
         case 'rolesSummary':
           return rolesSummary(s);
         default:

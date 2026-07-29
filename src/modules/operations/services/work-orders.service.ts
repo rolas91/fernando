@@ -969,6 +969,7 @@ export class WorkOrdersService {
       materialById: Map<string, Material>;
       clientById: Map<string, Client>;
       pdfSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
+      resourceSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
     },
     shiftTemplateById = new Map<string, ShiftCatalog>(),
   ) {
@@ -1097,15 +1098,11 @@ export class WorkOrdersService {
 
   private async loadMobileQuickAccessMaps(workOrders: WorkOrder[]) {
     const workerIds = new Set<string>();
-    const equipmentIds = new Set<string>();
-    const materialIds = new Set<string>();
     const projectIds = new Set<string>();
     const workOrderIds = new Set<string>();
     for (const workOrder of workOrders) {
       const ids = this.collectMobileQuickAccessIds(workOrder);
       ids.workerIds.forEach((id) => workerIds.add(id));
-      ids.equipmentIds.forEach((id) => equipmentIds.add(id));
-      ids.materialIds.forEach((id) => materialIds.add(id));
       if (workOrder.projectId) projectIds.add(workOrder.projectId);
       if (workOrder.id) workOrderIds.add(workOrder.id);
     }
@@ -1117,29 +1114,42 @@ export class WorkOrdersService {
       ...new Set(projects.map((project) => project.clientId).filter(Boolean)),
     ];
 
-    const [workers, equipment, materials, clients, pdfSubmissions]: [
+    const [workers, clients, submissions]: [
       Worker[],
-      Equipment[],
-      Material[],
       Client[],
       FormSubmission[],
     ] = await Promise.all([
       workerIds.size > 0 ? this.workerRepo.find({ where: { id: In([...workerIds]) } }) : Promise.resolve([]),
-      equipmentIds.size > 0 ? this.equipmentRepo.find({ where: { id: In([...equipmentIds]) } }) : Promise.resolve([]),
-      materialIds.size > 0 ? this.materialsRepo.find({ where: { id: In([...materialIds]) } }) : Promise.resolve([]),
       clientIds.length > 0 ? this.clientsRepo.find({ where: { id: In(clientIds) } }) : Promise.resolve([]),
       workOrderIds.size > 0
         ? this.formSubmissionsRepo.find({ where: { workOrderId: In([...workOrderIds]), status: 'submitted' } })
         : Promise.resolve([]),
     ]);
+    const { equipmentIds, materialIds } = this.collectSubmittedResourceIds(submissions);
+    const [equipment, materials] = await Promise.all([
+      equipmentIds.size > 0
+        ? this.equipmentRepo.find({ where: { id: In([...equipmentIds]) } })
+        : Promise.resolve([]),
+      materialIds.size > 0
+        ? this.materialsRepo.find({ where: { id: In([...materialIds]) } })
+        : Promise.resolve([]),
+    ]);
     const pdfSubmissionsByWorkOrderId = new Map<string, FormSubmission[]>();
-    pdfSubmissions
+    submissions
       .filter((submission) => submission.pdfUrl?.trim())
       .forEach((submission) => {
         const rows = pdfSubmissionsByWorkOrderId.get(submission.workOrderId) || [];
         rows.push(submission);
         pdfSubmissionsByWorkOrderId.set(submission.workOrderId, rows);
       });
+    const resourceSubmissionsByWorkOrderId = new Map<string, FormSubmission[]>();
+    submissions.forEach((submission) => {
+      const ids = this.collectSubmittedResourceIds([submission]);
+      if (ids.equipmentIds.size === 0 && ids.materialIds.size === 0) return;
+      const rows = resourceSubmissionsByWorkOrderId.get(submission.workOrderId) || [];
+      rows.push(submission);
+      resourceSubmissionsByWorkOrderId.set(submission.workOrderId, rows);
+    });
 
     return {
       workerById: new Map<string, Worker>(workers.map((item) => [item.id, item])),
@@ -1147,13 +1157,49 @@ export class WorkOrdersService {
       materialById: new Map<string, Material>(materials.map((item) => [item.id, item])),
       clientById: new Map<string, Client>(clients.map((item) => [item.id, item])),
       pdfSubmissionsByWorkOrderId,
+      resourceSubmissionsByWorkOrderId,
     };
+  }
+
+  private collectSubmittedResourceIds(
+    submissions: FormSubmission[],
+    visibleShiftIds?: Set<string>,
+  ) {
+    const equipmentIds = new Set<string>();
+    const materialIds = new Set<string>();
+    for (const submission of submissions) {
+      if (
+        visibleShiftIds &&
+        (!submission.shiftId || !visibleShiftIds.has(submission.shiftId))
+      ) {
+        continue;
+      }
+      const pending: unknown[] = [submission.data];
+      for (let index = 0; index < pending.length; index += 1) {
+        const value = pending[index];
+        if (Array.isArray(value)) {
+          for (const entry of value) {
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+            const row = entry as Record<string, unknown>;
+            if (typeof row.equipmentId === 'string' && row.equipmentId.trim()) {
+              equipmentIds.add(row.equipmentId.trim());
+            }
+            if (typeof row.materialId === 'string' && row.materialId.trim()) {
+              materialIds.add(row.materialId.trim());
+            }
+          }
+          continue;
+        }
+        if (value && typeof value === 'object') {
+          pending.push(...Object.values(value as Record<string, unknown>));
+        }
+      }
+    }
+    return { equipmentIds, materialIds };
   }
 
   private collectMobileQuickAccessIds(workOrder: WorkOrder, visibleShiftIds?: Set<string>) {
     const workerIds = new Set<string>();
-    const equipmentIds = new Set<string>();
-    const materialIds = new Set<string>();
     for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
       const shiftId = typeof (shift as Record<string, unknown>).id === 'string'
         ? String((shift as Record<string, unknown>).id)
@@ -1168,20 +1214,10 @@ export class WorkOrdersService {
             .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
             .forEach((id) => workerIds.add(id));
         }
-        if (Array.isArray(role.assignedEquipment)) {
-          role.assignedEquipment
-            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-            .forEach((id) => equipmentIds.add(id));
-        }
-        if (Array.isArray(role.assignedMaterials)) {
-          role.assignedMaterials
-            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-            .forEach((id) => materialIds.add(id));
-        }
       }
     }
 
-    return { workerIds, equipmentIds, materialIds };
+    return { workerIds };
   }
 
   private buildMobileQuickAccess(
@@ -1193,6 +1229,7 @@ export class WorkOrdersService {
       materialById: Map<string, Material>;
       clientById: Map<string, Client>;
       pdfSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
+      resourceSubmissionsByWorkOrderId: Map<string, FormSubmission[]>;
     },
     visibleShiftIds?: Set<string>,
   ) {
@@ -1210,8 +1247,12 @@ export class WorkOrdersService {
         visibleShiftNotes.push({ id: `shift_note_${shiftId}`, title: 'Shift Notes', body: shift.notes.trim() });
       }
     }
-    const { workerIds, equipmentIds, materialIds } = this.collectMobileQuickAccessIds(
+    const { workerIds } = this.collectMobileQuickAccessIds(
       workOrder,
+      visibleShiftIds,
+    );
+    const { equipmentIds, materialIds } = this.collectSubmittedResourceIds(
+      maps?.resourceSubmissionsByWorkOrderId.get(workOrder.id) || [],
       visibleShiftIds,
     );
     const crew = [...workerIds].map((id) => {
@@ -1830,8 +1871,6 @@ export class WorkOrdersService {
           requiredCertificationIds: role.requiredCertificationIds || [],
           requiredSkillIds: role.requiredSkillIds || [],
           assignedWorkers: role.assignedWorkers || [],
-          assignedEquipment: role.assignedEquipment || [],
-          assignedMaterials: role.assignedMaterials || [],
         })),
       });
     }

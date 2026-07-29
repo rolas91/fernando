@@ -128,8 +128,6 @@ describe('ShiftsQueryService', () => {
             requiredCertificationIds: ['c1'],
             requiredSkillIds: [],
             assignedWorkers: ['w1', 'w2'],
-            assignedEquipment: ['e1'],
-            assignedMaterials: [],
             workerConfirmations: [
               {
                 workerId: 'w1',

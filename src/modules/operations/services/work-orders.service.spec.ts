@@ -418,8 +418,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredCertificationIds: [],
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
-              assignedEquipment: [],
-              assignedMaterials: [],
               workerConfirmations: [
                 { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T10:00:00.000Z' },
                 { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T11:00:00.000Z' },
@@ -492,8 +490,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               roleName: 'Flagger',
               requiredCount: 1,
               assignedWorkers: ['worker-b'],
-              assignedEquipment: [],
-              assignedMaterials: [],
             },
           ],
         },
@@ -527,8 +523,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
           roleName: 'Flagger',
           requiredCount: 1,
           assignedWorkers: ['worker-a'],
-          assignedEquipment: [],
-          assignedMaterials: [],
           workerConfirmations: [
             {
               workerId: 'worker-a',
@@ -653,8 +647,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredCertificationIds: [],
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
-              assignedEquipment: [],
-              assignedMaterials: [],
               workerConfirmations: [
                 { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T10:00:00.000Z' },
                 { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T11:00:00.000Z' },
@@ -739,8 +731,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredCertificationIds: [],
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
-              assignedEquipment: [],
-              assignedMaterials: [],
               workerConfirmations: [
                 { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T10:00:00.000Z' },
                 { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T11:00:00.000Z' },
@@ -763,8 +753,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredCertificationIds: [],
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
-              assignedEquipment: [],
-              assignedMaterials: [],
               workerConfirmations: [
                 { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T12:00:00.000Z' },
                 { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T13:00:00.000Z' },

@@ -12,8 +12,6 @@ import { WorkOrderShiftsWriteService } from '../operations/services/work-order-s
 import { WorkOrderShift } from '../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../entities/work-order-shift-role-worker.entity';
-import { WorkOrderShiftRoleEquipment } from '../../entities/work-order-shift-role-equipment.entity';
-import { WorkOrderShiftRoleMaterial } from '../../entities/work-order-shift-role-material.entity';
 
 @Module({
   imports: [
@@ -26,8 +24,6 @@ import { WorkOrderShiftRoleMaterial } from '../../entities/work-order-shift-role
       WorkOrderShift,
       WorkOrderShiftRole,
       WorkOrderShiftRoleWorker,
-      WorkOrderShiftRoleEquipment,
-      WorkOrderShiftRoleMaterial,
     ]),
   ],
   controllers: [IntegrationsController],

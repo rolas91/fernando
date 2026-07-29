@@ -91,8 +91,6 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
             id: 'r-1',
             roleName: 'Flagger',
             assignedWorkers: ['w-1'],
-            assignedEquipment: [],
-            assignedMaterials: [],
           },
         ],
       },

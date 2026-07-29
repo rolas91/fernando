@@ -1932,7 +1932,7 @@ export function buildWorkOrderPdf(
     ) => {
       if (!equipment) return;
       ops.push(pdfText(fitText(equipment.identifier, 11), workXs[6] + 2, baseline, 5.2));
-      ops.push(pdfText(fitText(equipment.description, 31), workXs[7] + 2, baseline, 5.2));
+      ops.push(pdfText(stringifyFieldValue(equipment.description), workXs[7] + 2, baseline, 5.2));
     };
     if (showEquipment) {
       drawEquipment(equipmentTop, personBaseline);
@@ -2134,10 +2134,11 @@ export function buildWorkOrderPdf(
         }
         if (showEquipment) {
           const equipmentLines = [equipmentA, equipmentB]
-            .filter((item): item is WorkOrderPdfResource => Boolean(item))
-            .map((item) => fitText([item.identifier, item.description].filter(Boolean).join(' - '), 28));
-          equipmentLines.forEach((line, lineIndex) => {
-            pageOps.push(pdfText(line, xs[7] + 3, rowTop - 15 - lineIndex * 15, 5.8));
+            .filter((item): item is WorkOrderPdfResource => Boolean(item));
+          equipmentLines.forEach((item, lineIndex) => {
+            const lineY = rowTop - 11 - lineIndex * 22;
+            pageOps.push(pdfText(stringifyFieldValue(item.identifier), xs[7] + 3, lineY, 5.2, 'F2'));
+            pageOps.push(pdfText(stringifyFieldValue(item.description), xs[7] + 3, lineY - 8, 5));
           });
         }
         rowTop -= rowHeight;

@@ -309,4 +309,29 @@ describe('Work Order PDF Builder layout', () => {
     expect(pdf).toContain('Daily Crew Materials');
     expect(pdf).not.toContain('Daily Crew Ma...');
   });
+
+  it('does not truncate equipment descriptions in the PDF', () => {
+    const description = 'Mini Matrix WVT(M)(B) - CMS Boards and Message Boards';
+    const pdf = buildWorkOrderPdf(
+      submission,
+      template('Work Order'),
+      {
+        workers: [],
+        equipment: [
+          {
+            identifier: '05_05',
+            description,
+            type: 'On Rent',
+            quantity: '1',
+          },
+        ],
+        materials: [],
+        workOrderTypes: [],
+        shift: { date: '2026-08-02' },
+      },
+    ).toString('latin1');
+
+    expect(pdf).toContain('CMS Boards and Message Boards');
+    expect(pdf).not.toContain('CMS Bo...');
+  });
 });

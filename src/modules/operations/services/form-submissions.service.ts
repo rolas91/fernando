@@ -201,6 +201,50 @@ function fitText(value: unknown, max = 34): string {
   return `${text.slice(0, Math.max(0, max - 3))}...`;
 }
 
+function approximateHelveticaTextWidth(value: string, fontSize: number): number {
+  const widthInEm = [...value].reduce((width, character) => {
+    if (character === ' ') return width + 0.278;
+    if (/[.,:;!'|ijlI]/.test(character)) return width + 0.25;
+    if (/[MW@%&]/.test(character)) return width + 0.85;
+    if (/[A-Z]/.test(character)) return width + 0.667;
+    if (/[0-9]/.test(character)) return width + 0.556;
+    if (/[-_()[\]{}]/.test(character)) return width + 0.333;
+    return width + 0.5;
+  }, 0);
+  return widthInEm * fontSize;
+}
+
+function fitPdfTextToWidth(
+  value: unknown,
+  maxWidth: number,
+  preferredSize: number,
+  minimumSize = 4,
+): { text: string; size: number } {
+  const text = stringifyFieldValue(value).replace(/\s+/g, ' ').trim();
+  if (!text || text === '-') return { text: '', size: preferredSize };
+
+  const requiredWidth = approximateHelveticaTextWidth(text, preferredSize);
+  if (requiredWidth <= maxWidth) return { text, size: preferredSize };
+
+  const adjustedSize = Math.max(
+    minimumSize,
+    Math.floor((preferredSize * maxWidth * 10) / requiredWidth) / 10,
+  );
+  if (approximateHelveticaTextWidth(text, adjustedSize) <= maxWidth) {
+    return { text, size: adjustedSize };
+  }
+
+  let end = text.length;
+  while (end > 0) {
+    const candidate = `${text.slice(0, end).trimEnd()}...`;
+    if (approximateHelveticaTextWidth(candidate, minimumSize) <= maxWidth) {
+      return { text: candidate, size: minimumSize };
+    }
+    end -= 1;
+  }
+  return { text: '', size: minimumSize };
+}
+
 function compactId(value: unknown, max = 18): string {
   const text = fitText(value, max).replace(/^fs_mobile_?/i, '');
   return text || '-';
@@ -1961,8 +2005,9 @@ export function buildWorkOrderPdf(
       ops.push(pdfRect(materialXs[columnIndex], top - materialRowHeight, columnWidth, materialRowHeight));
     });
     if (showMaterials && material) {
+      const materialType = fitPdfTextToWidth(material.type || '', materialCols[1] - 4, 5.2);
       ops.push(pdfText(fitText(material.description, 34), materialXs[0] + 2, top - 8.7, 5.2));
-      ops.push(pdfText(fitText(material.type || '', 16), materialXs[1] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(materialType.text, materialXs[1] + 2, top - 8.7, materialType.size));
       ops.push(pdfText(fitText(material.quantity || '', 8), materialXs[2] + 2, top - 8.7, 5.2));
     }
     if (showNotes && noteLines[index]) {
@@ -2122,9 +2167,10 @@ export function buildWorkOrderPdf(
       let rowTop = tableTop - 20;
       remainingMaterials.slice(offset, offset + rowsPerPage).forEach((material) => {
         const rowHeight = 18;
+        const materialType = fitPdfTextToWidth(material.type || '', widths[1] - 8, 6);
         widths.forEach((columnWidth, index) => pageOps.push(pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight)));
         pageOps.push(pdfText(fitText(material.description, 58), xs[0] + 4, rowTop - 12, 6));
-        pageOps.push(pdfText(fitText(material.type || '', 24), xs[1] + 4, rowTop - 12, 6));
+        pageOps.push(pdfText(materialType.text, xs[1] + 4, rowTop - 12, materialType.size));
         pageOps.push(pdfText(fitText(material.quantity || '', 12), xs[2] + 4, rowTop - 12, 6));
         rowTop -= rowHeight;
       });

@@ -284,4 +284,29 @@ describe('Work Order PDF Builder layout', () => {
     expect(pdf).toContain('MATERIALS - CONTINUED');
     expect(pdf).toContain('Material 14');
   });
+
+  it('keeps material type labels visible when they fit in the PDF column', () => {
+    const pdf = buildWorkOrderPdf(
+      submission,
+      template('Work Order'),
+      {
+        workers: [],
+        equipment: [],
+        materials: [
+          {
+            identifier: 'MAT-1',
+            description: 'Traffic control material',
+            type: 'Daily Crew Materials',
+            quantity: '10',
+          },
+        ],
+        workOrderTypes: [],
+        shift: { date: '2026-08-02' },
+      },
+      { layout: { materialRows: 13 } },
+    ).toString('latin1');
+
+    expect(pdf).toContain('Daily Crew Materials');
+    expect(pdf).not.toContain('Daily Crew Ma...');
+  });
 });

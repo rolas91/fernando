@@ -45,6 +45,10 @@ export class CreateCompanySettingsDto {
 
   @IsOptional()
   @IsArray()
+  workOrderTypeOptions?: string[];
+
+  @IsOptional()
+  @IsArray()
   jobStatuses?: string[];
 
   @IsOptional()

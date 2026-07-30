@@ -41,6 +41,14 @@ export class CompanySettings {
   @Column({ name: 'material_types', type: 'text', array: true, default: '{}' })
   materialTypes: string[];
 
+  @Column({
+    name: 'work_order_type_options',
+    type: 'text',
+    array: true,
+    default: '{}',
+  })
+  workOrderTypeOptions: string[];
+
   @Column({ name: 'job_statuses', type: 'text', array: true, default: '{}' })
   jobStatuses: string[];
 

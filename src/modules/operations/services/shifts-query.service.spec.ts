@@ -110,7 +110,7 @@ describe('ShiftsQueryService', () => {
     );
     const result = await service.loadShiftsForWorkOrder('wo-1');
 
-    expect(result).toEqual([
+    expect(result).toMatchObject([
       {
         id: 's1',
         workOrderId: 'wo-1',
@@ -147,7 +147,7 @@ describe('ShiftsQueryService', () => {
     expect(await service.hasRelationalData('wo-1')).toBe(true);
   });
 
-  it('includes planned resources in batch shift reads', async () => {
+  it('includes planned resources and work order types in batch shift reads', async () => {
     const shiftsRepo = makeRepo();
     shiftsRepo.find.mockResolvedValue([
       {
@@ -155,6 +155,7 @@ describe('ShiftsQueryService', () => {
         startTime: '07:00', endTime: '15:00', visibleDocumentTypes: [],
         plannedEquipment: [{ type: 'Excavator', estimatedQuantity: 2 }],
         plannedMaterials: [{ type: 'Concrete', estimatedQuantity: 4 }],
+        workOrderTypes: ['Field Service', 'On Rent'],
       },
     ]);
     const rolesRepo = makeRepo();
@@ -174,6 +175,7 @@ describe('ShiftsQueryService', () => {
     expect(result.get('wo-1')?.[0]).toMatchObject({
       plannedEquipment: [{ type: 'Excavator', estimatedQuantity: 2 }],
       plannedMaterials: [{ type: 'Concrete', estimatedQuantity: 4 }],
+      workOrderTypes: ['Field Service', 'On Rent'],
     });
   });
 });

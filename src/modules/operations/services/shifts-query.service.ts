@@ -122,6 +122,7 @@ export class ShiftsQueryService {
         notes: shift.notes ?? undefined,
         plannedEquipment: [...(shift.plannedEquipment ?? [])],
         plannedMaterials: [...(shift.plannedMaterials ?? [])],
+        workOrderTypes: [...(shift.workOrderTypes ?? [])],
         workOrderAuthorizedWorkerIds: [...(shift.workOrderAuthorizedWorkerIds ?? [])],
         defaultRoleStartTime: shift.defaultRoleStartTime ?? undefined,
         shiftTemplateId: shift.shiftTemplateId ?? undefined,

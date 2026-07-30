@@ -395,6 +395,9 @@ export class FormContextResolutionService {
     const equipmentLabelById = await this.loadEquipmentLabels([...equipmentIds]);
     const materialLabelById = await this.loadMaterialLabels([...materialIds]);
     const resourcePlans = shift ? await this.loadPlannedResourceOptions(shift) : { equipment: [], materials: [], additionalEquipment: [], additionalMaterials: [], additionalMaterialTypes: [] };
+    const shiftWorkOrderTypes = shift && Array.isArray(shift.workOrderTypes)
+      ? shift.workOrderTypes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
 
     const ctx = {
       workOrder,
@@ -463,6 +466,7 @@ export class FormContextResolutionService {
       fieldPreviews,
       suggestedData,
       resourcePlans,
+      workOrderTypes: shiftWorkOrderTypes,
     };
   }
 

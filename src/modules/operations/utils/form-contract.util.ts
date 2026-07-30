@@ -20,7 +20,8 @@ type FieldType =
   | 'textarea'
   | 'time'
   | 'timesheet'
-  | 'resource_usage';
+  | 'resource_usage'
+  | 'work_order_types';
 
 type FieldRules = {
   minLength?: number;
@@ -85,6 +86,7 @@ const SUPPORTED_TYPES: FieldType[] = [
   'time',
   'timesheet',
   'resource_usage',
+  'work_order_types',
 ];
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -257,7 +259,10 @@ export function normalizeFormFields(rawFields: unknown): DynamicFormField[] {
       asString(raw.id).trim() ||
       asString(raw.key).trim() ||
       `field_${index + 1}`;
-    const options = type === 'dropdown' ? asStringArray(raw.options) : undefined;
+    const options =
+      type === 'dropdown' || type === 'work_order_types'
+        ? asStringArray(raw.options)
+        : undefined;
 
     return {
       id,
@@ -411,6 +416,14 @@ export function validateSubmissionAgainstFields(
 
     if (field.type === 'checkbox') {
       assert(typeof value === 'boolean', `Field "${field.label}" must be boolean`);
+    }
+
+    if (field.type === 'work_order_types') {
+      assert(
+        Array.isArray(value) &&
+          value.every((entry) => typeof entry === 'string' && entry.trim()),
+        `Field "${field.label}" must be a list of Work Order Types`,
+      );
     }
 
     if (field.type === 'date') {

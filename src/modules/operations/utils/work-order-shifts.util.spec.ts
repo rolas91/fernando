@@ -25,6 +25,18 @@ const shiftsWithOneConfirmed = [
 ];
 
 describe('updateShiftWorkerConfirmation', () => {
+  it('normalizes and deduplicates Work Order Types on the shift', () => {
+    const normalized = normalizeWorkOrderShifts([
+      {
+        id: 'shift-types',
+        workOrderTypes: [' Field Service ', 'On Rent', 'On Rent', ''],
+        roles: [],
+      },
+    ]);
+
+    expect(normalized[0].workOrderTypes).toEqual(['Field Service', 'On Rent']);
+  });
+
   it('preserves confirmations when normalizing an already saved shift', () => {
     const normalized = normalizeWorkOrderShifts(
       shiftsWithOneConfirmed,

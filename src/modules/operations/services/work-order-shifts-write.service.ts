@@ -31,6 +31,7 @@ export type ShiftWriteInput = {
   notes?: string | null;
   plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
   plannedMaterials?: Array<{ type: string; estimatedQuantity: number }>;
+  workOrderTypes?: string[];
   workOrderAuthorizedWorkerIds?: string[];
   defaultRoleStartTime?: string | null;
   shiftTemplateId?: string | null;
@@ -134,6 +135,7 @@ export class WorkOrderShiftsWriteService {
           notes: s.notes ?? null,
           plannedEquipment: [...(s.plannedEquipment ?? [])],
           plannedMaterials: [...(s.plannedMaterials ?? [])],
+          workOrderTypes: [...(s.workOrderTypes ?? [])],
           workOrderAuthorizedWorkerIds,
           defaultRoleStartTime: s.defaultRoleStartTime ?? null,
           shiftTemplateId: s.shiftTemplateId ?? null,
@@ -348,6 +350,9 @@ export class WorkOrderShiftsWriteService {
         notes: typeof raw.notes === 'string' ? raw.notes : null,
         plannedEquipment: Array.isArray(raw.plannedEquipment) ? raw.plannedEquipment : [],
         plannedMaterials: Array.isArray(raw.plannedMaterials) ? raw.plannedMaterials : [],
+        workOrderTypes: Array.isArray(raw.workOrderTypes)
+          ? raw.workOrderTypes.filter((value): value is string => typeof value === 'string')
+          : [],
         workOrderAuthorizedWorkerIds: Array.isArray(raw.workOrderAuthorizedWorkerIds)
           ? raw.workOrderAuthorizedWorkerIds.filter(
               (workerId): workerId is string => typeof workerId === 'string',

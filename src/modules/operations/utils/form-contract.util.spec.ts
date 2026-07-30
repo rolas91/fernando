@@ -50,3 +50,34 @@ describe('shift-authorized mobile signatures', () => {
     ).toThrow('Field "Employee / Foreman Signature" is required');
   });
 });
+
+describe('Work Order Types field contract', () => {
+  const field = {
+    id: 'work_order_types',
+    label: 'Work Order Type',
+    type: 'work_order_types',
+    required: true,
+  };
+
+  it('preserves the component type during normalization', () => {
+    expect(normalizeFormFields([field])[0].type).toBe('work_order_types');
+  });
+
+  it('accepts a list of selected and custom labels', () => {
+    expect(() =>
+      validateSubmissionAgainstFields(
+        [normalizeFormFields([field])[0]],
+        { work_order_types: ['Field Service', 'Emergency Setup'] },
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects non-list values', () => {
+    expect(() =>
+      validateSubmissionAgainstFields(
+        [normalizeFormFields([field])[0]],
+        { work_order_types: 'Field Service' },
+      ),
+    ).toThrow('must be a list of Work Order Types');
+  });
+});

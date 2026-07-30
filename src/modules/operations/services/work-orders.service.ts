@@ -1768,6 +1768,7 @@ export class WorkOrdersService {
         defaultRoleStartTime: payload.defaultRoleStartTime || payload.startTime,
         plannedEquipment: payload.plannedEquipment ?? [],
         plannedMaterials: payload.plannedMaterials ?? [],
+        workOrderTypes: payload.workOrderTypes ?? [],
         workOrderAuthorizedWorkerIds:
           payload.workOrderAuthorizedWorkerIds ?? [],
         date,

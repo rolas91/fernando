@@ -8,14 +8,14 @@ export class AddWorkOrderTypesToShifts20260729001000
   async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "work_order_shifts"
-      ADD COLUMN "work_order_types" jsonb NOT NULL DEFAULT '[]'::jsonb
+      ADD COLUMN IF NOT EXISTS "work_order_types" jsonb NOT NULL DEFAULT '[]'::jsonb
     `);
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "work_order_shifts"
-      DROP COLUMN "work_order_types"
+      DROP COLUMN IF EXISTS "work_order_types"
     `);
   }
 }

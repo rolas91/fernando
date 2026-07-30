@@ -694,6 +694,13 @@ function findSignatureValue(
   return null;
 }
 
+function signatureFingerprint(value: unknown): string {
+  if (isSignatureImage(value)) return `image:${value.dataUrl}`;
+  if (isSignaturePath(value)) return `path:${JSON.stringify(value.strokes)}`;
+  if (typeof value === 'string') return `string:${value.trim()}`;
+  return '';
+}
+
 type WorkOrderPdfWorker = {
   workerId: string;
   workerName: string;
@@ -727,6 +734,43 @@ type WorkOrderPdfContext = {
   workOrderTypes: string[];
   shift?: Record<string, unknown> | null;
 };
+
+export function findWorkOrderFooterSignatures(
+  data: Record<string, unknown>,
+  template: FormTemplate | null,
+  workers: WorkOrderPdfWorker[] = [],
+) {
+  const foremanSignature =
+    findSignatureValue(data, template, [
+      /foreman/,
+      /employee/,
+      /dr.?traffic.*rep/,
+      /rep.*dr.?traffic/,
+    ]) ||
+    workers.find(
+      (worker) =>
+        /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(
+          worker.roleName,
+        ) && worker.signature,
+    )?.signature;
+  const customerCandidate = findSignatureValue(data, template, [
+    /customer/,
+    /contract/,
+    /owner/,
+    /general/,
+    /approval/,
+  ]);
+  const foremanFingerprint = signatureFingerprint(foremanSignature);
+  const customerFingerprint = signatureFingerprint(customerCandidate);
+  const customerSignature =
+    foremanFingerprint &&
+    customerFingerprint &&
+    foremanFingerprint === customerFingerprint
+      ? null
+      : customerCandidate;
+
+  return { foremanSignature, customerSignature };
+}
 
 function workOrderTypeSelections(
   data: Record<string, unknown>,
@@ -1691,21 +1735,8 @@ export function buildWorkOrderPdf(
     top -= materialRowHeight;
   }
 
-  const foremanSignature =
-    findSignatureValue(data, template, [/foreman/, /employee/, /dr.?traffic/, /rep/]) ||
-    context.workers.find(
-      (worker) =>
-        /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(
-          worker.roleName,
-        ) && worker.signature,
-    )?.signature;
-  const customerSignature = findSignatureValue(data, template, [
-    /customer/,
-    /contract/,
-    /owner/,
-    /general/,
-    /approval/,
-  ]);
+  const { foremanSignature, customerSignature } =
+    findWorkOrderFooterSignatures(data, template, context.workers);
 
   const footerY = 88;
   ops.push(pdfText('DR TRAFFIC REP. (NAME)', left + 2, footerY, 5.6, 'F2'));

@@ -3,6 +3,7 @@ import type { UserAccessContext } from '../../access/ports/access.port';
 import {
   findWorkOrderFooterSignatures,
   shouldGenerateSubmissionPdf,
+  workOrderPdfTypeChecks,
 } from './form-submissions.service';
 
 function template(category: string): FormTemplate {
@@ -140,5 +141,29 @@ describe('findWorkOrderFooterSignatures', () => {
 
     expect(result.foremanSignature).toBe(signature);
     expect(result.customerSignature).toBeNull();
+  });
+});
+
+describe('workOrderPdfTypeChecks', () => {
+  it('always returns the five fixed PDF options in their required order', () => {
+    expect(workOrderPdfTypeChecks([])).toEqual([
+      { label: 'Field Service', checked: false },
+      { label: 'Internal Sale', checked: false },
+      { label: 'Sales', checked: false },
+      { label: 'On Rent', checked: false },
+      { label: 'Off Rent', checked: false },
+    ]);
+  });
+
+  it('checks only exact normalized matches from the shift configuration', () => {
+    expect(
+      workOrderPdfTypeChecks([' field   service ', 'ON RENT', 'Sale']),
+    ).toEqual([
+      { label: 'Field Service', checked: true },
+      { label: 'Internal Sale', checked: false },
+      { label: 'Sales', checked: false },
+      { label: 'On Rent', checked: true },
+      { label: 'Off Rent', checked: false },
+    ]);
   });
 });

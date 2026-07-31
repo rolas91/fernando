@@ -792,8 +792,14 @@ export class WorkOrdersService {
     const completedTemplateIdsByShift = new Map<string, Set<string>>();
     const completedAtByShift = new Map<string, Date>();
     const completedTimesheetWorkersByShift = new Map<string, Set<string>>();
+    const timesheetTemplateIds = new Set(
+      templates
+        .filter((template) => this.isTimesheetTemplate(template))
+        .map((template) => template.id),
+    );
 
     for (const submission of eligibleSubmissions) {
+      if (!timesheetTemplateIds.has(submission.templateId)) continue;
       const shiftKey = `${submission.workOrderId}:${submission.shiftId}`;
       const completedWorkers =
         completedTimesheetWorkersByShift.get(shiftKey) ?? new Set<string>();
@@ -814,19 +820,17 @@ export class WorkOrdersService {
 
     for (const workOrder of workOrders) {
       const pickedTemplateIds = new Set((workOrder.formTemplateIds || []).filter(Boolean));
-      const workOrderTemplates = templates.filter((template) => {
-        if (!this.isWorkOrderTemplate(template)) return false;
+      const requiredTemplates = templates.filter((template) => {
+        if (template.isRequired === false) return false;
+        if (this.isIncidentTemplate(template)) return false;
+        if (
+          !this.isWorkOrderTemplate(template) &&
+          !this.isTimesheetTemplate(template)
+        ) {
+          return false;
+        }
         return pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id);
       });
-      const requiredTemplates =
-        workOrderTemplates.length > 0
-          ? workOrderTemplates
-          : templates.filter((template) => {
-              if (template.isRequired === false) return false;
-              if (this.isIncidentTemplate(template)) return false;
-              if (this.isTimesheetTemplate(template)) return false;
-              return pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id);
-            });
       if (requiredTemplates.length === 0) continue;
       const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
       for (const shift of shifts) {
@@ -839,11 +843,12 @@ export class WorkOrdersService {
           completedTimesheetWorkersByShift.get(shiftKey) ?? new Set<string>();
         const completedTemplateIds = new Set<string>();
         for (const template of requiredTemplates) {
-          const hasDirectSubmission = submittedKeys.has(
-            `${shiftKey}:${template.id}`,
-          );
+          const isTimesheet = this.isTimesheetTemplate(template);
+          const hasDirectSubmission =
+            !isTimesheet &&
+            submittedKeys.has(`${shiftKey}:${template.id}`);
           const hasSharedTimesheets =
-            this.isTimesheetTemplate(template) &&
+            isTimesheet &&
             assignedWorkerIds.size > 0 &&
             [...assignedWorkerIds].every((workerId) =>
               completedTimesheetWorkers.has(workerId),
@@ -909,7 +914,10 @@ export class WorkOrdersService {
       .filter(Boolean)
       .map((value) => String(value).toLowerCase())
       .join(' ');
-    return text.includes('work order') || /\bwo\b/.test(text);
+    return (
+      text.replace(/[\s_-]+/g, '').includes('workorder') ||
+      /\bwo\b/.test(text)
+    );
   }
 
   private isIncidentTemplate(template: FormTemplate) {
@@ -1086,6 +1094,7 @@ export class WorkOrdersService {
       startDate: workOrder.startDate,
       endDate: workOrder.endDate,
       projectId: workOrder.projectId,
+      projectNumber: project?.number || '',
       projectName: project?.name || '',
       location: this.formatMobileLocation(workOrder, project),
       quickAccess,

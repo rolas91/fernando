@@ -772,24 +772,29 @@ export function findWorkOrderFooterSignatures(
   return { foremanSignature, customerSignature };
 }
 
-function workOrderTypeSelections(
-  data: Record<string, unknown>,
-  template: FormTemplate | null,
-): string[] {
-  const fields = template ? normalizeFormFields(template.fields) : [];
-  const field = fields.find((candidate) => candidate.type === 'work_order_types');
-  const raw = field
-    ? data[field.id] ?? (field.key ? data[field.key] : undefined)
-    : fieldValue(data, ['work_order_types', 'workOrderTypes']);
-  if (!Array.isArray(raw)) return [];
-  const seen = new Set<string>();
-  return raw.filter((value): value is string => {
-    if (typeof value !== 'string') return false;
-    const key = value.trim().toLocaleLowerCase();
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).map((value) => value.trim());
+export const WORK_ORDER_PDF_TYPE_LABELS = [
+  'Field Service',
+  'Internal Sale',
+  'Sales',
+  'On Rent',
+  'Off Rent',
+] as const;
+
+function normalizeWorkOrderPdfType(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase();
+}
+
+export function workOrderPdfTypeChecks(workOrderTypes: string[]) {
+  const selectedTypes = new Set(
+    workOrderTypes.map(normalizeWorkOrderPdfType).filter(Boolean),
+  );
+  return WORK_ORDER_PDF_TYPE_LABELS.map((label) => ({
+    label,
+    checked: selectedTypes.has(normalizeWorkOrderPdfType(label)),
+  }));
 }
 
 function normalizeResourceIdentifier(value: unknown): string {
@@ -1458,23 +1463,10 @@ export function buildWorkOrderPdf(
   ops.push(pdfText(fitText(shift, 30) || '-', shiftX + 2, top - 12, 6));
   top -= 15.75;
 
-  const selectedWorkOrderTypes = workOrderTypeSelections(data, template);
-  const checkLabels = [...new Set([
-    ...context.workOrderTypes,
-    ...selectedWorkOrderTypes,
-  ])];
-  const selectedKeys = new Set(
-    selectedWorkOrderTypes.map((value) => value.toLocaleLowerCase()),
-  );
-  const checkStates = checkLabels.map((label) =>
-    selectedKeys.has(label.toLocaleLowerCase()),
-  );
+  const typeChecks = workOrderPdfTypeChecks(context.workOrderTypes);
   let checkX = left;
-  const checkWidth = checkLabels.length > 0 ? width / checkLabels.length : width;
-  if (checkLabels.length === 0) {
-    ops.push(pdfRect(left, top - 16.5, width, 16.5));
-  }
-  checkLabels.forEach((label, index) => {
+  const checkWidth = width / typeChecks.length;
+  typeChecks.forEach(({ label, checked }) => {
     ops.push(pdfRect(checkX, top - 16.5, checkWidth, 16.5));
     const fontSize = Math.max(4.4, Math.min(6.75, 42 / Math.max(6, label.length)));
     const labelAreaWidth = Math.max(10, checkWidth - 15);
@@ -1491,7 +1483,7 @@ export function buildWorkOrderPdf(
       pdfText(visibleLabel, contentX, baselineY, fontSize, 'F2'),
     );
     ops.push(pdfRect(boxX, baselineY - 1, boxSize, boxSize));
-    if (checkStates[index]) {
+    if (checked) {
       ops.push(pdfLine(boxX + 1, baselineY + 1, boxX + 2.2, baselineY - 0.2));
       ops.push(
         pdfLine(boxX + 2.2, baselineY - 0.2, boxX + 4.4, baselineY + 3.4),

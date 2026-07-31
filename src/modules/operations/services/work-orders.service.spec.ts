@@ -40,6 +40,111 @@ describe('countsTowardShiftCompletion', () => {
   });
 });
 
+describe('WorkOrdersService mobile required-action completion', () => {
+  it('marks Timesheet completed only after every assigned worker completes it', async () => {
+    const submissions = [
+      {
+        workOrderId: 'wo-1',
+        shiftId: 'shift-1',
+        templateId: 'template-wo',
+        status: 'submitted',
+        data: {},
+      },
+      {
+        workOrderId: 'wo-1',
+        shiftId: 'shift-1',
+        templateId: 'template-timesheet',
+        status: 'submitted',
+        data: {
+          timesheetWorkers: [
+            { workerId: 'worker-a', status: 'completed' },
+          ],
+        },
+      },
+    ];
+    const service = new WorkOrdersService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { find: jest.fn(async () => submissions) } as never,
+      {
+        find: jest.fn(async () => [
+          {
+            id: 'template-wo',
+            name: 'Work Order Form',
+            category: 'Work Order',
+            isRequired: true,
+          },
+          {
+            id: 'template-timesheet',
+            name: 'Timesheet',
+            category: 'Timesheet',
+            isRequired: true,
+          },
+        ]),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const workOrder = {
+      id: 'wo-1',
+      formTemplateIds: ['template-wo', 'template-timesheet'],
+      shifts: [
+        {
+          id: 'shift-1',
+          roles: [
+            {
+              assignedWorkers: ['worker-a', 'worker-b'],
+            },
+          ],
+        },
+      ],
+    } as WorkOrder;
+    const resolveCompletion = (
+      service as unknown as {
+        resolveMobileShiftCompletion(
+          workOrders: WorkOrder[],
+        ): Promise<{
+          completedShiftKeys: Set<string>;
+          completedTemplateIdsByShift: Map<string, Set<string>>;
+        }>;
+      }
+    ).resolveMobileShiftCompletion.bind(service);
+
+    const partial = await resolveCompletion([workOrder]);
+    expect(
+      partial.completedTemplateIdsByShift.get('wo-1:shift-1'),
+    ).toEqual(new Set(['template-wo']));
+    expect(partial.completedShiftKeys.has('wo-1:shift-1')).toBe(false);
+
+    submissions.push({
+      workOrderId: 'wo-1',
+      shiftId: 'shift-1',
+      templateId: 'template-timesheet',
+      status: 'submitted',
+      data: {
+        timesheetWorkers: [
+          { workerId: 'worker-b', status: 'completed' },
+        ],
+      },
+    });
+
+    const complete = await resolveCompletion([workOrder]);
+    expect(
+      complete.completedTemplateIdsByShift.get('wo-1:shift-1'),
+    ).toEqual(new Set(['template-wo', 'template-timesheet']));
+    expect(complete.completedShiftKeys.has('wo-1:shift-1')).toBe(true);
+  });
+});
+
 describe('workOrderAccessNotificationChanges', () => {
   const shift = (
     authorizedWorkerIds: string[],

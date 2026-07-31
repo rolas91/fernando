@@ -768,7 +768,7 @@ function generatedPdfFileName(
         ) === index,
     );
   const requestedName = [
-    context.project?.number,
+    context.project?.number || context.project?.id,
     context.project?.name,
     ...materialTypes,
   ]
@@ -2774,16 +2774,15 @@ export class FormSubmissionsService {
         : buildSimplePdf(lines.slice(0, 48));
 
     if (this.spacesStorage.isConfigured()) {
-      const [uploaded] = await this.spacesStorage.uploadWorkOrderFiles(
-        [
-          {
-            originalname: fileName,
-            mimetype: 'application/pdf',
-            buffer: pdf,
-            size: pdf.length,
-          },
-        ],
+      const uploaded = await this.spacesStorage.uploadGeneratedWorkOrderPdf(
+        {
+          originalname: fileName,
+          mimetype: 'application/pdf',
+          buffer: pdf,
+          size: pdf.length,
+        },
         submission.workOrderId || submission.id,
+        submission.id,
       );
       if (uploaded?.url) return uploaded.url;
     }

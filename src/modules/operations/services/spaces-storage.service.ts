@@ -36,6 +36,19 @@ export class SpacesStorageService {
     return this.uploadFilesForScope('work-orders', files, workOrderId);
   }
 
+  async uploadGeneratedWorkOrderPdf(
+    file: UploadFileCandidate,
+    workOrderId: string,
+    submissionId: string,
+  ) {
+    return this.uploadFilesForScope(
+      'work-orders',
+      [file],
+      `${workOrderId || 'draft'}/generated/${submissionId || 'submission'}`,
+      true,
+    ).then((uploads) => uploads[0] || null);
+  }
+
   async uploadCertificationDocuments(
     files: UploadFileCandidate[],
     certificationId?: string,
@@ -160,6 +173,7 @@ export class SpacesStorageService {
     scopePrefix: 'workers' | 'work-orders' | 'certifications' | 'shift-chat' | 'logo',
     files: UploadFileCandidate[],
     scopeId?: string,
+    preserveFileName = false,
   ) {
     this.assertConfigured();
     if (!Array.isArray(files) || files.length === 0) {
@@ -194,6 +208,7 @@ export class SpacesStorageService {
         scopePrefix,
         file.originalname || 'upload.bin',
         scopeId,
+        preserveFileName,
       );
       await this.putObject(
         key,
@@ -382,6 +397,7 @@ export class SpacesStorageService {
     scopePrefix: string,
     originalName: string,
     scopeId?: string,
+    preserveFileName = false,
   ) {
     const basePrefix = this.normalizePrefix(
       this.configService.get<string>('SPACES_PREFIX') || 'work-orders',
@@ -389,8 +405,15 @@ export class SpacesStorageService {
     const prefix = this.normalizePrefix(`${basePrefix}/${scopePrefix}`);
     const safeName = this.sanitizeFileName(originalName);
     const date = new Date().toISOString().slice(0, 10);
-    const scope = scopeId?.trim() || 'draft';
-    return `${prefix}/${scope}/${date}/${randomUUID()}-${safeName}`;
+    const scope = (scopeId?.trim() || 'draft')
+      .split(/[\\/]+/)
+      .map((segment) => this.sanitizePathSegment(segment))
+      .filter(Boolean)
+      .join('/');
+    const storedName = preserveFileName
+      ? safeName
+      : `${randomUUID()}-${safeName}`;
+    return `${prefix}/${scope}/${date}/${storedName}`;
   }
 
   private buildStorageUrl(key: string) {
@@ -490,6 +513,15 @@ export class SpacesStorageService {
       .replace(/_+/g, '_')
       .replace(/^_+|_+$/g, '')
       .slice(0, 180) || 'file';
+  }
+
+  private sanitizePathSegment(value: string) {
+    return value
+      .normalize('NFKD')
+      .replace(/[^\w.-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 120) || 'item';
   }
 
   private getFileNameFromKey(key: string) {

@@ -792,14 +792,7 @@ export class WorkOrdersService {
     const completedTemplateIdsByShift = new Map<string, Set<string>>();
     const completedAtByShift = new Map<string, Date>();
     const completedTimesheetWorkersByShift = new Map<string, Set<string>>();
-    const timesheetTemplateIds = new Set(
-      templates
-        .filter((template) => this.isTimesheetTemplate(template))
-        .map((template) => template.id),
-    );
-
     for (const submission of eligibleSubmissions) {
-      if (!timesheetTemplateIds.has(submission.templateId)) continue;
       const shiftKey = `${submission.workOrderId}:${submission.shiftId}`;
       const completedWorkers =
         completedTimesheetWorkersByShift.get(shiftKey) ?? new Set<string>();

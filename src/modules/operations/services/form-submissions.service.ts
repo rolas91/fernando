@@ -719,9 +719,8 @@ type WorkOrderPdfResource = {
   identifier: string;
   description: string;
   hours?: string;
-  size?: string;
+  type?: string;
   quantity?: string;
-  price?: string;
 };
 
 type WorkOrderPdfContext = {
@@ -734,6 +733,59 @@ type WorkOrderPdfContext = {
   workOrderTypes: string[];
   shift?: Record<string, unknown> | null;
 };
+
+function generatedPdfFileName(
+  submissionId: string,
+  context: WorkOrderPdfContext | null,
+): string {
+  const safeSubmissionId = basename(submissionId).replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_',
+  );
+  if (!context) return `${safeSubmissionId}.pdf`;
+
+  const roles = Array.isArray(context.shift?.roles)
+    ? context.shift.roles
+        .map(recordValue)
+        .filter((role): role is Record<string, unknown> => role !== null)
+    : [];
+  const materialTypes = [
+    ...context.materials.map((material) => material.type || ''),
+    ...roles.flatMap((role) =>
+      Array.isArray(role.materialTypes)
+        ? role.materialTypes.filter(
+            (value): value is string =>
+              typeof value === 'string' && value.trim().length > 0,
+          )
+        : [],
+    ),
+  ]
+    .map((value) => value.trim())
+    .filter(
+      (value, index, values) =>
+        values.findIndex(
+          (candidate) => candidate.toLowerCase() === value.toLowerCase(),
+        ) === index,
+    );
+  const requestedName = [
+    context.project?.number,
+    context.project?.name,
+    ...materialTypes,
+  ]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join(' - ');
+  const safeName = requestedName
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/-+/g, '-')
+    .replace(/^[\s.-]+|[\s.-]+$/g, '')
+    .slice(0, 170)
+    .trim();
+  return `${safeName || safeSubmissionId}.pdf`;
+}
 
 export function findWorkOrderFooterSignatures(
   data: Record<string, unknown>,
@@ -1679,7 +1731,7 @@ export function buildWorkOrderPdf(
     }
   }
 
-  const materialPercentages = [26.4, 8.9, 6.9, 8.4, 49.4];
+  const materialPercentages = [30, 13.7, 6.9, 49.4];
   const materialCols = materialPercentages.map((percentage) => (width * percentage) / 100);
   const materialXs: number[] = [];
   let materialX = left;
@@ -1687,16 +1739,16 @@ export function buildWorkOrderPdf(
     materialXs.push(materialX);
     materialX += columnWidth;
   });
-  const materialWidth = materialCols.slice(0, 4).reduce((sum, value) => sum + value, 0);
+  const materialWidth = materialCols.slice(0, 3).reduce((sum, value) => sum + value, 0);
   ops.push(pdfFillRect(left, top - sectionHeight, materialWidth, sectionHeight, accent));
-  ops.push(pdfFillRect(left + materialWidth, top - sectionHeight, materialCols[4], sectionHeight, accent));
+  ops.push(pdfFillRect(left + materialWidth, top - sectionHeight, materialCols[3], sectionHeight, accent));
   ops.push(pdfRect(left, top - sectionHeight, materialWidth, sectionHeight));
-  ops.push(pdfRect(left + materialWidth, top - sectionHeight, materialCols[4], sectionHeight));
+  ops.push(pdfRect(left + materialWidth, top - sectionHeight, materialCols[3], sectionHeight));
   ops.push(pdfText('MATERIAL', left + materialWidth / 2 - 16, top - 10, 6.75, 'F2'));
-  ops.push(pdfText('NOTES', left + materialWidth + materialCols[4] / 2 - 11, top - 10, 6.75, 'F2'));
+  ops.push(pdfText('NOTES', left + materialWidth + materialCols[3] / 2 - 11, top - 10, 6.75, 'F2'));
   top -= sectionHeight;
 
-  const materialHeaders = ['DESCRIPTION', 'SIZE', 'QTY', 'PRICE', ''];
+  const materialHeaders = ['DESCRIPTION', 'TYPE', 'QTY', ''];
   materialCols.forEach((columnWidth, index) => {
     ops.push(pdfRect(materialXs[index], top - columnHeight, columnWidth, columnHeight));
     if (materialHeaders[index]) {
@@ -1720,9 +1772,8 @@ export function buildWorkOrderPdf(
     });
     if (material) {
       ops.push(pdfText(fitText(material.description, 34), materialXs[0] + 2, top - 8.7, 5.2));
-      ops.push(pdfText(fitText(material.size || '', 10), materialXs[1] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(fitText(material.type || '', 16), materialXs[1] + 2, top - 8.7, 5.2));
       ops.push(pdfText(fitText(material.quantity || '', 8), materialXs[2] + 2, top - 8.7, 5.2));
-      ops.push(pdfText(fitText(material.price || '', 10), materialXs[3] + 2, top - 8.7, 5.2));
     }
     top -= materialRowHeight;
   }
@@ -2627,9 +2678,8 @@ export class FormSubmissionsService {
         description:
           [item?.identifier, item?.name].filter(Boolean).join(' - ') ||
           materialId,
-        size: item?.type || '',
+        type: item?.type || '',
         quantity: '1',
-        price: '',
       };
     });
     const submittedMaterialRows = findPlannedMaterialUsageRows(submission.data ?? {});
@@ -2640,9 +2690,8 @@ export class FormSubmissionsService {
       return {
         identifier: item?.identifier || materialId,
         description: [item?.identifier, item?.name].filter(Boolean).join(' - ') || String(row.type ?? '').trim(),
-        size: item?.type || String(row.type ?? '').trim(),
+        type: item?.type || String(row.type ?? '').trim(),
         quantity: String(Math.max(0, Number(row.actualQuantity) || 0)),
-        price: item?.price ? String(item.price) : '',
       };
     });
     const materials = [
@@ -2713,13 +2762,12 @@ export class FormSubmissionsService {
       }
     }
 
-    const safeId = basename(submission.id).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const fileName = `${safeId}.pdf`;
     const isWorkOrder =
       category.includes('work order') || templateName.includes('work order');
     const workOrderContext = isWorkOrder
       ? await this.loadWorkOrderPdfContext(submission)
       : null;
+    const fileName = generatedPdfFileName(submission.id, workOrderContext);
     const pdf =
       isWorkOrder && workOrderContext
         ? buildWorkOrderPdf(submission, template, workOrderContext)

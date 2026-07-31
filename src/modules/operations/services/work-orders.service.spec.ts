@@ -41,6 +41,84 @@ describe('countsTowardShiftCompletion', () => {
 });
 
 describe('WorkOrdersService mobile required-action completion', () => {
+  it('counts completed timesheet rows embedded in the submitted Work Order form', async () => {
+    const submissions = [
+      {
+        workOrderId: 'wo-1',
+        shiftId: 'shift-1',
+        templateId: 'template-wo',
+        status: 'submitted',
+        data: {
+          timesheetWorkers: [
+            { workerId: 'worker-a', status: 'completed' },
+            { workerId: 'worker-b', status: 'completed' },
+          ],
+        },
+      },
+    ];
+    const service = new WorkOrdersService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { find: jest.fn(async () => submissions) } as never,
+      {
+        find: jest.fn(async () => [
+          {
+            id: 'template-wo',
+            name: 'Work Order Form',
+            category: 'Work Order',
+            isRequired: true,
+          },
+          {
+            id: 'template-timesheet',
+            name: 'Timesheet',
+            category: 'Timesheet',
+            isRequired: true,
+          },
+        ]),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const workOrder = {
+      id: 'wo-1',
+      formTemplateIds: ['template-wo', 'template-timesheet'],
+      shifts: [
+        {
+          id: 'shift-1',
+          roles: [
+            {
+              assignedWorkers: ['worker-a', 'worker-b'],
+            },
+          ],
+        },
+      ],
+    } as WorkOrder;
+    const completion = await (
+      service as unknown as {
+        resolveMobileShiftCompletion(
+          workOrders: WorkOrder[],
+        ): Promise<{
+          completedShiftKeys: Set<string>;
+          completedTemplateIdsByShift: Map<string, Set<string>>;
+        }>;
+      }
+    ).resolveMobileShiftCompletion([workOrder]);
+
+    expect(
+      completion.completedTemplateIdsByShift.get('wo-1:shift-1'),
+    ).toEqual(new Set(['template-wo', 'template-timesheet']));
+    expect(completion.completedShiftKeys.has('wo-1:shift-1')).toBe(true);
+  });
+
   it('marks Timesheet completed only after every assigned worker completes it', async () => {
     const submissions = [
       {

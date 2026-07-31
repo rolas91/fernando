@@ -888,7 +888,7 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
   {
     id: 'worker_signature',
     key: 'workerSignature',
-    label: 'Worker Signature',
+    label: 'Lead Signature',
     type: 'signature',
     required: true,
     ui: { section: 'Notes & Signature', layout: 'full' },

@@ -195,6 +195,15 @@ describe('workOrderPdfTypeChecks', () => {
     ]);
   });
 
+  it('checks matching PDF types from materials when the shift has no selected types', () => {
+    const checks = workOrderPdfTypeChecks([], ['Sales', 'On Rent', 'Off Rent']);
+    const selected = checks
+      .filter((item) => item.checked)
+      .map((item) => item.label);
+
+    expect(selected).toEqual(['Sales', 'On Rent', 'Off Rent']);
+  });
+
   it('checks only exact normalized matches from the shift configuration', () => {
     expect(
       workOrderPdfTypeChecks([' field   service ', 'ON RENT', 'Sale']),

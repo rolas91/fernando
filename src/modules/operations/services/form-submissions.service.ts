@@ -889,9 +889,14 @@ function normalizeWorkOrderPdfType(value: unknown): string {
     .toLocaleLowerCase();
 }
 
-export function workOrderPdfTypeChecks(workOrderTypes: string[]) {
+export function workOrderPdfTypeChecks(
+  workOrderTypes: string[],
+  materialTypes: string[] = [],
+) {
   const selectedTypes = new Set(
-    workOrderTypes.map(normalizeWorkOrderPdfType).filter(Boolean),
+    [...workOrderTypes, ...materialTypes]
+      .map(normalizeWorkOrderPdfType)
+      .filter(Boolean),
   );
   return WORK_ORDER_PDF_TYPE_LABELS.map((label) => ({
     label,
@@ -1569,11 +1574,18 @@ export function buildWorkOrderPdf(
   top -= 15.75;
 
   const mappedTypes = mappedPdfField(data, builderConfig, 'workOrderTypes');
-  const typeChecks = workOrderPdfTypeChecks(
-    mappedTypes.configured && Array.isArray(mappedTypes.value)
-      ? mappedTypes.value.filter((value): value is string => typeof value === 'string')
-      : context.workOrderTypes,
-  );
+  const typeChecks = mappedTypes.configured
+    ? workOrderPdfTypeChecks(
+        Array.isArray(mappedTypes.value)
+          ? mappedTypes.value.filter((value): value is string => typeof value === 'string')
+          : [],
+      )
+    : workOrderPdfTypeChecks(
+        context.workOrderTypes,
+        context.materials
+          .map((material) => material.type || '')
+          .filter(Boolean),
+      );
   let checkX = left;
   const checkWidth = width / typeChecks.length;
   typeChecks.forEach(({ label, checked }) => {

@@ -52,6 +52,9 @@ export class CompanySettings {
   @Column({ name: 'job_statuses', type: 'text', array: true, default: '{}' })
   jobStatuses: string[];
 
+  @Column({ name: 'work_order_pdf_builder', type: 'jsonb', nullable: true })
+  workOrderPdfBuilder: Record<string, unknown> | null;
+
   /*
    * Retired: assignment_auto_status remains as an unused database column so
    * existing installations do not require a destructive migration.

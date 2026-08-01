@@ -22,6 +22,7 @@ import { SpacesStorageService } from './spaces-storage.service';
 import { TimesheetsService } from './timesheets.service';
 import { ShiftsQueryService } from './shifts-query.service';
 import { ShiftWorkOrderAccessService } from './shift-work-order-access.service';
+import { CompanySettingsService } from './company-settings.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -734,6 +735,47 @@ type WorkOrderPdfContext = {
   shift?: Record<string, unknown> | null;
 };
 
+type WorkOrderPdfBuilderConfig = {
+  templateId?: string;
+  fields?: Record<string, string>;
+};
+
+function normalizedPdfBuilderConfig(value: unknown): WorkOrderPdfBuilderConfig {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const input = value as Record<string, unknown>;
+  const rawFields =
+    typeof input.fields === 'object' && input.fields !== null && !Array.isArray(input.fields)
+      ? (input.fields as Record<string, unknown>)
+      : {};
+  return {
+    templateId: typeof input.templateId === 'string' ? input.templateId.trim() : '',
+    fields: Object.fromEntries(
+      Object.entries(rawFields)
+        .filter(([, fieldId]) => typeof fieldId === 'string' && fieldId.trim())
+        .map(([slot, fieldId]) => [slot, String(fieldId).trim()]),
+    ),
+  };
+}
+
+function mappedPdfField(
+  data: Record<string, unknown>,
+  config: WorkOrderPdfBuilderConfig | undefined,
+  slot: string,
+) {
+  const fieldId = config?.fields?.[slot]?.trim();
+  return fieldId ? { configured: true, value: data[fieldId] } : { configured: false, value: undefined };
+}
+
+function mappedPdfValue(
+  data: Record<string, unknown>,
+  config: WorkOrderPdfBuilderConfig | undefined,
+  slot: string,
+  fallback: unknown,
+) {
+  const mapped = mappedPdfField(data, config, slot);
+  return mapped.configured ? mapped.value ?? '' : fallback;
+}
+
 function generatedPdfFileName(
   submissionId: string,
   context: WorkOrderPdfContext | null,
@@ -791,10 +833,16 @@ export function findWorkOrderFooterSignatures(
   data: Record<string, unknown>,
   template: FormTemplate | null,
   workers: WorkOrderPdfWorker[] = [],
+  builderConfig?: WorkOrderPdfBuilderConfig,
 ) {
-  const foremanSignature =
-    findSignatureValue(data, template, [
+  const mappedLead = mappedPdfField(data, builderConfig, 'leadSignature');
+  const mappedCustomer = mappedPdfField(data, builderConfig, 'customerSignature');
+  const foremanSignature = mappedLead.configured
+    ? mappedLead.value
+    : findSignatureValue(data, template, [
       /foreman/,
+      /lead/,
+      /worker/,
       /employee/,
       /dr.?traffic.*rep/,
       /rep.*dr.?traffic/,
@@ -805,13 +853,15 @@ export function findWorkOrderFooterSignatures(
           worker.roleName,
         ) && worker.signature,
     )?.signature;
-  const customerCandidate = findSignatureValue(data, template, [
-    /customer/,
-    /contract/,
-    /owner/,
-    /general/,
-    /approval/,
-  ]);
+  const customerCandidate = mappedCustomer.configured
+    ? mappedCustomer.value
+    : findSignatureValue(data, template, [
+        /customer/,
+        /contract/,
+        /owner/,
+        /general/,
+        /approval/,
+      ]);
   const foremanFingerprint = signatureFingerprint(foremanSignature);
   const customerFingerprint = signatureFingerprint(customerCandidate);
   const customerSignature =
@@ -1398,6 +1448,7 @@ export function buildWorkOrderPdf(
   submission: FormSubmission,
   template: FormTemplate | null,
   context: WorkOrderPdfContext,
+  builderConfig?: WorkOrderPdfBuilderConfig,
 ): Buffer {
   const data = submission.data ?? {};
   const images: PdfImage[] = [];
@@ -1410,52 +1461,54 @@ export function buildWorkOrderPdf(
   const project = context.project;
   const clientRecord = context.client;
   const shiftRecord = context.shift ?? {};
-  const dateValue =
+  const dateValue = mappedPdfValue(data, builderConfig, 'workDate',
     fieldValue(data, ['work_date', 'workDate', 'date']) ||
     shiftRecord.date ||
-    submittedAt.toISOString().slice(0, 10);
-  const jobNumber =
+    submittedAt.toISOString().slice(0, 10));
+  const jobNumber = mappedPdfValue(data, builderConfig, 'jobNumber',
     fieldValue(data, ['dr_traffic_job_number', 'drTrafficJobNumber']) ||
     project?.number ||
     workOrder?.orderNumber ||
-    submission.projectId;
-  const jobName =
+    submission.projectId);
+  const jobName = mappedPdfValue(data, builderConfig, 'jobName',
     fieldValue(data, ['job_name', 'jobName']) ||
     project?.name ||
     workOrder?.title ||
-    submission.workOrderId;
-  const description =
+    submission.workOrderId);
+  const description = mappedPdfValue(data, builderConfig, 'description',
     fieldValue(data, ['description_of_work', 'descriptionOfWork']) ||
     project?.description ||
     workOrder?.dispatchNote ||
-    workOrder?.notes;
-  const client = fieldValue(data, ['client']) || clientRecord?.name || '';
-  const contact =
+    workOrder?.notes);
+  const client = mappedPdfValue(data, builderConfig, 'client',
+    fieldValue(data, ['client']) || clientRecord?.name || '');
+  const contact = mappedPdfValue(data, builderConfig, 'contact',
     fieldValue(data, ['contact']) ||
     clientRecord?.contactName ||
     workOrder?.requesterName ||
-    '';
-  const customerOrder =
+    '');
+  const customerOrder = mappedPdfValue(data, builderConfig, 'customerOrderNumber',
     fieldValue(data, ['customer_order_number', 'customerOrderNumber']) ||
     project?.purchaseOrder ||
-    '';
-  const shift =
+    '');
+  const shift = mappedPdfValue(data, builderConfig, 'workShift',
     fieldValue(data, ['work_shift', 'workShift']) ||
     shiftRecord.shiftTypeName ||
     shiftRecord.shiftName ||
-    '';
-  const notes = [
+    '');
+  const defaultNotes = [
     fieldValue(data, ['extra_work_details', 'extraWorkDetails']),
     fieldValue(data, ['notes']),
     workOrder?.notes,
   ]
     .filter((value) => String(value ?? '').trim())
     .join(' | ');
-  const displayNumber =
+  const notes = mappedPdfValue(data, builderConfig, 'notes', defaultNotes);
+  const displayNumber = mappedPdfValue(data, builderConfig, 'workOrderNumber',
     workOrder?.orderNumber ||
     fieldValue(data, ['work_order_number', 'workOrderNumber']) ||
     submission.workOrderId ||
-    compactId(submission.id, 16);
+    compactId(submission.id, 16));
   const left = 17.64;
   const width = 576.72;
   const accent: [number, number, number] = [0.929, 0.451, 0.463];
@@ -1515,7 +1568,12 @@ export function buildWorkOrderPdf(
   ops.push(pdfText(fitText(shift, 30) || '-', shiftX + 2, top - 12, 6));
   top -= 15.75;
 
-  const typeChecks = workOrderPdfTypeChecks(context.workOrderTypes);
+  const mappedTypes = mappedPdfField(data, builderConfig, 'workOrderTypes');
+  const typeChecks = workOrderPdfTypeChecks(
+    mappedTypes.configured && Array.isArray(mappedTypes.value)
+      ? mappedTypes.value.filter((value): value is string => typeof value === 'string')
+      : context.workOrderTypes,
+  );
   let checkX = left;
   const checkWidth = width / typeChecks.length;
   typeChecks.forEach(({ label, checked }) => {
@@ -1765,6 +1823,7 @@ export function buildWorkOrderPdf(
   top -= columnHeight;
 
   const materialRowHeight = 12.75;
+  const noteLines = wrapText(stringifyFieldValue(notes), 58).slice(0, 13);
   for (let index = 0; index < 13; index += 1) {
     const material = context.materials[index];
     materialCols.forEach((columnWidth, columnIndex) => {
@@ -1775,11 +1834,14 @@ export function buildWorkOrderPdf(
       ops.push(pdfText(fitText(material.type || '', 16), materialXs[1] + 2, top - 8.7, 5.2));
       ops.push(pdfText(fitText(material.quantity || '', 8), materialXs[2] + 2, top - 8.7, 5.2));
     }
+    if (noteLines[index]) {
+      ops.push(pdfText(fitText(noteLines[index], 58), materialXs[3] + 2, top - 8.7, 5.2));
+    }
     top -= materialRowHeight;
   }
 
   const { foremanSignature, customerSignature } =
-    findWorkOrderFooterSignatures(data, template, context.workers);
+    findWorkOrderFooterSignatures(data, template, context.workers, builderConfig);
 
   const footerY = 88;
   ops.push(pdfText('DR TRAFFIC REP. (NAME)', left + 2, footerY, 5.6, 'F2'));
@@ -1861,6 +1923,7 @@ export class FormSubmissionsService {
     private readonly timesheetsService: TimesheetsService,
     private readonly shiftsQuery: ShiftsQueryService,
     private readonly shiftWorkOrderAccess: ShiftWorkOrderAccessService,
+    private readonly companySettings: CompanySettingsService,
   ) {}
 
   findAll(
@@ -2446,6 +2509,7 @@ export class FormSubmissionsService {
 
   private async loadWorkOrderPdfContext(
     submission: FormSubmission,
+    builderConfig?: WorkOrderPdfBuilderConfig,
   ): Promise<WorkOrderPdfContext> {
     const workOrder = submission.workOrderId
       ? await this.workOrdersRepo.findOne({
@@ -2464,6 +2528,22 @@ export class FormSubmissionsService {
       : [];
     const shift =
       relationalShifts.find((entry) => entry?.id === submission.shiftId) ?? null;
+    const submissionData = submission.data ?? {};
+    const mappedWorkers = mappedPdfField(submissionData, builderConfig, 'workers');
+    const mappedEquipment = mappedPdfField(submissionData, builderConfig, 'equipment');
+    const mappedMaterials = mappedPdfField(submissionData, builderConfig, 'materials');
+    const workerSource = mappedWorkers.configured
+      ? { selected: mappedWorkers.value }
+      : submissionData;
+    const equipmentSource = mappedEquipment.configured
+      ? { selected: mappedEquipment.value }
+      : submissionData;
+    const materialSource = mappedMaterials.configured
+      ? { selected: mappedMaterials.value }
+      : submissionData;
+    const submittedTimesheetRows = findTimesheetRows(workerSource);
+    const submittedEquipmentRows = findResourceRows(equipmentSource, 'equipmentId');
+    const submittedMaterialResourceRows = findResourceRows(materialSource, 'materialId');
     const roles = Array.isArray(shift?.roles)
       ? shift.roles
           .map(recordValue)
@@ -2504,7 +2584,7 @@ export class FormSubmissionsService {
     // tables (new WO created with shifts:[] before the user added a shift),
     // harvest workers/equipment/materials from the submission form data.
     if (workerIds.length === 0) {
-      for (const row of findTimesheetRows(submission.data ?? {})) {
+      for (const row of submittedTimesheetRows) {
         const workerId = String(row.workerId ?? '').trim();
         if (workerId && !workerIds.includes(workerId)) {
           workerIds.push(workerId);
@@ -2512,26 +2592,26 @@ export class FormSubmissionsService {
       }
     }
     if (equipmentIds.length === 0) {
-      for (const row of findResourceRows(submission.data ?? {}, 'equipmentId')) {
+      for (const row of submittedEquipmentRows) {
         const equipmentId = String(row.equipmentId ?? '').trim();
         if (equipmentId && !equipmentIds.includes(equipmentId)) {
           equipmentIds.push(equipmentId);
         }
       }
     }
-    for (const row of findResourceRows(submission.data ?? {}, 'equipmentId')) {
+    for (const row of submittedEquipmentRows) {
       const equipmentId = String(row.equipmentId ?? '').trim();
       if (equipmentId && !equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
     }
     if (materialIds.length === 0) {
-      for (const row of findResourceRows(submission.data ?? {}, 'materialId')) {
+      for (const row of submittedMaterialResourceRows) {
         const materialId = String(row.materialId ?? '').trim();
         if (materialId && !materialIds.includes(materialId)) {
           materialIds.push(materialId);
         }
       }
     }
-    for (const row of findResourceRows(submission.data ?? {}, 'materialId')) {
+    for (const row of submittedMaterialResourceRows) {
       const materialId = String(row.materialId ?? '').trim();
       if (materialId && !materialIds.includes(materialId)) materialIds.push(materialId);
     }
@@ -2557,7 +2637,7 @@ export class FormSubmissionsService {
           : Promise.resolve([]),
       ]);
 
-    const submittedRows = findTimesheetRows(submission.data ?? {});
+    const submittedRows = submittedTimesheetRows;
     const submittedByWorker = new Map(
       submittedRows.map((row) => [String(row.workerId ?? ''), row]),
     );
@@ -2641,7 +2721,7 @@ export class FormSubmissionsService {
       equipmentRecords.map((equipment) => [equipment.id, equipment]),
     );
     const equipmentHours = String(
-      fieldValue(submission.data ?? {}, [
+      fieldValue(submissionData, [
         'equipment_hours',
         'equipmentHours',
       ]) ?? '',
@@ -2682,7 +2762,7 @@ export class FormSubmissionsService {
         quantity: '1',
       };
     });
-    const submittedMaterialRows = findPlannedMaterialUsageRows(submission.data ?? {});
+    const submittedMaterialRows = findPlannedMaterialUsageRows(materialSource);
     const submittedMaterialIds = new Set(submittedMaterialRows.map((row) => String(row.materialId ?? '').trim()).filter(Boolean));
     const submittedMaterials = submittedMaterialRows.map((row) => {
       const materialId = String(row.materialId ?? '').trim();
@@ -2722,8 +2802,6 @@ export class FormSubmissionsService {
   ): Promise<string> {
     const fields = template ? normalizeFormFields(template.fields) : [];
     const data = submission.data ?? {};
-    const category = (template?.category || '').toLowerCase();
-    const templateName = (template?.name || '').toLowerCase();
     const lines: string[] = [
       template?.name || `Form submission ${submission.id}`,
       '',
@@ -2762,15 +2840,24 @@ export class FormSubmissionsService {
       }
     }
 
-    const isWorkOrder =
-      category.includes('work order') || templateName.includes('work order');
+    const isWorkOrder = isWorkOrderTemplate(template);
+    const settings = isWorkOrder
+      ? (await this.companySettings.findAll())[0] ?? null
+      : null;
+    const savedBuilderConfig = normalizedPdfBuilderConfig(
+      settings?.workOrderPdfBuilder,
+    );
+    const builderConfig =
+      !savedBuilderConfig.templateId || savedBuilderConfig.templateId === template?.id
+        ? savedBuilderConfig
+        : undefined;
     const workOrderContext = isWorkOrder
-      ? await this.loadWorkOrderPdfContext(submission)
+      ? await this.loadWorkOrderPdfContext(submission, builderConfig)
       : null;
     const fileName = generatedPdfFileName(submission.id, workOrderContext);
     const pdf =
       isWorkOrder && workOrderContext
-        ? buildWorkOrderPdf(submission, template, workOrderContext)
+        ? buildWorkOrderPdf(submission, template, workOrderContext, builderConfig)
         : buildSimplePdf(lines.slice(0, 48));
 
     if (this.spacesStorage.isConfigured()) {

@@ -142,6 +142,46 @@ describe('findWorkOrderFooterSignatures', () => {
     expect(result.foremanSignature).toBe(signature);
     expect(result.customerSignature).toBeNull();
   });
+
+  it('maps Lead Signature to the DR Traffic footer slot', () => {
+    const leadSignature = {
+      type: 'signature-image',
+      dataUrl: 'data:image/png;base64,lead-signature',
+    };
+    const workOrderTemplate = {
+      ...template('Work Order'),
+      fields: [
+        {
+          id: 'worker_signature',
+          label: 'LEAD SIGNATURE',
+          type: 'signature',
+        },
+      ],
+    } as FormTemplate;
+
+    const result = findWorkOrderFooterSignatures(
+      { worker_signature: leadSignature },
+      workOrderTemplate,
+    );
+
+    expect(result.foremanSignature).toBe(leadSignature);
+  });
+
+  it('uses explicit PDF Builder mappings before semantic name matching', () => {
+    const leadSignature = {
+      type: 'signature-image',
+      dataUrl: 'data:image/png;base64,mapped-lead-signature',
+    };
+
+    const result = findWorkOrderFooterSignatures(
+      { arbitrary_signature_field: leadSignature },
+      template('Work Order'),
+      [],
+      { fields: { leadSignature: 'arbitrary_signature_field' } },
+    );
+
+    expect(result.foremanSignature).toBe(leadSignature);
+  });
 });
 
 describe('workOrderPdfTypeChecks', () => {

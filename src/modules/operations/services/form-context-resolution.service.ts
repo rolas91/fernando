@@ -671,6 +671,10 @@ export class FormContextResolutionService {
     actor?: UserAccessContext,
     timesheetScope?: TimesheetScope,
   ): Promise<Record<string, unknown>[]> {
+    const timesheetField = (
+      normalizeFormFields(template.fields) as DynamicFormField[]
+    ).find((field) => field.type === 'timesheet');
+    const configuredLunchDefault = timesheetField?.ui?.lunchTakenDefault;
     let workerIds = collectRoleIds(shift, 'assignedWorkers');
     const workerIdForActor = await this.resolveWorkerIdForActor(actor);
     const actorRoleNames = workerIdForActor ? workerRoleNames(shift, workerIdForActor) : [];
@@ -762,7 +766,12 @@ export class FormContextResolutionService {
           Number(timesheet?.regularHours ?? 0) +
           Number(timesheet?.overtimeHours ?? 0) +
           Number(timesheet?.doubleTimeHours ?? 0),
-        lunchTaken: timesheet?.lunchTaken ?? false,
+        lunchTaken:
+          timesheet?.status === 'completed'
+            ? timesheet.lunchTaken
+            : typeof configuredLunchDefault === 'boolean'
+              ? configuredLunchDefault
+              : timesheet?.lunchTaken ?? false,
         hasExistingTimesheet: Boolean(timesheet),
         employeeNote: timesheet?.employeeNote ?? '',
         signature: timesheet?.signature ? parseJsonValue(timesheet.signature) : '',

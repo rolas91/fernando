@@ -1,6 +1,7 @@
 import type { FormTemplate } from '../../../entities/form-template.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import {
+  buildWorkOrderPdf,
   findWorkOrderFooterSignatures,
   shouldGenerateSubmissionPdf,
   workOrderPdfTypeChecks,
@@ -214,5 +215,73 @@ describe('workOrderPdfTypeChecks', () => {
       { label: 'On Rent', checked: true },
       { label: 'Off Rent', checked: false },
     ]);
+  });
+});
+
+describe('Work Order PDF Builder layout', () => {
+  const submission = {
+    id: 'pdf-layout-test',
+    workOrderId: 'wo-1',
+    projectId: 'project-1',
+    shiftId: 'shift-1',
+    submittedAt: new Date('2026-08-02T12:00:00Z'),
+    data: {},
+  } as any;
+
+  it('creates a continuation page when labor exceeds configured rows', () => {
+    const workers = Array.from({ length: 8 }, (_, index) => ({
+      workerId: `worker-${index + 1}`,
+      workerName: `Worker ${index + 1}`,
+      roleName: index === 0 ? 'Lead' : 'Flagger',
+      startTime: '7:00 AM',
+      endTime: '4:00 PM',
+      regularHours: 8,
+      overtimeHours: 0,
+      doubleTimeHours: 0,
+      lunchTaken: true,
+      breakMinutes: 30,
+      signature: '',
+    }));
+    const pdf = buildWorkOrderPdf(
+      submission,
+      template('Work Order'),
+      {
+        workers,
+        equipment: [],
+        materials: [],
+        workOrderTypes: [],
+        shift: { date: '2026-08-02' },
+      },
+      { layout: { workerRows: 7, labels: { documentTitle: 'CUSTOM WORK ORDER' } } },
+    ).toString('latin1');
+
+    expect(pdf).toContain('/Count 2');
+    expect(pdf).toContain('CUSTOM WORK ORDER');
+    expect(pdf).toContain('LABOR & EQUIPMENT - CONTINUED');
+  });
+
+  it('creates a continuation page when materials exceed configured rows', () => {
+    const materials = Array.from({ length: 14 }, (_, index) => ({
+      identifier: `MAT-${index + 1}`,
+      description: `Material ${index + 1}`,
+      type: index % 2 === 0 ? 'Sales' : 'On Rent',
+      quantity: '1',
+    }));
+    const pdf = buildWorkOrderPdf(
+      submission,
+      template('Work Order'),
+      {
+        workers: [],
+        equipment: [],
+        materials,
+        workOrderTypes: [],
+        shift: { date: '2026-08-02' },
+      },
+      { layout: { materialRows: 13 } },
+    ).toString('latin1');
+
+    expect(pdf).toContain('/Count 2');
+    expect(pdf).toContain('MATERIALS - CONTINUED');
+    expect(pdf).toContain('Material 14');
   });
 });

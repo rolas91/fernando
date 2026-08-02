@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { basename, resolve } from 'path';
@@ -81,22 +81,38 @@ type PdfImage = {
 };
 
 function buildPdfContentPdf(content: string, images: PdfImage[] = []): Buffer {
+  return buildPdfContentPages([content], images);
+}
+
+function buildPdfContentPages(contents: string[], images: PdfImage[] = []): Buffer {
+  const pageContents = contents.length > 0 ? contents : [''];
   const objects: Array<string | Buffer> = [];
   const pageHeight = 792;
+  const pageCount = pageContents.length;
+  const firstFontId = 3 + pageCount;
+  const secondFontId = firstFontId + 1;
+  const firstContentId = secondFontId + 1;
+  const firstImageId = firstContentId + pageCount;
   const xObjectResources = images.length
-    ? `/XObject << ${images.map((image, index) => `/${image.name} ${7 + index} 0 R`).join(' ')} >>`
+    ? `/XObject << ${images.map((image, index) => `/${image.name} ${firstImageId + index} 0 R`).join(' ')} >>`
     : '';
 
   objects.push('<< /Type /Catalog /Pages 2 0 R >>');
-  objects.push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
   objects.push(
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${pageHeight}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> ${xObjectResources} >> /Contents 6 0 R >>`,
+    `<< /Type /Pages /Kids [${pageContents.map((_, index) => `${3 + index} 0 R`).join(' ')}] /Count ${pageCount} >>`,
   );
+  pageContents.forEach((_, index) => {
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${pageHeight}] /Resources << /Font << /F1 ${firstFontId} 0 R /F2 ${secondFontId} 0 R >> ${xObjectResources} >> /Contents ${firstContentId + index} 0 R >>`,
+    );
+  });
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
-  objects.push(
-    `<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}\nendstream`,
-  );
+  pageContents.forEach((content) => {
+    objects.push(
+      `<< /Length ${Buffer.byteLength(content, 'utf8')} >>\nstream\n${content}\nendstream`,
+    );
+  });
   images.forEach((image) => {
     objects.push(
       Buffer.concat([
@@ -725,6 +741,7 @@ type WorkOrderPdfResource = {
 };
 
 type WorkOrderPdfContext = {
+  company?: { name?: string; address?: string; phone?: string; email?: string };
   workOrder?: WorkOrder | null;
   project?: Project | null;
   client?: Client | null;
@@ -736,8 +753,17 @@ type WorkOrderPdfContext = {
 };
 
 type WorkOrderPdfBuilderConfig = {
+  version?: number;
   templateId?: string;
   fields?: Record<string, string>;
+  layout?: {
+    accentColor?: string;
+    workerRows?: number;
+    materialRows?: number;
+    filenameTemplate?: string;
+    labels?: Record<string, string>;
+    sections?: Record<string, boolean>;
+  };
 };
 
 function normalizedPdfBuilderConfig(value: unknown): WorkOrderPdfBuilderConfig {
@@ -747,14 +773,72 @@ function normalizedPdfBuilderConfig(value: unknown): WorkOrderPdfBuilderConfig {
     typeof input.fields === 'object' && input.fields !== null && !Array.isArray(input.fields)
       ? (input.fields as Record<string, unknown>)
       : {};
+  const rawLayout =
+    typeof input.layout === 'object' && input.layout !== null && !Array.isArray(input.layout)
+      ? (input.layout as Record<string, unknown>)
+      : {};
+  const rawLabels =
+    typeof rawLayout.labels === 'object' && rawLayout.labels !== null && !Array.isArray(rawLayout.labels)
+      ? (rawLayout.labels as Record<string, unknown>)
+      : {};
+  const rawSections =
+    typeof rawLayout.sections === 'object' && rawLayout.sections !== null && !Array.isArray(rawLayout.sections)
+      ? (rawLayout.sections as Record<string, unknown>)
+      : {};
+  const workerRows = Number(rawLayout.workerRows);
+  const materialRows = Number(rawLayout.materialRows);
   return {
+    version: Number.isFinite(Number(input.version)) ? Number(input.version) : 1,
     templateId: typeof input.templateId === 'string' ? input.templateId.trim() : '',
     fields: Object.fromEntries(
       Object.entries(rawFields)
         .filter(([, fieldId]) => typeof fieldId === 'string' && fieldId.trim())
         .map(([slot, fieldId]) => [slot, String(fieldId).trim()]),
     ),
+    layout: {
+      accentColor:
+        typeof rawLayout.accentColor === 'string' && /^#[0-9a-f]{6}$/i.test(rawLayout.accentColor)
+          ? rawLayout.accentColor
+          : '#ed7376',
+      workerRows: Number.isInteger(workerRows) ? Math.min(12, Math.max(4, workerRows)) : 7,
+      materialRows: Number.isInteger(materialRows) ? Math.min(18, Math.max(5, materialRows)) : 13,
+      filenameTemplate:
+        typeof rawLayout.filenameTemplate === 'string' && rawLayout.filenameTemplate.trim()
+          ? rawLayout.filenameTemplate.trim().slice(0, 240)
+          : '{projectNumber} - {projectName} - {materialTypes}',
+      labels: Object.fromEntries(
+        Object.entries(rawLabels)
+          .filter(([, label]) => typeof label === 'string')
+          .map(([key, label]) => [key, String(label).trim().slice(0, 80)]),
+      ),
+      sections: Object.fromEntries(
+        Object.entries(rawSections)
+          .filter(([, visible]) => typeof visible === 'boolean'),
+      ) as Record<string, boolean>,
+    },
   };
+}
+
+function pdfBuilderLabel(
+  config: WorkOrderPdfBuilderConfig | undefined,
+  key: string,
+  fallback: string,
+) {
+  return config?.layout?.labels?.[key]?.trim() || fallback;
+}
+
+function pdfBuilderSectionVisible(
+  config: WorkOrderPdfBuilderConfig | undefined,
+  key: string,
+) {
+  return config?.layout?.sections?.[key] !== false;
+}
+
+function pdfColorFromHex(value: string | undefined): [number, number, number] {
+  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value || '');
+  return match
+    ? [Number.parseInt(match[1], 16) / 255, Number.parseInt(match[2], 16) / 255, Number.parseInt(match[3], 16) / 255]
+    : [0.929, 0.451, 0.463];
 }
 
 function mappedPdfField(
@@ -779,6 +863,7 @@ function mappedPdfValue(
 function generatedPdfFileName(
   submissionId: string,
   context: WorkOrderPdfContext | null,
+  builderConfig?: WorkOrderPdfBuilderConfig,
 ): string {
   const safeSubmissionId = basename(submissionId).replace(
     /[^a-zA-Z0-9_-]/g,
@@ -809,14 +894,21 @@ function generatedPdfFileName(
           (candidate) => candidate.toLowerCase() === value.toLowerCase(),
         ) === index,
     );
-  const requestedName = [
-    context.project?.number || context.project?.id,
-    context.project?.name,
-    ...materialTypes,
-  ]
-    .map((value) => value?.trim())
-    .filter((value): value is string => Boolean(value))
-    .join(' - ');
+  const filenameTemplate =
+    builderConfig?.layout?.filenameTemplate ||
+    '{projectNumber} - {projectName} - {materialTypes}';
+  const filenameTokens: Record<string, string> = {
+    projectNumber: context.project?.number || context.project?.id || '',
+    projectName: context.project?.name || '',
+    materialTypes: materialTypes.join(' - '),
+    workOrderNumber: context.workOrder?.orderNumber || '',
+    shiftDate: String(context.shift?.date || ''),
+  };
+  const requestedName = filenameTemplate
+    .replace(/\{(projectNumber|projectName|materialTypes|workOrderNumber|shiftDate)\}/g, (_match, token) => filenameTokens[token] || '')
+    .replace(/\s+-\s+(?=-|$)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const safeName = requestedName
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -1466,6 +1558,10 @@ export function buildWorkOrderPdf(
   const project = context.project;
   const clientRecord = context.client;
   const shiftRecord = context.shift ?? {};
+  const companyName = context.company?.name || 'DR Traffic Control, LLC';
+  const companyAddress = context.company?.address || '2285 Revere Ave, San Francisco, CA 94124, USA';
+  const companyPhone = context.company?.phone || '415-441-4410';
+  const companyEmail = context.company?.email || 'info@drtrafficcontrol.com';
   const dateValue = mappedPdfValue(data, builderConfig, 'workDate',
     fieldValue(data, ['work_date', 'workDate', 'date']) ||
     shiftRecord.date ||
@@ -1516,21 +1612,40 @@ export function buildWorkOrderPdf(
     compactId(submission.id, 16));
   const left = 17.64;
   const width = 576.72;
-  const accent: [number, number, number] = [0.929, 0.451, 0.463];
+  const accent = pdfColorFromHex(builderConfig?.layout?.accentColor);
+  const showHeader = pdfBuilderSectionVisible(builderConfig, 'header');
+  const showTypes = pdfBuilderSectionVisible(builderConfig, 'types');
+  const showLabor = pdfBuilderSectionVisible(builderConfig, 'labor');
+  const showEquipment = pdfBuilderSectionVisible(builderConfig, 'equipment');
+  const showMaterials = pdfBuilderSectionVisible(builderConfig, 'materials');
+  const showNotes = pdfBuilderSectionVisible(builderConfig, 'notes');
+  const showSignatures = pdfBuilderSectionVisible(builderConfig, 'signatures');
   const ops: string[] = ['0.75 w', '0 0 0 RG', pdfRect(0.75, 0.75, 610.5, 790.5)];
 
   // Exact geometry from the supplied HTML/CSS Letter template.
-  if (logo) ops.push('q 160.56 0 0 53.52 39.24 679.48 cm /Logo Do Q');
-  ops.push(pdfText('WORK ORDER', 320.4, 711.8, 12, 'F2'));
+  if (showHeader && logo) ops.push('q 160.56 0 0 53.52 39.24 679.48 cm /Logo Do Q');
+  const documentTitle = fitText(
+    pdfBuilderLabel(builderConfig, 'documentTitle', 'WORK ORDER'),
+    24,
+  );
+  const documentTitleSize = Math.max(
+    7,
+    Math.min(12, 150 / Math.max(1, documentTitle.length * 0.55)),
+  );
+  const documentTitleX =
+    365 - (documentTitle.length * documentTitleSize * 0.52) / 2;
+  if (showHeader) ops.push(pdfText(documentTitle, documentTitleX, 711.8, documentTitleSize, 'F2'));
   ops.push('0.835 0 0 rg');
-  ops.push(pdfText(`No.  ${compactId(displayNumber, 20)}`, 456, 711.8, 12, 'F2'));
+  if (showHeader) ops.push(pdfText(`${pdfBuilderLabel(builderConfig, 'number', 'No.')}  ${compactId(displayNumber, 18)}`, 470, 711.8, 11, 'F2'));
   ops.push('0 0 0 rg');
   ops.push('0.835 0 0 rg');
-  ops.push(pdfText('DR Traffic Control, LLC', 226, 666.5, 12, 'F2'));
+  if (showHeader) ops.push(pdfText(fitText(companyName, 42), 226, 666.5, 12, 'F2'));
   ops.push('0 0 0 rg');
-  ops.push(pdfText('2285 Revere Ave, San Francisco, CA 94124, USA', 218, 655, 6, 'F2'));
-  ops.push(pdfText('CSLB #1099211            www.drtrafficcontrol.com', 222, 646.5, 6, 'F2'));
-  ops.push(pdfText('Phone: 415-441-4410        info@drtrafficcontrol.com', 219, 638, 6, 'F2'));
+  if (showHeader) {
+    ops.push(pdfText(fitText(companyAddress, 70), 218, 655, 6, 'F2'));
+    ops.push(pdfText('CSLB #1099211            www.drtrafficcontrol.com', 222, 646.5, 6, 'F2'));
+    ops.push(pdfText(`Phone: ${fitText(companyPhone, 22)}        ${fitText(companyEmail, 38)}`, 219, 638, 6, 'F2'));
+  }
 
   let top = 614.2;
   const topWidths = [width * 0.354, width * 0.312, width * 0.334];
@@ -1549,15 +1664,15 @@ export function buildWorkOrderPdf(
     if (text) ops.push(pdfText(text, x + 2, y - h + 3.5, 6));
   };
 
-  drawTopCell('DR TRAFFIC JOB#', jobNumber, left, top, topWidths[0], 15.75, 34);
-  drawTopCell('JOB NAME:', jobName, left + topWidths[0], top, topWidths[1], 15.75, 31);
-  drawTopCell('DATE:', dateValue, left + topWidths[0] + topWidths[1], top, topWidths[2], 15.75, 24);
+  drawTopCell(pdfBuilderLabel(builderConfig, 'jobNumber', 'DR TRAFFIC JOB#'), jobNumber, left, top, topWidths[0], 15.75, 34);
+  drawTopCell(pdfBuilderLabel(builderConfig, 'jobName', 'JOB NAME:'), jobName, left + topWidths[0], top, topWidths[1], 15.75, 31);
+  drawTopCell(pdfBuilderLabel(builderConfig, 'workDate', 'DATE:'), dateValue, left + topWidths[0] + topWidths[1], top, topWidths[2], 15.75, 24);
   top -= 15.75;
-  drawTopCell('DESCRIPTION OF WORK:', description, left, top, width, 16.5, 116);
+  drawTopCell(pdfBuilderLabel(builderConfig, 'description', 'DESCRIPTION OF WORK:'), description, left, top, width, 16.5, 116);
   top -= 16.5;
-  drawTopCell('CLIENT:', client, left, top, topWidths[0] + topWidths[1], 15.75, 72);
+  drawTopCell(pdfBuilderLabel(builderConfig, 'client', 'CLIENT:'), client, left, top, topWidths[0] + topWidths[1], 15.75, 72);
   drawTopCell(
-    'CUSTOMER ORDER #',
+    pdfBuilderLabel(builderConfig, 'customerOrderNumber', 'CUSTOMER ORDER #'),
     customerOrder,
     left + topWidths[0] + topWidths[1],
     top,
@@ -1566,10 +1681,10 @@ export function buildWorkOrderPdf(
     31,
   );
   top -= 15.75;
-  drawTopCell('CONTACT:', contact, left, top, topWidths[0] + topWidths[1], 15.75, 72);
+  drawTopCell(pdfBuilderLabel(builderConfig, 'contact', 'CONTACT:'), contact, left, top, topWidths[0] + topWidths[1], 15.75, 72);
   const shiftX = left + topWidths[0] + topWidths[1];
   ops.push(pdfRect(shiftX, top - 15.75, topWidths[2], 15.75));
-  ops.push(pdfText('WORK SHIFT', shiftX + 2, top - 5.5, 5.25, 'F2'));
+  ops.push(pdfText(pdfBuilderLabel(builderConfig, 'workShift', 'WORK SHIFT'), shiftX + 2, top - 5.5, 5.25, 'F2'));
   ops.push(pdfText(fitText(shift, 30) || '-', shiftX + 2, top - 12, 6));
   top -= 15.75;
 
@@ -1588,7 +1703,7 @@ export function buildWorkOrderPdf(
       );
   let checkX = left;
   const checkWidth = width / typeChecks.length;
-  typeChecks.forEach(({ label, checked }) => {
+  if (showTypes) typeChecks.forEach(({ label, checked }) => {
     ops.push(pdfRect(checkX, top - 16.5, checkWidth, 16.5));
     const fontSize = Math.max(4.4, Math.min(6.75, 42 / Math.max(6, label.length)));
     const labelAreaWidth = Math.max(10, checkWidth - 15);
@@ -1634,21 +1749,23 @@ export function buildWorkOrderPdf(
   ops.push(pdfRect(left, top - sectionHeight, laborWidth, sectionHeight));
   ops.push(pdfRect(left + laborWidth, top - sectionHeight, hoursWidth, sectionHeight));
   ops.push(pdfRect(left + laborWidth + hoursWidth, top - sectionHeight, equipmentWidth, sectionHeight));
-  ops.push(pdfText('LABOR', left + laborWidth / 2 - 13, top - 10, 6.75, 'F2'));
-  ops.push(pdfText('HOURS', left + laborWidth + hoursWidth / 2 - 14, top - 10, 6.75, 'F2'));
-  ops.push(pdfText('EQUIPMENT', left + laborWidth + hoursWidth + equipmentWidth / 2 - 20, top - 10, 6.75, 'F2'));
+  if (showLabor) {
+    ops.push(pdfText(pdfBuilderLabel(builderConfig, 'labor', 'LABOR'), left + laborWidth / 2 - 13, top - 10, 6.75, 'F2'));
+    ops.push(pdfText(pdfBuilderLabel(builderConfig, 'hours', 'HOURS'), left + laborWidth + hoursWidth / 2 - 14, top - 10, 6.75, 'F2'));
+  }
+  if (showEquipment) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'equipment', 'EQUIPMENT'), left + laborWidth + hoursWidth + equipmentWidth / 2 - 20, top - 10, 6.75, 'F2'));
   top -= sectionHeight;
 
   const workHeaders = [
-    'EMPLOYEE NAME',
-    'START',
-    'END',
-    'REG',
-    'OT',
-    'DT',
-    'EQUIP ID',
-    'EQUIP DESCRIPTION',
-    'HRS',
+    showLabor ? pdfBuilderLabel(builderConfig, 'employeeName', 'EMPLOYEE NAME') : '',
+    showLabor ? pdfBuilderLabel(builderConfig, 'start', 'START') : '',
+    showLabor ? pdfBuilderLabel(builderConfig, 'end', 'END') : '',
+    showLabor ? pdfBuilderLabel(builderConfig, 'regularHours', 'REG') : '',
+    showLabor ? pdfBuilderLabel(builderConfig, 'overtimeHours', 'OT') : '',
+    showLabor ? pdfBuilderLabel(builderConfig, 'doubleTimeHours', 'DT') : '',
+    showEquipment ? pdfBuilderLabel(builderConfig, 'equipmentId', 'EQUIP ID') : '',
+    showEquipment ? pdfBuilderLabel(builderConfig, 'equipmentDescription', 'EQUIP DESCRIPTION') : '',
+    showEquipment ? pdfBuilderLabel(builderConfig, 'equipmentHours', 'HRS') : '',
   ];
   const columnHeight = 12.75;
   workCols.forEach((columnWidth, index) => {
@@ -1664,7 +1781,7 @@ export function buildWorkOrderPdf(
   });
   top -= columnHeight;
 
-  const rowCount = Math.max(7, context.workers.length, Math.ceil(context.equipment.length / 2));
+  const rowCount = builderConfig?.layout?.workerRows ?? 7;
   const workerBlockHeight = 157.5 / rowCount;
   const workerSubRowHeight = workerBlockHeight / 2;
   for (let index = 0; index < rowCount; index += 1) {
@@ -1714,13 +1831,13 @@ export function buildWorkOrderPdf(
       ),
     );
 
-    ops.push(pdfText('Name', left + 2, personBaseline, 5.25, 'F2'));
-    ops.push(pdfText('SHIFT', left + firstColumnSplit + 2, personBaseline, 5.25, 'F2'));
-    ops.push(pdfText('Sign', left + 2, signBaseline, 5.25, 'F2'));
-    ops.push(pdfText('Lunch:', left + firstColumnSplit + 2, signBaseline, 5.25, 'F2'));
-    ops.push(pdfRect(breakAreaX + breakParts[0] / 2 - 2.5, signBaseline - 1, 5, 5));
-    ops.push(pdfText('Breaks:', breakAreaX + breakParts[0] + 3, signBaseline, 5.25, 'F2'));
-    ops.push(
+    if (showLabor) ops.push(pdfText('Name', left + 2, personBaseline, 5.25, 'F2'));
+    if (showLabor) ops.push(pdfText('SHIFT', left + firstColumnSplit + 2, personBaseline, 5.25, 'F2'));
+    if (showLabor) ops.push(pdfText('Sign', left + 2, signBaseline, 5.25, 'F2'));
+    if (showLabor) ops.push(pdfText('Lunch:', left + firstColumnSplit + 2, signBaseline, 5.25, 'F2'));
+    if (showLabor) ops.push(pdfRect(breakAreaX + breakParts[0] / 2 - 2.5, signBaseline - 1, 5, 5));
+    if (showLabor) ops.push(pdfText('Breaks:', breakAreaX + breakParts[0] + 3, signBaseline, 5.25, 'F2'));
+    if (showLabor) ops.push(
       pdfRect(
         breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2 - 2.5,
         signBaseline - 1,
@@ -1729,7 +1846,7 @@ export function buildWorkOrderPdf(
       ),
     );
 
-    if (worker) {
+    if (showLabor && worker) {
       ops.push(
         pdfText(
           fitText(worker.workerName, 34),
@@ -1780,10 +1897,12 @@ export function buildWorkOrderPdf(
       ops.push(pdfText(fitText(equipment.identifier, 11), workXs[6] + 2, baseline, 5.2));
       ops.push(pdfText(fitText(equipment.description, 31), workXs[7] + 2, baseline, 5.2));
     };
-    drawEquipment(equipmentTop, personBaseline);
-    drawEquipment(equipmentBottom, signBaseline);
+    if (showEquipment) {
+      drawEquipment(equipmentTop, personBaseline);
+      drawEquipment(equipmentBottom, signBaseline);
+    }
 
-    if (worker) {
+    if (showLabor && worker) {
       const totalHours =
         Number(worker.regularHours || 0) +
         Number(worker.overtimeHours || 0) +
@@ -1814,11 +1933,16 @@ export function buildWorkOrderPdf(
   ops.push(pdfFillRect(left + materialWidth, top - sectionHeight, materialCols[3], sectionHeight, accent));
   ops.push(pdfRect(left, top - sectionHeight, materialWidth, sectionHeight));
   ops.push(pdfRect(left + materialWidth, top - sectionHeight, materialCols[3], sectionHeight));
-  ops.push(pdfText('MATERIAL', left + materialWidth / 2 - 16, top - 10, 6.75, 'F2'));
-  ops.push(pdfText('NOTES', left + materialWidth + materialCols[3] / 2 - 11, top - 10, 6.75, 'F2'));
+  if (showMaterials) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'materials', 'MATERIAL'), left + materialWidth / 2 - 16, top - 10, 6.75, 'F2'));
+  if (showNotes) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'notes', 'NOTES'), left + materialWidth + materialCols[3] / 2 - 11, top - 10, 6.75, 'F2'));
   top -= sectionHeight;
 
-  const materialHeaders = ['DESCRIPTION', 'TYPE', 'QTY', ''];
+  const materialHeaders = [
+    showMaterials ? pdfBuilderLabel(builderConfig, 'materialDescription', 'DESCRIPTION') : '',
+    showMaterials ? pdfBuilderLabel(builderConfig, 'materialType', 'TYPE') : '',
+    showMaterials ? pdfBuilderLabel(builderConfig, 'materialQuantity', 'QTY') : '',
+    '',
+  ];
   materialCols.forEach((columnWidth, index) => {
     ops.push(pdfRect(materialXs[index], top - columnHeight, columnWidth, columnHeight));
     if (materialHeaders[index]) {
@@ -1834,19 +1958,21 @@ export function buildWorkOrderPdf(
   });
   top -= columnHeight;
 
-  const materialRowHeight = 12.75;
-  const noteLines = wrapText(stringifyFieldValue(notes), 58).slice(0, 13);
-  for (let index = 0; index < 13; index += 1) {
+  const materialRowCount = builderConfig?.layout?.materialRows ?? 13;
+  const materialRowHeight = 165.75 / materialRowCount;
+  const allNoteLines = wrapText(stringifyFieldValue(notes), 58);
+  const noteLines = allNoteLines.slice(0, materialRowCount);
+  for (let index = 0; index < materialRowCount; index += 1) {
     const material = context.materials[index];
     materialCols.forEach((columnWidth, columnIndex) => {
       ops.push(pdfRect(materialXs[columnIndex], top - materialRowHeight, columnWidth, materialRowHeight));
     });
-    if (material) {
+    if (showMaterials && material) {
       ops.push(pdfText(fitText(material.description, 34), materialXs[0] + 2, top - 8.7, 5.2));
       ops.push(pdfText(fitText(material.type || '', 16), materialXs[1] + 2, top - 8.7, 5.2));
       ops.push(pdfText(fitText(material.quantity || '', 8), materialXs[2] + 2, top - 8.7, 5.2));
     }
-    if (noteLines[index]) {
+    if (showNotes && noteLines[index]) {
       ops.push(pdfText(fitText(noteLines[index], 58), materialXs[3] + 2, top - 8.7, 5.2));
     }
     top -= materialRowHeight;
@@ -1856,19 +1982,19 @@ export function buildWorkOrderPdf(
     findWorkOrderFooterSignatures(data, template, context.workers, builderConfig);
 
   const footerY = 88;
-  ops.push(pdfText('DR TRAFFIC REP. (NAME)', left + 2, footerY, 5.6, 'F2'));
-  ops.push(pdfLine(left + 101, footerY - 1, left + 247, footerY - 1));
-  ops.push(
+  if (showSignatures) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'leadSignature', 'DR TRAFFIC REP. (NAME)'), left + 2, footerY, 5.6, 'F2'));
+  if (showSignatures) ops.push(pdfLine(left + 101, footerY - 1, left + 247, footerY - 1));
+  if (showSignatures) ops.push(
     pdfText(
-      'OWNER / GENERAL CONTRACTOR REP. (NAME)',
+      pdfBuilderLabel(builderConfig, 'customerSignature', 'OWNER / GENERAL CONTRACTOR REP. (NAME)'),
       left + 288,
       footerY,
       5.6,
       'F2',
     ),
   );
-  ops.push(pdfLine(left + 464, footerY - 1, left + 574, footerY - 1));
-  if (foremanSignature) {
+  if (showSignatures) ops.push(pdfLine(left + 464, footerY - 1, left + 574, footerY - 1));
+  if (showSignatures && foremanSignature) {
     drawSignature(
       ops,
       images,
@@ -1880,7 +2006,7 @@ export function buildWorkOrderPdf(
       0.88,
     );
   }
-  if (customerSignature) {
+  if (showSignatures && customerSignature) {
     drawSignature(
       ops,
       images,
@@ -1892,7 +2018,7 @@ export function buildWorkOrderPdf(
       0.88,
     );
   }
-  ops.push(
+  if (showSignatures) ops.push(
     pdfText(
       'I hereby acknowledge the satisfactory completion of the above described work and accept the Terms &',
       left + 288,
@@ -1900,9 +2026,138 @@ export function buildWorkOrderPdf(
       4.6,
     ),
   );
-  ops.push(pdfText('Conditions on the reverse side.', left + 288, footerY - 16, 4.6));
+  if (showSignatures) ops.push(pdfText('Conditions on the reverse side.', left + 288, footerY - 16, 4.6));
 
-  return buildPdfContentPdf(ops.join('\n'), images);
+  const continuationPages: string[] = [];
+  const addContinuationHeader = (pageOps: string[], title: string) => {
+    pageOps.push('0.65 w', '0 0 0 RG', pdfRect(17.64, 22, width, 748));
+    if (logo) pageOps.push('q 105 0 0 35 30 724 cm /Logo Do Q');
+    pageOps.push(pdfText(title, 220, 744, 11, 'F2'));
+    pageOps.push(pdfText(`WORK ORDER ${compactId(displayNumber, 20)}`, 220, 729, 8, 'F2'));
+    pageOps.push(pdfText(`${fitText(jobNumber, 28)} - ${fitText(jobName, 48)}`, 220, 716, 7));
+  };
+
+  if (showLabor || showEquipment) {
+    const remainingWorkers = context.workers.slice(rowCount);
+    const remainingEquipment = context.equipment.slice(rowCount * 2);
+    const totalContinuationRows = Math.max(
+      remainingWorkers.length,
+      Math.ceil(remainingEquipment.length / 2),
+    );
+    const rowsPerPage = 13;
+    for (let offset = 0; offset < totalContinuationRows; offset += rowsPerPage) {
+      const pageOps: string[] = [];
+      addContinuationHeader(pageOps, 'LABOR & EQUIPMENT - CONTINUED');
+      const tableTop = 690;
+      const headers = [
+        pdfBuilderLabel(builderConfig, 'employeeName', 'EMPLOYEE NAME'),
+        'SIGNATURE',
+        pdfBuilderLabel(builderConfig, 'start', 'START'),
+        pdfBuilderLabel(builderConfig, 'end', 'END'),
+        pdfBuilderLabel(builderConfig, 'regularHours', 'REG'),
+        pdfBuilderLabel(builderConfig, 'overtimeHours', 'OT'),
+        pdfBuilderLabel(builderConfig, 'doubleTimeHours', 'DT'),
+        pdfBuilderLabel(builderConfig, 'equipment', 'EQUIPMENT'),
+      ];
+      const widths = [150, 100, 48, 48, 35, 35, 35, 125];
+      const xs: number[] = [];
+      let currentX = left;
+      widths.forEach((columnWidth) => {
+        xs.push(currentX);
+        currentX += columnWidth;
+      });
+      widths.forEach((columnWidth, index) => {
+        pageOps.push(pdfFillRect(xs[index], tableTop - 20, columnWidth, 20, accent));
+        pageOps.push(pdfRect(xs[index], tableTop - 20, columnWidth, 20));
+        pageOps.push(pdfText(headers[index], xs[index] + 3, tableTop - 13, 5.8, 'F2'));
+      });
+      let rowTop = tableTop - 20;
+      for (let rowIndex = 0; rowIndex < rowsPerPage; rowIndex += 1) {
+        const absoluteIndex = offset + rowIndex;
+        const worker = remainingWorkers[absoluteIndex];
+        const equipmentA = remainingEquipment[absoluteIndex * 2];
+        const equipmentB = remainingEquipment[absoluteIndex * 2 + 1];
+        if (!worker && !equipmentA && !equipmentB) break;
+        const rowHeight = 46;
+        widths.forEach((columnWidth, index) => {
+          pageOps.push(pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight));
+        });
+        if (showLabor && worker) {
+          pageOps.push(pdfText(fitText(worker.workerName, 28), xs[0] + 3, rowTop - 15, 7, 'F2'));
+          pageOps.push(pdfText(fitText(worker.roleName, 28), xs[0] + 3, rowTop - 29, 5.5));
+          pageOps.push(pdfText(formatPdfClock(worker.startTime), xs[2] + 3, rowTop - 20, 6));
+          pageOps.push(pdfText(formatPdfClock(worker.endTime), xs[3] + 3, rowTop - 20, 6));
+          pageOps.push(pdfText(String(worker.regularHours || 0), xs[4] + 10, rowTop - 20, 6));
+          pageOps.push(pdfText(String(worker.overtimeHours || 0), xs[5] + 10, rowTop - 20, 6));
+          pageOps.push(pdfText(String(worker.doubleTimeHours || 0), xs[6] + 10, rowTop - 20, 6));
+          if (worker.signature) {
+            drawSignature(pageOps, images, worker.signature, xs[1] + 3, rowTop - rowHeight + 3, widths[1] - 6, rowHeight - 6);
+          }
+        }
+        if (showEquipment) {
+          const equipmentLines = [equipmentA, equipmentB]
+            .filter((item): item is WorkOrderPdfResource => Boolean(item))
+            .map((item) => fitText([item.identifier, item.description].filter(Boolean).join(' - '), 28));
+          equipmentLines.forEach((line, lineIndex) => {
+            pageOps.push(pdfText(line, xs[7] + 3, rowTop - 15 - lineIndex * 15, 5.8));
+          });
+        }
+        rowTop -= rowHeight;
+      }
+      continuationPages.push(pageOps.join('\n'));
+    }
+  }
+
+  if (showMaterials) {
+    const remainingMaterials = context.materials.slice(materialRowCount);
+    const rowsPerPage = 32;
+    for (let offset = 0; offset < remainingMaterials.length; offset += rowsPerPage) {
+      const pageOps: string[] = [];
+      addContinuationHeader(pageOps, 'MATERIALS - CONTINUED');
+      const tableTop = 690;
+      const widths = [330, 150, 96];
+      const xs = [left, left + widths[0], left + widths[0] + widths[1]];
+      [
+        pdfBuilderLabel(builderConfig, 'materialDescription', 'DESCRIPTION'),
+        pdfBuilderLabel(builderConfig, 'materialType', 'TYPE'),
+        pdfBuilderLabel(builderConfig, 'materialQuantity', 'QTY'),
+      ].forEach((header, index) => {
+        pageOps.push(pdfFillRect(xs[index], tableTop - 20, widths[index], 20, accent));
+        pageOps.push(pdfRect(xs[index], tableTop - 20, widths[index], 20));
+        pageOps.push(pdfText(header, xs[index] + 4, tableTop - 13, 6, 'F2'));
+      });
+      let rowTop = tableTop - 20;
+      remainingMaterials.slice(offset, offset + rowsPerPage).forEach((material) => {
+        const rowHeight = 18;
+        widths.forEach((columnWidth, index) => pageOps.push(pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight)));
+        pageOps.push(pdfText(fitText(material.description, 58), xs[0] + 4, rowTop - 12, 6));
+        pageOps.push(pdfText(fitText(material.type || '', 24), xs[1] + 4, rowTop - 12, 6));
+        pageOps.push(pdfText(fitText(material.quantity || '', 12), xs[2] + 4, rowTop - 12, 6));
+        rowTop -= rowHeight;
+      });
+      continuationPages.push(pageOps.join('\n'));
+    }
+  }
+
+  if (showNotes) {
+    const remainingNoteLines = allNoteLines.slice(materialRowCount);
+    const linesPerPage = 48;
+    for (let offset = 0; offset < remainingNoteLines.length; offset += linesPerPage) {
+      const pageOps: string[] = [];
+      addContinuationHeader(pageOps, 'NOTES - CONTINUED');
+      pageOps.push(pdfFillRect(left, 670, width, 20, accent));
+      pageOps.push(pdfRect(left, 670, width, 20));
+      pageOps.push(pdfText(pdfBuilderLabel(builderConfig, 'notes', 'NOTES'), left + 5, 677, 7, 'F2'));
+      let lineY = 652;
+      remainingNoteLines.slice(offset, offset + linesPerPage).forEach((line) => {
+        pageOps.push(pdfText(line, left + 6, lineY, 7));
+        lineY -= 13;
+      });
+      continuationPages.push(pageOps.join('\n'));
+    }
+  }
+
+  return buildPdfContentPages([ops.join('\n'), ...continuationPages], images);
 }
 
 @Injectable()
@@ -1937,6 +2192,80 @@ export class FormSubmissionsService {
     private readonly shiftWorkOrderAccess: ShiftWorkOrderAccessService,
     private readonly companySettings: CompanySettingsService,
   ) {}
+
+  buildPdfBuilderPreview(rawConfig: unknown): Buffer {
+    const builderConfig = normalizedPdfBuilderConfig(rawConfig);
+    const sampleSignature = {
+      type: 'signature-path',
+      width: 600,
+      height: 220,
+      strokes: [[
+        { x: 40, y: 150 }, { x: 120, y: 70 }, { x: 190, y: 145 },
+        { x: 270, y: 55 }, { x: 350, y: 140 }, { x: 510, y: 85 },
+      ]],
+    };
+    const sampleCustomerSignature = {
+      ...sampleSignature,
+      strokes: [[
+        { x: 50, y: 130 }, { x: 150, y: 60 }, { x: 240, y: 135 },
+        { x: 330, y: 65 }, { x: 500, y: 120 },
+      ]],
+    };
+    const samples: Record<string, unknown> = {
+      workOrderNumber: 'ASN-2026-001',
+      jobNumber: '23',
+      jobName: '2399 - Folsom Street',
+      workDate: '2026-08-02',
+      description: 'Traffic control services and field operations',
+      client: 'Sample Customer',
+      customerOrderNumber: 'PO-10025',
+      contact: 'Project Contact',
+      workShift: 'On Call',
+      workOrderTypes: ['Sales', 'On Rent', 'Off Rent'],
+      notes: 'PDF Builder preview generated with representative mapped data.',
+      leadSignature: sampleSignature,
+      customerSignature: sampleCustomerSignature,
+    };
+    const data: Record<string, unknown> = {};
+    for (const [slot, fieldId] of Object.entries(builderConfig.fields || {})) {
+      if (fieldId && slot in samples) data[fieldId] = samples[slot];
+    }
+    const submission = {
+      id: 'pdf-builder-preview',
+      submittedAt: new Date('2026-08-02T12:00:00Z'),
+      workOrderId: 'preview-work-order',
+      projectId: 'preview-project',
+      shiftId: 'preview-shift',
+      data,
+    } as FormSubmission;
+    const context: WorkOrderPdfContext = {
+      workOrder: { orderNumber: 'ASN-2026-001' } as WorkOrder,
+      project: { id: 'preview-project', number: '23', name: '2399 - Folsom Street' } as Project,
+      client: { name: 'Sample Customer', contactName: 'Project Contact' } as Client,
+      workers: [{
+        workerId: 'preview-worker',
+        workerName: 'Fernando Perez',
+        roleName: 'Lead',
+        startTime: '7:00 AM',
+        endTime: '4:00 PM',
+        regularHours: 8,
+        overtimeHours: 0.5,
+        doubleTimeHours: 0,
+        lunchTaken: true,
+        breakMinutes: 30,
+        signature: sampleSignature,
+      }],
+      equipment: [{ identifier: '03_05', description: 'Mini Maxi', hours: '8.5' }],
+      materials: [
+        { identifier: '1110', description: '1110 - Butyl Pads', type: 'Sales', quantity: '1' },
+        { identifier: '488', description: '488 - Paint', type: 'On Rent', quantity: '1' },
+        { identifier: '489', description: '489 - Spray Paint', type: 'Off Rent', quantity: '1' },
+      ],
+      workOrderTypes: [],
+      shift: { date: '2026-08-02', shiftName: 'On Call' },
+    };
+    return buildWorkOrderPdf(submission, null, context, builderConfig);
+  }
 
   findAll(
     filters?: {
@@ -1980,6 +2309,29 @@ export class FormSubmissionsService {
     const item = await this.repo.findOne({ where: { id } });
     if (!item) throw new NotFoundException(`Form submission ${id} not found`);
     return item;
+  }
+
+  async regeneratePdf(id: string, actor?: UserAccessContext) {
+    const submission = await this.findOne(id);
+    const template = submission.templateId
+      ? await this.templatesRepo.findOne({ where: { id: submission.templateId } })
+      : null;
+    if (!isWorkOrderTemplate(template)) {
+      throw new BadRequestException('Only Work Order form PDFs can be regenerated.');
+    }
+    await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
+      actor,
+      submission.workOrderId,
+      submission.shiftId,
+    );
+    const previousPdfUrl = submission.pdfUrl;
+    submission.pdfUrl = await this.generatePdf(submission, template);
+    const saved = await this.repo.save(submission);
+    if (previousPdfUrl && previousPdfUrl !== saved.pdfUrl) {
+      await this.deleteGeneratedPdf(previousPdfUrl);
+    }
+    this.realtime.emitTableUpdated('form_submissions');
+    return saved;
   }
 
   async create(dto: CreateFormSubmissionDto, actor?: UserAccessContext) {
@@ -2866,7 +3218,19 @@ export class FormSubmissionsService {
     const workOrderContext = isWorkOrder
       ? await this.loadWorkOrderPdfContext(submission, builderConfig)
       : null;
-    const fileName = generatedPdfFileName(submission.id, workOrderContext);
+    if (workOrderContext && settings) {
+      workOrderContext.company = {
+        name: settings.name,
+        address: settings.address,
+        phone: settings.phone,
+        email: settings.email,
+      };
+    }
+    const fileName = generatedPdfFileName(
+      submission.id,
+      workOrderContext,
+      builderConfig,
+    );
     const pdf =
       isWorkOrder && workOrderContext
         ? buildWorkOrderPdf(submission, template, workOrderContext, builderConfig)

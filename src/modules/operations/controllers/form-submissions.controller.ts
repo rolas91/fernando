@@ -8,9 +8,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import type { Response } from 'express';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { OperationsAuthGuard } from '../operations-auth.guard';
@@ -25,6 +27,22 @@ type ReqWithOpsUser = Request & { user?: UserAccessContext };
 @UseGuards(OperationsAuthGuard)
 export class FormSubmissionsController {
   constructor(private readonly service: FormSubmissionsService) {}
+
+  @Post('pdf-builder/preview')
+  previewPdfBuilder(
+    @Body() body: { config?: unknown },
+    @Res() res: Response,
+  ) {
+    const pdf = this.service.buildPdfBuilderPreview(body?.config);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="work-order-pdf-builder-preview.pdf"');
+    return res.send(pdf);
+  }
+
+  @Post(':id/regenerate-pdf')
+  regeneratePdf(@Param('id') id: string, @Req() req: ReqWithOpsUser) {
+    return this.service.regeneratePdf(id, req.user);
+  }
 
   @Get()
   findAll(

@@ -92,6 +92,12 @@ export class WorkOrderShift {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  @Column({ name: 'client_timesheet_notes', type: 'text', default: '' })
+  clientTimesheetNotes: string;
+
+  @Column({ name: 'internal_timesheet_notes', type: 'text', default: '' })
+  internalTimesheetNotes: string;
+
   @Column({ name: 'planned_equipment', type: 'jsonb', default: () => "'[]'::jsonb" })
   plannedEquipment: Array<{ type: string; estimatedQuantity: number }>;
 

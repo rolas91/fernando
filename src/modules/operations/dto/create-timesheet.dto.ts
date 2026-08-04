@@ -1,4 +1,4 @@
-import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateTimesheetDto {
   @IsString()
@@ -19,6 +19,10 @@ export class CreateTimesheetDto {
   @IsOptional()
   @IsString()
   shiftId?: string;
+
+  @IsOptional()
+  @IsIn(['client', 'internal'])
+  variant?: 'client' | 'internal';
 
   @IsString()
   date: string;

@@ -29,6 +29,8 @@ export type ShiftWriteInput = {
   requesterEmail?: string | null;
   visibleDocumentTypes?: string[];
   notes?: string | null;
+  clientTimesheetNotes?: string;
+  internalTimesheetNotes?: string;
   plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
   plannedMaterials?: Array<{ type: string; estimatedQuantity: number }>;
   workOrderTypes?: string[];
@@ -133,6 +135,8 @@ export class WorkOrderShiftsWriteService {
           requesterEmail: s.requesterEmail?.trim().toLowerCase() || null,
           visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
           notes: s.notes ?? null,
+          clientTimesheetNotes: s.clientTimesheetNotes ?? '',
+          internalTimesheetNotes: s.internalTimesheetNotes ?? '',
           plannedEquipment: [...(s.plannedEquipment ?? [])],
           plannedMaterials: [...(s.plannedMaterials ?? [])],
           workOrderTypes: [...(s.workOrderTypes ?? [])],
@@ -348,6 +352,10 @@ export class WorkOrderShiftsWriteService {
         requesterEmail: typeof raw.requesterEmail === 'string' ? raw.requesterEmail : null,
         visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes) ? raw.visibleDocumentTypes as string[] : [],
         notes: typeof raw.notes === 'string' ? raw.notes : null,
+        clientTimesheetNotes:
+          typeof raw.clientTimesheetNotes === 'string' ? raw.clientTimesheetNotes : '',
+        internalTimesheetNotes:
+          typeof raw.internalTimesheetNotes === 'string' ? raw.internalTimesheetNotes : '',
         plannedEquipment: Array.isArray(raw.plannedEquipment) ? raw.plannedEquipment : [],
         plannedMaterials: Array.isArray(raw.plannedMaterials) ? raw.plannedMaterials : [],
         workOrderTypes: Array.isArray(raw.workOrderTypes)

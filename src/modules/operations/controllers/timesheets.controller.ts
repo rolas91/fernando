@@ -25,6 +25,14 @@ export class TimesheetsController {
     return this.service.findAll();
   }
 
+  @Get('shift/:workOrderId/:shiftId')
+  findForShift(
+    @Param('workOrderId') workOrderId: string,
+    @Param('shiftId') shiftId: string,
+  ) {
+    return this.service.findForShift(workOrderId, shiftId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);

@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export type TimesheetVariant = 'client' | 'internal';
+
 @Entity('timesheets')
 export class Timesheet {
   @PrimaryColumn({ type: 'varchar', length: 64 })
@@ -22,6 +24,15 @@ export class Timesheet {
 
   @Column({ name: 'shift_id', type: 'varchar', length: 64, default: '' })
   shiftId: string;
+
+  @Column({ type: 'varchar', length: 16, default: 'internal' })
+  variant: TimesheetVariant;
+
+  @Column({ name: 'source_submission_id', type: 'varchar', length: 64, nullable: true })
+  sourceSubmissionId: string | null;
+
+  @Column({ name: 'manually_edited', type: 'boolean', default: false })
+  manuallyEdited: boolean;
 
   @Column({ type: 'date' })
   date: string;

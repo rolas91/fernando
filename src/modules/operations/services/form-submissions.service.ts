@@ -2573,6 +2573,8 @@ export class FormSubmissionsService {
       workOrderId: submission.workOrderId,
       shiftId: submission.shiftId,
       projectId: submission.projectId,
+      sourceSubmissionId: submission.id,
+      variants: ['client', 'internal'],
     });
   }
 
@@ -2802,6 +2804,7 @@ export class FormSubmissionsService {
         workOrderId: removedSubmission.workOrderId,
         shiftId: removedSubmission.shiftId,
         projectId: removedSubmission.projectId,
+        variants: ['client', 'internal'],
       });
     }
   }
@@ -2996,6 +2999,7 @@ export class FormSubmissionsService {
               where: {
                 workOrderId: workOrder.id,
                 shiftId: submission.shiftId,
+                variant: 'client',
               },
             })
           : Promise.resolve([]),

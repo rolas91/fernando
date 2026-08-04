@@ -48,6 +48,9 @@ export class TimesheetsService {
     const clientWorkers = new Set(
       rows.filter((row) => row.variant === 'client').map((row) => row.workerId),
     );
+    const internalWorkers = new Set(
+      rows.filter((row) => row.variant === 'internal').map((row) => row.workerId),
+    );
     const missingClientRows = rows
       .filter((row) => row.variant === 'internal' && !clientWorkers.has(row.workerId))
       .map((row) =>
@@ -58,9 +61,20 @@ export class TimesheetsService {
           manuallyEdited: false,
         }),
       );
-    if (missingClientRows.length > 0) {
-      await this.timesheetsRepo.save(missingClientRows);
-      rows.push(...missingClientRows);
+    const missingInternalRows = rows
+      .filter((row) => row.variant === 'client' && !internalWorkers.has(row.workerId))
+      .map((row) =>
+        this.timesheetsRepo.create({
+          ...row,
+          id: deterministicTimesheetId(workOrderId, shiftId, row.workerId, 'internal'),
+          variant: 'internal',
+          manuallyEdited: false,
+        }),
+      );
+    const missingRows = [...missingClientRows, ...missingInternalRows];
+    if (missingRows.length > 0) {
+      await this.timesheetsRepo.save(missingRows);
+      rows.push(...missingRows);
     }
     return rows.sort(
       (a, b) => a.variant.localeCompare(b.variant) || a.workerId.localeCompare(b.workerId),
@@ -349,17 +363,30 @@ export class TimesheetsService {
       ...updates,
       manuallyEdited: true,
       ...calculatedHours,
-      regularHours:
-        calculatedHours.regularHours ??
-        (updates.regularHours !== undefined ? String(updates.regularHours) : undefined),
-      overtimeHours:
-        calculatedHours.overtimeHours ??
-        (updates.overtimeHours !== undefined ? String(updates.overtimeHours) : undefined),
-      doubleTimeHours:
-        calculatedHours.doubleTimeHours ??
-        (updates.doubleTimeHours !== undefined
-          ? String(updates.doubleTimeHours)
-          : undefined),
+      ...(updates.regularHours !== undefined || calculatedHours.regularHours !== undefined
+        ? {
+            regularHours:
+              updates.regularHours !== undefined
+                ? String(updates.regularHours)
+                : calculatedHours.regularHours,
+          }
+        : {}),
+      ...(updates.overtimeHours !== undefined || calculatedHours.overtimeHours !== undefined
+        ? {
+            overtimeHours:
+              updates.overtimeHours !== undefined
+                ? String(updates.overtimeHours)
+                : calculatedHours.overtimeHours,
+          }
+        : {}),
+      ...(updates.doubleTimeHours !== undefined || calculatedHours.doubleTimeHours !== undefined
+        ? {
+            doubleTimeHours:
+              updates.doubleTimeHours !== undefined
+                ? String(updates.doubleTimeHours)
+                : calculatedHours.doubleTimeHours,
+          }
+        : {}),
     });
     const saved = await this.timesheetsRepo.save(item);
     this.realtime.emitTableUpdated('timesheets');

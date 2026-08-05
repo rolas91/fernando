@@ -1836,16 +1836,49 @@ export function buildWorkOrderPdf(
     ];
 
     for (let row = 0; row < 2; row += 1) {
-      workCols.forEach((columnWidth, columnIndex) => {
+      if (row === 0) {
+        workCols.forEach((columnWidth, columnIndex) => {
+          ops.push(
+            pdfRect(
+              workXs[columnIndex],
+              top - workerSubRowHeight,
+              columnWidth,
+              workerSubRowHeight,
+            ),
+          );
+        });
+      } else {
+        // The lower labor subrow is a Lunch / Breaks layout, not START / END.
+        // Draw START + END as one merged area so their divider cannot cross
+        // the "Breaks:" label; its own checkbox dividers are added below.
         ops.push(
           pdfRect(
-            workXs[columnIndex],
+            workXs[0],
             top - workerSubRowHeight,
-            columnWidth,
+            workCols[0],
             workerSubRowHeight,
           ),
         );
-      });
+        ops.push(
+          pdfRect(
+            breakAreaX,
+            top - workerSubRowHeight,
+            breakAreaWidth,
+            workerSubRowHeight,
+          ),
+        );
+        workCols.slice(3).forEach((columnWidth, offset) => {
+          const columnIndex = offset + 3;
+          ops.push(
+            pdfRect(
+              workXs[columnIndex],
+              top - workerSubRowHeight,
+              columnWidth,
+              workerSubRowHeight,
+            ),
+          );
+        });
+      }
       top -= workerSubRowHeight;
     }
 
@@ -1858,6 +1891,14 @@ export function buildWorkOrderPdf(
         blockTop,
         left + firstColumnSplit,
         blockTop - workerBlockHeight,
+      ),
+    );
+    ops.push(
+      pdfLine(
+        breakAreaX + breakParts[0],
+        blockTop - workerSubRowHeight,
+        breakAreaX + breakParts[0],
+        top,
       ),
     );
     ops.push(

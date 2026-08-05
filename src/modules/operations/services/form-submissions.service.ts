@@ -23,6 +23,7 @@ import { TimesheetsService } from './timesheets.service';
 import { ShiftsQueryService } from './shifts-query.service';
 import { ShiftWorkOrderAccessService } from './shift-work-order-access.service';
 import { CompanySettingsService } from './company-settings.service';
+import { WorkOrderShiftsWriteService } from './work-order-shifts-write.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -2230,6 +2231,7 @@ export class FormSubmissionsService {
     private readonly timesheetsService: TimesheetsService,
     private readonly shiftsQuery: ShiftsQueryService,
     private readonly shiftWorkOrderAccess: ShiftWorkOrderAccessService,
+    private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly companySettings: CompanySettingsService,
   ) {}
 
@@ -2353,6 +2355,10 @@ export class FormSubmissionsService {
 
   async regeneratePdf(id: string, actor?: UserAccessContext) {
     const submission = await this.findOne(id);
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      submission.workOrderId,
+      submission.shiftId,
+    );
     const template = submission.templateId
       ? await this.templatesRepo.findOne({ where: { id: submission.templateId } })
       : null;
@@ -2374,7 +2380,30 @@ export class FormSubmissionsService {
     return saved;
   }
 
+  async regenerateLatestWorkOrderPdfForShift(
+    workOrderId: string,
+    shiftId: string,
+    actor?: UserAccessContext,
+  ) {
+    const submissions = await this.repo.find({
+      where: { workOrderId, shiftId },
+      order: { submittedAt: 'DESC' },
+    });
+    for (const submission of submissions) {
+      const template = submission.templateId
+        ? await this.templatesRepo.findOne({ where: { id: submission.templateId } })
+        : null;
+      if (isWorkOrderTemplate(template)) {
+        return this.regeneratePdf(submission.id, actor);
+      }
+    }
+    throw new BadRequestException(
+      'A submitted Work Order PDF is required before PM approval.',
+    );
+  }
+
   async create(dto: CreateFormSubmissionDto, actor?: UserAccessContext) {
+    await this.shiftsWrite.assertShiftNotPmApproved(dto.workOrderId, dto.shiftId);
     const template = dto.templateId
       ? await this.templatesRepo.findOne({ where: { id: dto.templateId } })
       : null;
@@ -2447,6 +2476,10 @@ export class FormSubmissionsService {
     actor?: UserAccessContext,
   ) {
     const item = await this.findOne(id);
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      dto.workOrderId || item.workOrderId,
+      dto.shiftId || item.shiftId,
+    );
     const previousPdfUrl = item.pdfUrl;
     const templateId = dto.templateId || item.templateId;
     const template = templateId
@@ -2775,6 +2808,7 @@ export class FormSubmissionsService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
+    await this.shiftsWrite.assertShiftNotPmApproved(item.workOrderId, item.shiftId);
     const removedTimesheetRows = findTimesheetRows(item.data ?? {});
     const incidentId = `inc_${item.id}`.slice(0, 64);
     await this.repo.remove(item);

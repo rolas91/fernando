@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
@@ -16,6 +16,8 @@ export type ShiftWriteInput = {
   endTime: string;
   status?: string;
   cancelled?: boolean;
+  pmApprovedAt?: string | null;
+  pmApprovedByUserId?: string | null;
   createdByUserId?: string | null;
   requesterUserId?: string | null;
   address?: string | null;
@@ -66,6 +68,19 @@ export class WorkOrderShiftsWriteService {
     private readonly workerAssignmentsRepo: Repository<WorkOrderShiftRoleWorker>,
   ) {}
 
+  async assertShiftNotPmApproved(workOrderId?: string | null, shiftId?: string | null) {
+    if (!workOrderId || !shiftId) return;
+    const shift = await this.shiftsRepo.findOne({
+      where: { id: shiftId, workOrderId },
+      select: { id: true, pmApprovedAt: true },
+    });
+    if (shift?.pmApprovedAt) {
+      throw new ForbiddenException(
+        `PM Approved shift ${shiftId} is locked. An administrator must reopen it before making changes.`,
+      );
+    }
+  }
+
   /** Replace all shifts/roles/assignments for a work order atomically. */
   async replaceShiftsForWorkOrder(
     workOrderId: string,
@@ -110,6 +125,8 @@ export class WorkOrderShiftsWriteService {
           endTime: s.endTime,
           status: s.status?.trim() || null,
           cancelled: s.cancelled ?? false,
+          pmApprovedAt: s.pmApprovedAt ? new Date(s.pmApprovedAt) : null,
+          pmApprovedByUserId: s.pmApprovedByUserId ?? null,
           createdByUserId: s.createdByUserId ?? null,
           requesterUserId: s.requesterUserId ?? null,
           address: s.address ?? null,
@@ -290,6 +307,33 @@ export class WorkOrderShiftsWriteService {
     return shift;
   }
 
+  async approveShift(input: {
+    workOrderId: string;
+    shiftId: string;
+    userId: string;
+  }): Promise<WorkOrderShift | null> {
+    const shift = await this.shiftsRepo.findOne({
+      where: { id: input.shiftId, workOrderId: input.workOrderId },
+    });
+    if (!shift) return null;
+    shift.pmApprovedAt = new Date();
+    shift.pmApprovedByUserId = input.userId;
+    return this.shiftsRepo.save(shift);
+  }
+
+  async reopenApprovedShift(input: {
+    workOrderId: string;
+    shiftId: string;
+  }): Promise<WorkOrderShift | null> {
+    const shift = await this.shiftsRepo.findOne({
+      where: { id: input.shiftId, workOrderId: input.workOrderId },
+    });
+    if (!shift) return null;
+    shift.pmApprovedAt = null;
+    shift.pmApprovedByUserId = null;
+    return this.shiftsRepo.save(shift);
+  }
+
   /** Build the ShiftWriteInput[] payload from a JSON array (for legacy fallbacks). */
   static fromJson(workOrderId: string, json: unknown): ShiftWriteInput[] {
     if (!Array.isArray(json)) return [];
@@ -307,6 +351,10 @@ export class WorkOrderShiftsWriteService {
         endTime,
         status: typeof raw.status === 'string' ? raw.status : '',
         cancelled: raw.cancelled === true,
+        pmApprovedAt:
+          typeof raw.pmApprovedAt === 'string' ? raw.pmApprovedAt : null,
+        pmApprovedByUserId:
+          typeof raw.pmApprovedByUserId === 'string' ? raw.pmApprovedByUserId : null,
         createdByUserId: typeof raw.createdByUserId === 'string' ? raw.createdByUserId : null,
         requesterUserId: typeof raw.requesterUserId === 'string' ? raw.requesterUserId : null,
         address: typeof raw.address === 'string' ? raw.address : null,

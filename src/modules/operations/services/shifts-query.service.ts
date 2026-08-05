@@ -34,6 +34,7 @@ export class ShiftsQueryService {
     const shiftRows = await this.shiftsRepo.find({
       where: { workOrderId },
       order: { date: 'ASC' },
+      relations: { pmApprovedByUser: true },
     });
     if (shiftRows.length === 0) return null;
 
@@ -76,6 +77,11 @@ export class ShiftsQueryService {
         endTime: shift.endTime,
         status: shift.status,
         cancelled: shift.cancelled,
+        pmApprovedAt: shift.pmApprovedAt?.toISOString(),
+        pmApprovedByUserId: shift.pmApprovedByUserId ?? undefined,
+        pmApprovedByName: shift.pmApprovedByUser
+          ? `${shift.pmApprovedByUser.firstName} ${shift.pmApprovedByUser.lastName}`.trim()
+          : undefined,
         createdByUserId: shift.createdByUserId ?? undefined,
         requesterUserId: shift.requesterUserId ?? undefined,
         address: shift.address ?? undefined,
@@ -142,6 +148,7 @@ export class ShiftsQueryService {
     const shiftRows = await this.shiftsRepo.find({
       where: { workOrderId: In(workOrderIds) },
       order: { date: 'ASC' },
+      relations: { pmApprovedByUser: true },
     });
     if (shiftRows.length === 0) return out;
 
@@ -194,6 +201,11 @@ export class ShiftsQueryService {
             endTime: shift.endTime,
             status: shift.status,
             cancelled: shift.cancelled,
+            pmApprovedAt: shift.pmApprovedAt?.toISOString(),
+            pmApprovedByUserId: shift.pmApprovedByUserId ?? undefined,
+            pmApprovedByName: shift.pmApprovedByUser
+              ? `${shift.pmApprovedByUser.firstName} ${shift.pmApprovedByUser.lastName}`.trim()
+              : undefined,
             createdByUserId: shift.createdByUserId ?? undefined,
             requesterUserId: shift.requesterUserId ?? undefined,
             address: shift.address ?? undefined,

@@ -119,6 +119,7 @@ export class ShiftStatusService {
       workersConfirmed: 0,
       shiftCancelled: 0,
       shiftCompleted: 0,
+      pmApproved: 0,
       pending: 0,
       workersMissing: 0,
     };

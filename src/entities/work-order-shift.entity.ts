@@ -44,6 +44,16 @@ export class WorkOrderShift {
   @Column({ type: 'boolean', default: false })
   cancelled: boolean;
 
+  @Column({ name: 'pm_approved_at', type: 'timestamp', nullable: true })
+  pmApprovedAt: Date | null;
+
+  @Column({ name: 'pm_approved_by_user_id', type: 'uuid', nullable: true })
+  pmApprovedByUserId: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'pm_approved_by_user_id' })
+  pmApprovedByUser?: User | null;
+
   @Column({ name: 'created_by_user_id', type: 'uuid', nullable: true })
   createdByUserId: string | null;
 

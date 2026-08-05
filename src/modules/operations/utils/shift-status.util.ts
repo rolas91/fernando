@@ -30,7 +30,8 @@ export type AutomaticShiftStatus =
   | 'awaiting_response'
   | 'workers_confirmed'
   | 'shift_cancelled'
-  | 'shift_completed';
+  | 'shift_completed'
+  | 'pm_approved';
 
 export type ShiftStatusValue = ManualShiftStatus | AutomaticShiftStatus;
 
@@ -42,6 +43,7 @@ export const ALL_SHIFT_STATUSES: ShiftStatusValue[] = [
   'workers_confirmed',
   'shift_cancelled',
   'shift_completed',
+  'pm_approved',
 ];
 
 export const MANUAL_SHIFT_STATUSES: ManualShiftStatus[] = [
@@ -55,6 +57,7 @@ export const AUTOMATIC_SHIFT_STATUSES: AutomaticShiftStatus[] = [
   'workers_confirmed',
   'shift_cancelled',
   'shift_completed',
+  'pm_approved',
 ];
 
 export type ShiftWorkerConfirmationStatus = 'pending' | 'confirmed' | 'declined';
@@ -79,6 +82,7 @@ export interface ShiftLike {
   date?: unknown;
   status?: unknown;
   cancelled?: unknown;
+  pmApprovedAt?: unknown;
   roles?: unknown;
   [key: string]: unknown;
 }
@@ -235,6 +239,17 @@ export function computeShiftStatus(
     };
   }
 
+  if (
+    typeof shift.pmApprovedAt === 'string' &&
+    Boolean(shift.pmApprovedAt.trim())
+  ) {
+    return {
+      status: 'pm_approved',
+      automatic: true,
+      reason: 'approved by project manager',
+    };
+  }
+
   // 3. Completion (form submissions).
   if (
     automaticLifecycleEnabled &&
@@ -298,6 +313,7 @@ export interface ShiftAggregateCounters {
   workersConfirmed: number;
   shiftCancelled: number;
   shiftCompleted: number;
+  pmApproved: number;
   /** Convenience: sum of the three manual statuses. */
   pending: number;
   /** Convenience: shifts with at least one missing required worker. */
@@ -323,6 +339,7 @@ export function aggregateShiftStatuses(
     workersConfirmed: 0,
     shiftCancelled: 0,
     shiftCompleted: 0,
+    pmApproved: 0,
     pending: 0,
     workersMissing: 0,
   };
@@ -362,6 +379,9 @@ export function aggregateShiftStatuses(
         break;
       case 'shift_completed':
         counters.shiftCompleted += 1;
+        break;
+      case 'pm_approved':
+        counters.pmApproved += 1;
         break;
     }
   }

@@ -1503,7 +1503,10 @@ export class WorkOrdersService {
     }
   }
 
-  private shiftMutationFingerprint(value: unknown): string {
+  private shiftMutationFingerprint(
+    value: unknown,
+    includeWorkerConfirmations = false,
+  ): string {
     const normalize = (entry: unknown, key = ''): unknown => {
       if (
         [
@@ -1512,7 +1515,7 @@ export class WorkOrdersService {
           'completedAt',
           'createdAt',
           'updatedAt',
-          'workerConfirmations',
+          ...(!includeWorkerConfirmations ? ['workerConfirmations'] : []),
         ].includes(key)
       ) {
         return undefined;
@@ -1563,6 +1566,27 @@ export class WorkOrdersService {
       ) {
         throw new ForbiddenException(
           `Completed shift ${shiftId} cannot be modified or deleted.`,
+        );
+      }
+    }
+  }
+
+  private assertPmApprovedShiftsUnchanged(
+    previousShifts: Record<string, unknown>[],
+    nextShifts: Record<string, unknown>[],
+  ) {
+    const nextById = new Map(nextShifts.map((shift) => [String(shift.id || ''), shift]));
+    for (const previousShift of previousShifts) {
+      if (!previousShift.pmApprovedAt) continue;
+      const shiftId = String(previousShift.id || '');
+      const nextShift = nextById.get(shiftId);
+      if (
+        !nextShift ||
+        this.shiftMutationFingerprint(previousShift, true) !==
+          this.shiftMutationFingerprint(nextShift, true)
+      ) {
+        throw new ForbiddenException(
+          `PM Approved shift ${shiftId} is locked. Reopen it before making changes.`,
         );
       }
     }
@@ -1637,6 +1661,10 @@ export class WorkOrdersService {
         : [];
 
     if (dto.shifts !== undefined) {
+      this.assertPmApprovedShiftsUnchanged(
+        previousShiftsSnapshot,
+        dto.shifts as Record<string, unknown>[],
+      );
       this.assertCompletedShiftsUnchanged(
         id,
         completedShiftKeys,

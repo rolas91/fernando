@@ -11,6 +11,7 @@ import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { ShiftsQueryService } from './shifts-query.service';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
 import { UpdateTimesheetDto } from '../dto/update-timesheet.dto';
+import { WorkOrderShiftsWriteService } from './work-order-shifts-write.service';
 
 @Injectable()
 export class TimesheetsService {
@@ -29,6 +30,7 @@ export class TimesheetsService {
     private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
     private readonly realtime: RealtimeGateway,
     private readonly shiftsQuery: ShiftsQueryService,
+    private readonly shiftsWrite: WorkOrderShiftsWriteService,
   ) {}
 
   async findAll() {
@@ -131,7 +133,8 @@ export class TimesheetsService {
     return item;
   }
 
-  create(dto: CreateTimesheetDto) {
+  async create(dto: CreateTimesheetDto) {
+    await this.shiftsWrite.assertShiftNotPmApproved(dto.workOrderId, dto.shiftId);
     return this.timesheetsRepo
       .save(
         this.timesheetsRepo.create({
@@ -368,6 +371,7 @@ export class TimesheetsService {
 
   async update(id: string, dto: UpdateTimesheetDto) {
     const item = await this.findOne(id);
+    await this.shiftsWrite.assertShiftNotPmApproved(item.workOrderId, item.shiftId);
     const { variant: _variant, ...updates } = dto;
     const clockIn = updates.clockIn ?? item.clockIn;
     const clockOut = updates.clockOut ?? item.clockOut;
@@ -444,6 +448,7 @@ export class TimesheetsService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
+    await this.shiftsWrite.assertShiftNotPmApproved(item.workOrderId, item.shiftId);
     await this.timesheetsRepo.remove(item);
     this.realtime.emitTableUpdated('timesheets');
     return { success: true };

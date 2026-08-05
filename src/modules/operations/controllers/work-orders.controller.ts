@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -24,7 +25,9 @@ import { WorkOrdersService } from '../services/work-orders.service';
 import { SpacesStorageService } from '../services/spaces-storage.service';
 import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options';
 import type { Request } from 'express';
+import type { Response } from 'express';
 import type { UserAccessContext } from '../../access/ports/access.port';
+import type { WorkOrderPdfExportStatus } from '../services/work-orders.service';
 
 type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
@@ -52,6 +55,34 @@ export class WorkOrdersController {
     return this.workOrdersService.findShiftOverview();
   }
 
+  @Get('export/pdf')
+  @ApiQuery({
+    name: 'status',
+    required: true,
+    enum: ['all', 'completed', 'pm_approved'],
+  })
+  @ApiQuery({ name: 'from', required: true, type: String })
+  @ApiQuery({ name: 'to', required: true, type: String })
+  async exportPdf(
+    @Query('status') status: WorkOrderPdfExportStatus,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Res() res: Response,
+  ) {
+    const result = await this.workOrdersService.exportGeneratedWorkOrderPdfs({
+      status,
+      from,
+      to,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${result.fileName}"`,
+    );
+    res.setHeader('X-Work-Order-Count', String(result.count));
+    return res.send(result.pdf);
+  }
+
   @Patch('trash/:id/restore')
   restore(@Param('id') id: string) {
     return this.workOrdersService.restore(id);
@@ -64,7 +95,11 @@ export class WorkOrdersController {
     type: String,
     description: 'Optional text to filter assignments.',
   })
-  @ApiQuery({ name: 'filter', required: false, enum: ['all', 'upcoming', 'this_week', 'completed'] })
+  @ApiQuery({
+    name: 'filter',
+    required: false,
+    enum: ['all', 'upcoming', 'this_week', 'completed'],
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   findMobileAssignments(
@@ -85,10 +120,7 @@ export class WorkOrdersController {
   }
 
   @Get('mobile/assignments/:id')
-  findMobileAssignment(
-    @Req() req: ReqWithOpsUser,
-    @Param('id') id: string,
-  ) {
+  findMobileAssignment(@Req() req: ReqWithOpsUser, @Param('id') id: string) {
     return this.workOrdersService.findMobileAssignmentForUser(req.user, id);
   }
 
@@ -143,7 +175,13 @@ export class WorkOrdersController {
     ),
   )
   uploadFiles(
-    @UploadedFiles() files: Array<{ originalname?: string; mimetype?: string; buffer?: Buffer; size?: number }>,
+    @UploadedFiles()
+    files: Array<{
+      originalname?: string;
+      mimetype?: string;
+      buffer?: Buffer;
+      size?: number;
+    }>,
     @Body('workOrderId') workOrderId?: string,
   ) {
     return this.spacesStorage.uploadWorkOrderFiles(files || [], workOrderId);

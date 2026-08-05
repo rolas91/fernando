@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
+import { readFile } from 'fs/promises';
+import { resolve, sep } from 'path';
+import { PDFDocument } from 'pdf-lib';
 import { Client } from '../../../entities/client.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { FormSubmission } from '../../../entities/form-submission.entity';
@@ -64,6 +67,24 @@ type WorkOrderAccessNotificationChange = {
   workerId: string;
   granted: boolean;
 };
+
+export type WorkOrderPdfExportStatus = 'all' | 'completed' | 'pm_approved';
+
+type WorkOrderPdfExportQuery = {
+  status: WorkOrderPdfExportStatus;
+  from: string;
+  to: string;
+};
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isWorkOrderPdfTemplate(
+  template?: Pick<FormTemplate, 'name' | 'category'>,
+) {
+  const key =
+    `${template?.name || ''} ${template?.category || ''}`.toLowerCase();
+  return key.includes('work order') || /\bwo\b/.test(key);
+}
 
 function shiftRecords(shifts: unknown): Record<string, unknown>[] {
   return Array.isArray(shifts)
@@ -149,8 +170,7 @@ export function workOrderAccessNotificationChanges(
     );
     const previousContext = shiftWorkerNotificationContext(previousShift);
     const nextContext = shiftWorkerNotificationContext(nextShift);
-    const shiftDate =
-      typeof nextShift.date === 'string' ? nextShift.date : '';
+    const shiftDate = typeof nextShift.date === 'string' ? nextShift.date : '';
 
     for (const workerId of nextAccess) {
       if (
@@ -221,7 +241,8 @@ function mobileShiftEndTime(startTime: string, template?: ShiftCatalog) {
   const templateStart = mobileClockMinutes(template?.startTime);
   const templateEnd = mobileClockMinutes(template?.endTime);
   const shiftStart = mobileClockMinutes(startTime);
-  if (templateStart === null || templateEnd === null || shiftStart === null) return '';
+  if (templateStart === null || templateEnd === null || shiftStart === null)
+    return '';
   const duration =
     templateEnd > templateStart
       ? templateEnd - templateStart
@@ -262,7 +283,9 @@ export class WorkOrdersService {
   ) {}
 
   async findAll() {
-    const rows = await this.workOrdersRepo.find({ order: { startDate: 'ASC' } });
+    const rows = await this.workOrdersRepo.find({
+      order: { startDate: 'ASC' },
+    });
     const withShifts = await this.mergeShiftsWithRelational(rows);
     return withShifts;
   }
@@ -276,13 +299,10 @@ export class WorkOrdersService {
       const shifts = Array.isArray(workOrder.shifts)
         ? (workOrder.shifts as Record<string, unknown>[])
         : [];
-      return shifts.reduce(
-        (latest, shift) => {
-          const value = shiftTimestamp(shift);
-          return value > latest ? value : latest;
-        },
-        '',
-      );
+      return shifts.reduce((latest, shift) => {
+        const value = shiftTimestamp(shift);
+        return value > latest ? value : latest;
+      }, '');
     };
 
     return workOrders
@@ -290,15 +310,189 @@ export class WorkOrdersService {
         const shifts = Array.isArray(workOrder.shifts)
           ? [...(workOrder.shifts as Record<string, unknown>[])]
           : [];
-        shifts.sort((a, b) => shiftTimestamp(b).localeCompare(shiftTimestamp(a)));
+        shifts.sort((a, b) =>
+          shiftTimestamp(b).localeCompare(shiftTimestamp(a)),
+        );
         workOrder.shifts = shifts;
         return workOrder;
       })
       .sort((a, b) => {
-        const byLatestShift = latestShiftTimestamp(b).localeCompare(latestShiftTimestamp(a));
+        const byLatestShift = latestShiftTimestamp(b).localeCompare(
+          latestShiftTimestamp(a),
+        );
         if (byLatestShift !== 0) return byLatestShift;
-        return String(b.startDate || '').localeCompare(String(a.startDate || ''));
+        return String(b.startDate || '').localeCompare(
+          String(a.startDate || ''),
+        );
       });
+  }
+
+  /**
+   * Combines the latest generated Work Order PDF for every matching shift.
+   * Only completed and PM-approved shifts are eligible for this export.
+   */
+  async exportGeneratedWorkOrderPdfs(query: WorkOrderPdfExportQuery) {
+    const { status, from, to } = query;
+    if (!['all', 'completed', 'pm_approved'].includes(status)) {
+      throw new BadRequestException(
+        'Status must be all, completed, or pm_approved.',
+      );
+    }
+    if (!ISO_DATE_PATTERN.test(from) || !ISO_DATE_PATTERN.test(to)) {
+      throw new BadRequestException('From and to must use YYYY-MM-DD format.');
+    }
+    if (from > to) {
+      throw new BadRequestException(
+        'The start date cannot be after the end date.',
+      );
+    }
+
+    const workOrders = await this.findShiftOverview();
+    const workOrderIds = workOrders.map((workOrder) => workOrder.id);
+    const [submissions, templates] = await Promise.all([
+      workOrderIds.length > 0
+        ? this.formSubmissionsRepo.find({
+            where: { workOrderId: In(workOrderIds), status: 'submitted' },
+            order: { submittedAt: 'DESC', updatedAt: 'DESC' },
+          })
+        : [],
+      this.formTemplatesRepo.find(),
+    ]);
+    // Keep status evaluation identical to ShiftStatusService: any submitted
+    // shift form makes the shift completed unless it is PM-approved/cancelled.
+    const completedShiftKeys = new Set(
+      submissions
+        .filter((submission) => Boolean(submission.shiftId))
+        .map((submission) => `${submission.workOrderId}:${submission.shiftId}`),
+    );
+    const eligible = workOrders
+      .flatMap((workOrder) =>
+        shiftRecords(workOrder.shifts).map((shift) => ({ workOrder, shift })),
+      )
+      .filter(({ workOrder, shift }) => {
+        const shiftId = typeof shift.id === 'string' ? shift.id : '';
+        const date =
+          typeof shift.date === 'string' ? shift.date.slice(0, 10) : '';
+        if (!shiftId || date < from || date > to) return false;
+        const computed = computeShiftStatus({
+          workOrderId: workOrder.id,
+          shift: shift as never,
+          completion: {
+            isShiftCompleted: (workOrderId, candidateShiftId) =>
+              completedShiftKeys.has(`${workOrderId}:${candidateShiftId}`),
+          },
+        }).status;
+        if (!['shift_completed', 'pm_approved'].includes(computed || ''))
+          return false;
+        if (status === 'completed') return computed === 'shift_completed';
+        if (status === 'pm_approved') return computed === 'pm_approved';
+        return true;
+      })
+      .sort((a, b) => {
+        const aDate = typeof a.shift.date === 'string' ? a.shift.date : '';
+        const aStart =
+          typeof a.shift.startTime === 'string' ? a.shift.startTime : '';
+        const bDate = typeof b.shift.date === 'string' ? b.shift.date : '';
+        const bStart =
+          typeof b.shift.startTime === 'string' ? b.shift.startTime : '';
+        const aKey = `${aDate}T${aStart}`;
+        const bKey = `${bDate}T${bStart}`;
+        return aKey.localeCompare(bKey);
+      });
+
+    if (eligible.length === 0) {
+      throw new NotFoundException(
+        'No completed or PM-approved Work Orders match the selected dates.',
+      );
+    }
+
+    const templateById = new Map(
+      templates.map((template) => [template.id, template]),
+    );
+    const pdfByShift = new Map<string, FormSubmission>();
+    for (const submission of submissions) {
+      if (
+        !submission.shiftId ||
+        !submission.pdfUrl?.trim() ||
+        !isWorkOrderPdfTemplate(templateById.get(submission.templateId))
+      ) {
+        continue;
+      }
+      const key = `${submission.workOrderId}:${submission.shiftId}`;
+      if (!pdfByShift.has(key)) pdfByShift.set(key, submission);
+    }
+
+    const selected = eligible
+      .map(({ workOrder, shift }) => ({
+        workOrder,
+        shift,
+        submission: pdfByShift.get(
+          `${workOrder.id}:${typeof shift.id === 'string' ? shift.id : ''}`,
+        ),
+      }))
+      .filter((item): item is typeof item & { submission: FormSubmission } =>
+        Boolean(item.submission),
+      );
+
+    if (selected.length === 0) {
+      throw new NotFoundException(
+        'The matching Work Orders do not have generated PDFs yet.',
+      );
+    }
+
+    const merged = await PDFDocument.create();
+    for (const { workOrder, shift, submission } of selected) {
+      try {
+        const sourceBytes = await this.readGeneratedPdf(submission.pdfUrl);
+        const source = await PDFDocument.load(sourceBytes);
+        const pages = await merged.copyPages(source, source.getPageIndices());
+        pages.forEach((page) => merged.addPage(page));
+      } catch (error) {
+        const shiftId = typeof shift.id === 'string' ? shift.id : '';
+        this.logger.error(
+          `[work-order-pdf-export] Could not merge workOrder=${workOrder.id} shift=${shiftId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw new BadRequestException(
+          `Could not read the generated PDF for Work Order ${workOrder.orderNumber || workOrder.id}.`,
+        );
+      }
+    }
+
+    return {
+      pdf: Buffer.from(await merged.save()),
+      count: selected.length,
+      fileName: `work-orders-${from}-to-${to}.pdf`,
+    };
+  }
+
+  private async readGeneratedPdf(pdfUrl: string): Promise<Uint8Array> {
+    const value = pdfUrl.trim();
+    if (value.startsWith('/files/')) {
+      const publicRoot = resolve(process.cwd(), 'public');
+      const relativePath = decodeURIComponent(
+        value.slice('/files/'.length).split('?')[0],
+      );
+      const filePath = resolve(publicRoot, relativePath);
+      if (
+        filePath !== publicRoot &&
+        !filePath.startsWith(`${publicRoot}${sep}`)
+      ) {
+        throw new Error('Invalid generated PDF path.');
+      }
+      return readFile(filePath);
+    }
+
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Unsupported generated PDF URL.');
+    }
+    const response = await fetch(parsed, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`PDF download returned HTTP ${response.status}.`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
   }
 
   async findMobileAssignmentsForUser(
@@ -315,12 +509,16 @@ export class WorkOrdersService {
     const assigned = assignments.filter((wo) =>
       this.workOrderHasNotifiedWorker(wo, worker.id),
     );
-    const projectIds = [...new Set(assigned.map((wo) => wo.projectId).filter(Boolean))];
+    const projectIds = [
+      ...new Set(assigned.map((wo) => wo.projectId).filter(Boolean)),
+    ];
     const projects =
       projectIds.length > 0
         ? await this.projectsRepo.find({ where: { id: In(projectIds) } })
         : [];
-    const projectById = new Map(projects.map((project) => [project.id, project]));
+    const projectById = new Map(
+      projects.map((project) => [project.id, project]),
+    );
     const shiftTemplates = await this.shiftCatalogRepo.find({
       where: { status: 'active' },
     });
@@ -328,25 +526,24 @@ export class WorkOrdersService {
       shiftTemplates.map((shiftTemplate) => [shiftTemplate.id, shiftTemplate]),
     );
     const shiftCompletion = await this.resolveMobileShiftCompletion(assigned);
-    const filteredAssignments = assigned
-      .filter((wo) => {
-        if (!search) return true;
-        const project = projectById.get(wo.projectId);
-        const haystack = [
-          wo.title,
-          wo.orderNumber,
-          wo.assignmentAddress,
-          wo.assignmentCity,
-          wo.assignmentState,
-          project?.name,
-          project?.number,
-          project?.location,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        return haystack.includes(search);
-      });
+    const filteredAssignments = assigned.filter((wo) => {
+      if (!search) return true;
+      const project = projectById.get(wo.projectId);
+      const haystack = [
+        wo.title,
+        wo.orderNumber,
+        wo.assignmentAddress,
+        wo.assignmentCity,
+        wo.assignmentState,
+        project?.name,
+        project?.number,
+        project?.location,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(search);
+    });
 
     if (query.page && query.page > 0) {
       const page = Math.max(1, Math.trunc(query.page));
@@ -354,7 +551,9 @@ export class WorkOrdersService {
       const filter = query.filter || 'all';
       const serverToday = new Date();
       const serverTodayKey = `${serverToday.getFullYear()}-${String(serverToday.getMonth() + 1).padStart(2, '0')}-${String(serverToday.getDate()).padStart(2, '0')}`;
-      const todayKey = /^\d{4}-\d{2}-\d{2}$/.test(query.today || '') ? query.today as string : serverTodayKey;
+      const todayKey = /^\d{4}-\d{2}-\d{2}$/.test(query.today || '')
+        ? (query.today as string)
+        : serverTodayKey;
       const today = new Date(`${todayKey}T12:00:00Z`);
       const weekStart = new Date(today);
       const day = today.getUTCDay();
@@ -377,21 +576,37 @@ export class WorkOrdersService {
         ),
       );
       const rows = lightweight
-        .flatMap((assignment) => assignment.shifts.map((shift) => ({ assignment, shift })))
+        .flatMap((assignment) =>
+          assignment.shifts.map((shift) => ({ assignment, shift })),
+        )
         .filter(({ shift }) => {
           if (filter === 'completed') return Boolean(shift.completed);
-          if (filter === 'upcoming') return !shift.completed && shift.date >= todayKey;
+          if (filter === 'upcoming')
+            return !shift.completed && shift.date >= todayKey;
           if (filter === 'this_week') {
-            return !shift.completed && shift.date >= weekStartKey && shift.date <= weekEndKey;
+            return (
+              !shift.completed &&
+              shift.date >= weekStartKey &&
+              shift.date <= weekEndKey
+            );
           }
           return true;
         })
-        .sort((a, b) => b.shift.date.localeCompare(a.shift.date) || b.shift.startTime.localeCompare(a.shift.startTime));
+        .sort(
+          (a, b) =>
+            b.shift.date.localeCompare(a.shift.date) ||
+            b.shift.startTime.localeCompare(a.shift.startTime),
+        );
       const total = rows.length;
       const pageRows = rows.slice((page - 1) * limit, page * limit);
-      const pageWorkOrderIds = new Set(pageRows.map(({ assignment }) => assignment.id));
-      const pageWorkOrders = filteredAssignments.filter((wo) => pageWorkOrderIds.has(wo.id));
-      const pageQuickAccessMaps = await this.loadMobileQuickAccessMaps(pageWorkOrders);
+      const pageWorkOrderIds = new Set(
+        pageRows.map(({ assignment }) => assignment.id),
+      );
+      const pageWorkOrders = filteredAssignments.filter((wo) =>
+        pageWorkOrderIds.has(wo.id),
+      );
+      const pageQuickAccessMaps =
+        await this.loadMobileQuickAccessMaps(pageWorkOrders);
       const fullById = new Map(
         pageWorkOrders.map((wo) => [
           wo.id,
@@ -421,7 +636,8 @@ export class WorkOrdersService {
       };
     }
 
-    const quickAccessMaps = await this.loadMobileQuickAccessMaps(filteredAssignments);
+    const quickAccessMaps =
+      await this.loadMobileQuickAccessMaps(filteredAssignments);
     return filteredAssignments.map((wo) =>
       this.serializeMobileAssignment(
         wo,
@@ -441,7 +657,9 @@ export class WorkOrdersService {
     workOrderId: string,
   ) {
     const worker = await this.resolveWorkerForMobileUser(actor);
-    const rawWorkOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+    const rawWorkOrder = await this.workOrdersRepo.findOne({
+      where: { id: workOrderId },
+    });
     if (!rawWorkOrder) throw new NotFoundException('Assignment not found.');
 
     const [workOrder] = await this.mergeShiftsWithRelational([rawWorkOrder]);
@@ -449,14 +667,15 @@ export class WorkOrdersService {
       throw new NotFoundException('Assignment not found for this worker.');
     }
 
-    const [project, shiftTemplates, shiftCompletion, quickAccessMaps] = await Promise.all([
-      workOrder.projectId
-        ? this.projectsRepo.findOne({ where: { id: workOrder.projectId } })
-        : Promise.resolve(null),
-      this.shiftCatalogRepo.find({ where: { status: 'active' } }),
-      this.resolveMobileShiftCompletion([workOrder]),
-      this.loadMobileQuickAccessMaps([workOrder]),
-    ]);
+    const [project, shiftTemplates, shiftCompletion, quickAccessMaps] =
+      await Promise.all([
+        workOrder.projectId
+          ? this.projectsRepo.findOne({ where: { id: workOrder.projectId } })
+          : Promise.resolve(null),
+        this.shiftCatalogRepo.find({ where: { status: 'active' } }),
+        this.resolveMobileShiftCompletion([workOrder]),
+        this.loadMobileQuickAccessMaps([workOrder]),
+      ]);
     const shiftTemplateById = new Map(
       shiftTemplates.map((shiftTemplate) => [shiftTemplate.id, shiftTemplate]),
     );
@@ -480,7 +699,9 @@ export class WorkOrdersService {
     status: ShiftConfirmationStatus,
   ) {
     if (status !== 'confirmed' && status !== 'declined') {
-      throw new BadRequestException('Confirmation status must be confirmed or declined.');
+      throw new BadRequestException(
+        'Confirmation status must be confirmed or declined.',
+      );
     }
 
     const worker = await this.resolveWorkerForMobileUser(actor);
@@ -489,9 +710,7 @@ export class WorkOrdersService {
       await this.resolveMobileShiftCompletion([workOrder])
     ).completedShiftKeys;
     if (completedShiftKeys.has(`${workOrderId}:${shiftId}`)) {
-      throw new ForbiddenException(
-        'Completed shifts cannot be modified.',
-      );
+      throw new ForbiddenException('Completed shifts cannot be modified.');
     }
     const shifts = normalizeWorkOrderShifts(workOrder.shifts, workOrder.shifts);
     this.logger.log(
@@ -533,11 +752,11 @@ export class WorkOrdersService {
         respondedAt: new Date().toISOString(),
       },
     );
-    updated = preserveOtherWorkerConfirmations(
-      updated,
-      confirmationSnapshot,
-      { shiftId, roleId, workerId: worker.id },
-    );
+    updated = preserveOtherWorkerConfirmations(updated, confirmationSnapshot, {
+      shiftId,
+      roleId,
+      workerId: worker.id,
+    });
     workOrder.shifts = updated;
     const saved = await this.workOrdersRepo.save(workOrder);
     this.realtime.emitTableUpdated('work_orders');
@@ -562,7 +781,9 @@ export class WorkOrdersService {
     status: ShiftConfirmationStatus,
   ) {
     if (status !== 'confirmed' && status !== 'declined') {
-      throw new BadRequestException('Confirmation status must be confirmed or declined.');
+      throw new BadRequestException(
+        'Confirmation status must be confirmed or declined.',
+      );
     }
 
     const worker = await this.resolveWorkerForMobileUser(actor);
@@ -656,11 +877,16 @@ export class WorkOrdersService {
     }
 
     /** Defensive pass: re-apply every other worker's confirmation from the pre-mutation snapshot. */
-    const targets: Array<{ shiftId: string; roleId: string; workerId: string }> = [];
+    const targets: Array<{
+      shiftId: string;
+      roleId: string;
+      workerId: string;
+    }> = [];
     for (const shift of nextShifts) {
-      const shiftId = typeof (shift as { id?: unknown }).id === 'string'
-        ? (shift as { id: string }).id
-        : '';
+      const shiftId =
+        typeof (shift as { id?: unknown }).id === 'string'
+          ? (shift as { id: string }).id
+          : '';
       if (!shiftId) continue;
       const roles = Array.isArray((shift as { roles?: unknown }).roles)
         ? (shift as { roles: Record<string, unknown>[] }).roles
@@ -678,7 +904,11 @@ export class WorkOrdersService {
     }
     let guarded = nextShifts as Record<string, unknown>[];
     for (const t of targets) {
-      guarded = preserveOtherWorkerConfirmations(guarded, confirmationSnapshot, t);
+      guarded = preserveOtherWorkerConfirmations(
+        guarded,
+        confirmationSnapshot,
+        t,
+      );
     }
     workOrder.shifts = guarded;
     const saved = await this.workOrdersRepo.save(workOrder);
@@ -707,9 +937,12 @@ export class WorkOrdersService {
     return merged;
   }
 
-  private async resolveWorkerForMobileUser(actor: UserAccessContext | undefined) {
+  private async resolveWorkerForMobileUser(
+    actor: UserAccessContext | undefined,
+  ) {
     const email = actor?.email?.trim().toLowerCase();
-    if (!email) throw new ForbiddenException('Authenticated user email is required.');
+    if (!email)
+      throw new ForbiddenException('Authenticated user email is required.');
 
     const worker = await findWorkerForActor(this.workerRepo, actor);
     if (!worker) {
@@ -727,10 +960,14 @@ export class WorkOrdersService {
     const confirmations = Array.isArray(role.workerConfirmations)
       ? (role.workerConfirmations as Record<string, unknown>[])
       : [];
-    const confirmation = confirmations.find((item) => item.workerId === workerId);
+    const confirmation = confirmations.find(
+      (item) => item.workerId === workerId,
+    );
     return Boolean(
-      typeof confirmation?.requestedAt === 'string' && confirmation.requestedAt.trim() ||
-      typeof confirmation?.notificationChannel === 'string' && confirmation.notificationChannel.trim(),
+      (typeof confirmation?.requestedAt === 'string' &&
+        confirmation.requestedAt.trim()) ||
+      (typeof confirmation?.notificationChannel === 'string' &&
+        confirmation.notificationChannel.trim()),
     );
   }
 
@@ -741,7 +978,9 @@ export class WorkOrdersService {
     const confirmations = Array.isArray(role.workerConfirmations)
       ? (role.workerConfirmations as Record<string, unknown>[])
       : [];
-    const confirmation = confirmations.find((item) => item.workerId === workerId);
+    const confirmation = confirmations.find(
+      (item) => item.workerId === workerId,
+    );
     return confirmation?.status === 'declined';
   }
 
@@ -749,15 +988,20 @@ export class WorkOrdersService {
     const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
     return shifts.some((shift) => {
       const roles = Array.isArray((shift as Record<string, unknown>).roles)
-        ? ((shift as Record<string, unknown>).roles as Record<string, unknown>[])
+        ? ((shift as Record<string, unknown>).roles as Record<
+            string,
+            unknown
+          >[])
         : [];
       return roles.some((role) => {
         const assignedWorkers = Array.isArray(role.assignedWorkers)
           ? role.assignedWorkers
           : [];
-        return assignedWorkers.includes(workerId) &&
+        return (
+          assignedWorkers.includes(workerId) &&
           this.workerWasNotifiedForRole(role, workerId) &&
-          !this.workerDeclinedRole(role, workerId);
+          !this.workerDeclinedRole(role, workerId)
+        );
       });
     });
   }
@@ -765,7 +1009,9 @@ export class WorkOrdersService {
   private async resolveMobileShiftCompletion(
     workOrders: WorkOrder[],
   ): Promise<MobileShiftCompletion> {
-    const workOrderIds = [...new Set(workOrders.map((wo) => wo.id).filter(Boolean))];
+    const workOrderIds = [
+      ...new Set(workOrders.map((wo) => wo.id).filter(Boolean)),
+    ];
     if (workOrderIds.length === 0) {
       return {
         completedShiftKeys: new Set<string>(),
@@ -785,8 +1031,10 @@ export class WorkOrdersService {
     ]);
     const eligibleSubmissions = submissions.filter(countsTowardShiftCompletion);
     const submittedKeys = new Set(
-      eligibleSubmissions
-        .map((submission) => `${submission.workOrderId}:${submission.shiftId}:${submission.templateId}`),
+      eligibleSubmissions.map(
+        (submission) =>
+          `${submission.workOrderId}:${submission.shiftId}:${submission.templateId}`,
+      ),
     );
     const completedShiftKeys = new Set<string>();
     const completedTemplateIdsByShift = new Map<string, Set<string>>();
@@ -812,7 +1060,9 @@ export class WorkOrdersService {
     }
 
     for (const workOrder of workOrders) {
-      const pickedTemplateIds = new Set((workOrder.formTemplateIds || []).filter(Boolean));
+      const pickedTemplateIds = new Set(
+        (workOrder.formTemplateIds || []).filter(Boolean),
+      );
       const requiredTemplates = templates.filter((template) => {
         if (template.isRequired === false) return false;
         if (this.isIncidentTemplate(template)) return false;
@@ -822,7 +1072,9 @@ export class WorkOrdersService {
         ) {
           return false;
         }
-        return pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id);
+        return (
+          pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id)
+        );
       });
       if (requiredTemplates.length === 0) continue;
       const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
@@ -838,8 +1090,7 @@ export class WorkOrdersService {
         for (const template of requiredTemplates) {
           const isTimesheet = this.isTimesheetTemplate(template);
           const hasDirectSubmission =
-            !isTimesheet &&
-            submittedKeys.has(`${shiftKey}:${template.id}`);
+            !isTimesheet && submittedKeys.has(`${shiftKey}:${template.id}`);
           const hasSharedTimesheets =
             isTimesheet &&
             assignedWorkerIds.size > 0 &&
@@ -857,20 +1108,36 @@ export class WorkOrdersService {
         if (hasEveryRequired) {
           completedShiftKeys.add(shiftKey);
           const completedAt = eligibleSubmissions
-            .filter((submission) => `${submission.workOrderId}:${submission.shiftId}` === shiftKey)
-            .map((submission) => submission.submittedAt ?? submission.updatedAt ?? submission.createdAt)
-            .filter((value): value is Date => value instanceof Date && !Number.isNaN(value.getTime()))
+            .filter(
+              (submission) =>
+                `${submission.workOrderId}:${submission.shiftId}` === shiftKey,
+            )
+            .map(
+              (submission) =>
+                submission.submittedAt ??
+                submission.updatedAt ??
+                submission.createdAt,
+            )
+            .filter(
+              (value): value is Date =>
+                value instanceof Date && !Number.isNaN(value.getTime()),
+            )
             .sort((a, b) => b.getTime() - a.getTime())[0];
           if (completedAt) completedAtByShift.set(shiftKey, completedAt);
         }
       }
     }
 
-    return { completedShiftKeys, completedTemplateIdsByShift, completedAtByShift };
+    return {
+      completedShiftKeys,
+      completedTemplateIdsByShift,
+      completedAtByShift,
+    };
   }
 
   private async resolveCompletedMobileShiftKeys(workOrders: WorkOrder[]) {
-    return (await this.resolveMobileShiftCompletion(workOrders)).completedShiftKeys;
+    return (await this.resolveMobileShiftCompletion(workOrders))
+      .completedShiftKeys;
   }
 
   async assertShiftMutable(
@@ -879,7 +1146,8 @@ export class WorkOrdersService {
   ): Promise<void> {
     const workOrder = await this.findOne(workOrderId);
     const shiftExists = (workOrder.shifts ?? []).some(
-      (shift) => String((shift as Record<string, unknown>).id || '') === shiftId,
+      (shift) =>
+        String((shift as Record<string, unknown>).id || '') === shiftId,
     );
     if (!shiftExists) {
       throw new NotFoundException(`Shift ${shiftId} not found`);
@@ -908,8 +1176,7 @@ export class WorkOrdersService {
       .map((value) => String(value).toLowerCase())
       .join(' ');
     return (
-      text.replace(/[\s_-]+/g, '').includes('workorder') ||
-      /\bwo\b/.test(text)
+      text.replace(/[\s_-]+/g, '').includes('workorder') || /\bwo\b/.test(text)
     );
   }
 
@@ -973,7 +1240,9 @@ export class WorkOrdersService {
     },
     shiftTemplateById = new Map<string, ShiftCatalog>(),
   ) {
-    const workerShifts = (Array.isArray(workOrder.shifts) ? workOrder.shifts : [])
+    const workerShifts = (
+      Array.isArray(workOrder.shifts) ? workOrder.shifts : []
+    )
       .map((shift) => {
         const record = shift as Record<string, unknown>;
         const roles = Array.isArray(record.roles)
@@ -983,15 +1252,19 @@ export class WorkOrdersService {
           const assignedWorkers = Array.isArray(item.assignedWorkers)
             ? item.assignedWorkers
             : [];
-          return assignedWorkers.includes(workerId) &&
+          return (
+            assignedWorkers.includes(workerId) &&
             this.workerWasNotifiedForRole(item, workerId) &&
-            !this.workerDeclinedRole(item, workerId);
+            !this.workerDeclinedRole(item, workerId)
+          );
         });
         if (!role) return null;
         const confirmations = Array.isArray(role.workerConfirmations)
           ? (role.workerConfirmations as Record<string, unknown>[])
           : [];
-        const confirmation = confirmations.find((item) => item.workerId === workerId);
+        const confirmation = confirmations.find(
+          (item) => item.workerId === workerId,
+        );
         const shiftTemplateId =
           typeof record.shiftTemplateId === 'string'
             ? record.shiftTemplateId
@@ -1009,7 +1282,8 @@ export class WorkOrdersService {
           shiftTemplate ??
           [...shiftTemplateById.values()].find(
             (candidate) =>
-              mobileClockMinutes(candidate.startTime) === mobileClockMinutes(startTime),
+              mobileClockMinutes(candidate.startTime) ===
+              mobileClockMinutes(startTime),
           );
         const effectiveStatus = computeShiftStatus({
           workOrderId: workOrder.id,
@@ -1022,7 +1296,8 @@ export class WorkOrdersService {
         if (effectiveStatus === 'shift_cancelled') return null;
         return {
           id: typeof record.id === 'string' ? record.id : '',
-          shiftName: typeof record.shiftName === 'string' ? record.shiftName : '',
+          shiftName:
+            typeof record.shiftName === 'string' ? record.shiftName : '',
           date: typeof record.date === 'string' ? record.date : '',
           shiftTypeName: resolvedShiftTemplate?.name || '',
           startTime,
@@ -1039,41 +1314,50 @@ export class WorkOrdersService {
           latitude:
             typeof record.addressLatitude === 'number'
               ? record.addressLatitude
-              : workOrder.latitude ?? project?.latitude ?? undefined,
+              : (workOrder.latitude ?? project?.latitude ?? undefined),
           longitude:
             typeof record.addressLongitude === 'number'
               ? record.addressLongitude
-              : workOrder.longitude ?? project?.longitude ?? undefined,
+              : (workOrder.longitude ?? project?.longitude ?? undefined),
           confirmationStatus:
-            confirmation?.status === 'confirmed' || confirmation?.status === 'declined'
+            confirmation?.status === 'confirmed' ||
+            confirmation?.status === 'declined'
               ? confirmation.status
               : 'pending',
           confirmationRequested: Boolean(
-            typeof confirmation?.requestedAt === 'string' && confirmation.requestedAt.trim() ||
-            typeof confirmation?.notificationChannel === 'string' && confirmation.notificationChannel.trim()
+            (typeof confirmation?.requestedAt === 'string' &&
+              confirmation.requestedAt.trim()) ||
+            (typeof confirmation?.notificationChannel === 'string' &&
+              confirmation.notificationChannel.trim()),
           ),
           effectiveStatus,
           completed: completedShiftKeys.has(
             `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
           ),
           completedAt: completedAtByShift
-            .get(`${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`)
+            .get(
+              `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
+            )
             ?.toISOString(),
           completedFormTemplateIds: [
             ...(completedTemplateIdsByShift.get(
               `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,
             ) ?? new Set<string>()),
           ],
-          canManageWorkOrder: Array.isArray(
-            record.workOrderAuthorizedWorkerIds,
-          )
+          canManageWorkOrder: Array.isArray(record.workOrderAuthorizedWorkerIds)
             ? record.workOrderAuthorizedWorkerIds.includes(workerId)
             : false,
         };
       })
       .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))
-      .sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
-    const visibleShiftIds = new Set(workerShifts.map((shift) => shift.id).filter(Boolean));
+      .sort(
+        (a, b) =>
+          b.date.localeCompare(a.date) ||
+          b.startTime.localeCompare(a.startTime),
+      );
+    const visibleShiftIds = new Set(
+      workerShifts.map((shift) => shift.id).filter(Boolean),
+    );
     const quickAccess = this.buildMobileQuickAccess(
       workOrder,
       project,
@@ -1107,9 +1391,10 @@ export class WorkOrdersService {
       if (workOrder.id) workOrderIds.add(workOrder.id);
     }
 
-    const projects = projectIds.size > 0
-      ? await this.projectsRepo.find({ where: { id: In([...projectIds]) } })
-      : [];
+    const projects =
+      projectIds.size > 0
+        ? await this.projectsRepo.find({ where: { id: In([...projectIds]) } })
+        : [];
     const clientIds = [
       ...new Set(projects.map((project) => project.clientId).filter(Boolean)),
     ];
@@ -1119,13 +1404,20 @@ export class WorkOrdersService {
       Client[],
       FormSubmission[],
     ] = await Promise.all([
-      workerIds.size > 0 ? this.workerRepo.find({ where: { id: In([...workerIds]) } }) : Promise.resolve([]),
-      clientIds.length > 0 ? this.clientsRepo.find({ where: { id: In(clientIds) } }) : Promise.resolve([]),
+      workerIds.size > 0
+        ? this.workerRepo.find({ where: { id: In([...workerIds]) } })
+        : Promise.resolve([]),
+      clientIds.length > 0
+        ? this.clientsRepo.find({ where: { id: In(clientIds) } })
+        : Promise.resolve([]),
       workOrderIds.size > 0
-        ? this.formSubmissionsRepo.find({ where: { workOrderId: In([...workOrderIds]), status: 'submitted' } })
+        ? this.formSubmissionsRepo.find({
+            where: { workOrderId: In([...workOrderIds]), status: 'submitted' },
+          })
         : Promise.resolve([]),
     ]);
-    const { equipmentIds, materialIds } = this.collectSubmittedResourceIds(submissions);
+    const { equipmentIds, materialIds } =
+      this.collectSubmittedResourceIds(submissions);
     const [equipment, materials] = await Promise.all([
       equipmentIds.size > 0
         ? this.equipmentRepo.find({ where: { id: In([...equipmentIds]) } })
@@ -1138,24 +1430,37 @@ export class WorkOrdersService {
     submissions
       .filter((submission) => submission.pdfUrl?.trim())
       .forEach((submission) => {
-        const rows = pdfSubmissionsByWorkOrderId.get(submission.workOrderId) || [];
+        const rows =
+          pdfSubmissionsByWorkOrderId.get(submission.workOrderId) || [];
         rows.push(submission);
         pdfSubmissionsByWorkOrderId.set(submission.workOrderId, rows);
       });
-    const resourceSubmissionsByWorkOrderId = new Map<string, FormSubmission[]>();
+    const resourceSubmissionsByWorkOrderId = new Map<
+      string,
+      FormSubmission[]
+    >();
     submissions.forEach((submission) => {
       const ids = this.collectSubmittedResourceIds([submission]);
       if (ids.equipmentIds.size === 0 && ids.materialIds.size === 0) return;
-      const rows = resourceSubmissionsByWorkOrderId.get(submission.workOrderId) || [];
+      const rows =
+        resourceSubmissionsByWorkOrderId.get(submission.workOrderId) || [];
       rows.push(submission);
       resourceSubmissionsByWorkOrderId.set(submission.workOrderId, rows);
     });
 
     return {
-      workerById: new Map<string, Worker>(workers.map((item) => [item.id, item])),
-      equipmentById: new Map<string, Equipment>(equipment.map((item) => [item.id, item])),
-      materialById: new Map<string, Material>(materials.map((item) => [item.id, item])),
-      clientById: new Map<string, Client>(clients.map((item) => [item.id, item])),
+      workerById: new Map<string, Worker>(
+        workers.map((item) => [item.id, item]),
+      ),
+      equipmentById: new Map<string, Equipment>(
+        equipment.map((item) => [item.id, item]),
+      ),
+      materialById: new Map<string, Material>(
+        materials.map((item) => [item.id, item]),
+      ),
+      clientById: new Map<string, Client>(
+        clients.map((item) => [item.id, item]),
+      ),
       pdfSubmissionsByWorkOrderId,
       resourceSubmissionsByWorkOrderId,
     };
@@ -1179,7 +1484,8 @@ export class WorkOrdersService {
         const value = pending[index];
         if (Array.isArray(value)) {
           for (const entry of value) {
-            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+            if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+              continue;
             const row = entry as Record<string, unknown>;
             if (typeof row.equipmentId === 'string' && row.equipmentId.trim()) {
               equipmentIds.add(row.equipmentId.trim());
@@ -1198,20 +1504,30 @@ export class WorkOrdersService {
     return { equipmentIds, materialIds };
   }
 
-  private collectMobileQuickAccessIds(workOrder: WorkOrder, visibleShiftIds?: Set<string>) {
+  private collectMobileQuickAccessIds(
+    workOrder: WorkOrder,
+    visibleShiftIds?: Set<string>,
+  ) {
     const workerIds = new Set<string>();
-    for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
-      const shiftId = typeof (shift as Record<string, unknown>).id === 'string'
-        ? String((shift as Record<string, unknown>).id)
-        : '';
-      if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId))) continue;
+    for (const shift of Array.isArray(workOrder.shifts)
+      ? workOrder.shifts
+      : []) {
+      const shiftId =
+        typeof (shift as Record<string, unknown>).id === 'string'
+          ? String((shift as Record<string, unknown>).id)
+          : '';
+      if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId)))
+        continue;
       const roles = Array.isArray(shift.roles)
         ? (shift.roles as Record<string, unknown>[])
         : [];
       for (const role of roles) {
         if (Array.isArray(role.assignedWorkers)) {
           role.assignedWorkers
-            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+            .filter(
+              (id): id is string =>
+                typeof id === 'string' && id.trim().length > 0,
+            )
             .forEach((id) => workerIds.add(id));
         }
       }
@@ -1235,16 +1551,25 @@ export class WorkOrdersService {
   ) {
     const visibleDocumentTypes = new Set<string>();
     const visibleShiftNotes: { id: string; title: string; body: string }[] = [];
-    for (const rawShift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+    for (const rawShift of Array.isArray(workOrder.shifts)
+      ? workOrder.shifts
+      : []) {
       const shift = rawShift as unknown as Record<string, unknown>;
       const shiftId = typeof shift.id === 'string' ? shift.id : '';
-      if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId))) continue;
+      if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId)))
+        continue;
       const selected = Array.isArray(shift.visibleDocumentTypes)
-        ? shift.visibleDocumentTypes.filter((item): item is string => typeof item === 'string')
+        ? shift.visibleDocumentTypes.filter(
+            (item): item is string => typeof item === 'string',
+          )
         : [];
       selected.forEach((item) => visibleDocumentTypes.add(item));
       if (typeof shift.notes === 'string' && shift.notes.trim()) {
-        visibleShiftNotes.push({ id: `shift_note_${shiftId}`, title: 'Shift Notes', body: shift.notes.trim() });
+        visibleShiftNotes.push({
+          id: `shift_note_${shiftId}`,
+          title: 'Shift Notes',
+          body: shift.notes.trim(),
+        });
       }
     }
     const { workerIds } = this.collectMobileQuickAccessIds(
@@ -1258,7 +1583,9 @@ export class WorkOrdersService {
     const crew = [...workerIds].map((id) => {
       const worker = maps?.workerById.get(id);
       const name = worker
-        ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
+        ? `${worker.firstName} ${worker.lastName}`.trim() ||
+          worker.email ||
+          worker.id
         : id;
       const allShiftRoles = this.shiftRolesForWorker(workOrder, id);
       const shiftRoles = visibleShiftIds
@@ -1274,7 +1601,11 @@ export class WorkOrdersService {
         id,
         name,
         initials: this.initialsFromName(name),
-        roleLine: roleNames.join(', ') || worker?.role || worker?.type || 'Assigned crew',
+        roleLine:
+          roleNames.join(', ') ||
+          worker?.role ||
+          worker?.type ||
+          'Assigned crew',
         badge: worker?.type || worker?.role || 'Crew',
         phone: worker?.phone || '',
         shiftIds,
@@ -1287,7 +1618,8 @@ export class WorkOrdersService {
         return {
           id,
           name: item?.name || id,
-          description: item?.notes || item?.brand || item?.type || 'Assigned equipment',
+          description:
+            item?.notes || item?.brand || item?.type || 'Assigned equipment',
           status: item?.status || 'Assigned',
           type: item?.type || 'Equipment',
           identifier: item?.identifier || '',
@@ -1299,7 +1631,8 @@ export class WorkOrdersService {
         return {
           id,
           name: item?.name || id,
-          description: item?.notes || item?.brand || item?.type || 'Assigned material',
+          description:
+            item?.notes || item?.brand || item?.type || 'Assigned material',
           status: item?.status || 'Assigned',
           type: item?.type || 'Material',
           identifier: item?.identifier || '',
@@ -1310,19 +1643,27 @@ export class WorkOrdersService {
     const notes = [
       ...visibleShiftNotes,
       workOrder.dispatchNote?.trim()
-        ? { id: 'dispatchNote', title: 'Dispatch Note', body: workOrder.dispatchNote.trim() }
+        ? {
+            id: 'dispatchNote',
+            title: 'Dispatch Note',
+            body: workOrder.dispatchNote.trim(),
+          }
         : null,
       workOrder.notes?.trim()
         ? { id: 'notes', title: 'Notes', body: workOrder.notes.trim() }
         : null,
-    ].filter((item): item is { id: string; title: string; body: string } => Boolean(item));
+    ].filter((item): item is { id: string; title: string; body: string } =>
+      Boolean(item),
+    );
     const allDocuments = [
-      ...(maps?.pdfSubmissionsByWorkOrderId.get(workOrder.id) || []).map((submission, index) => ({
-        id: `generated_pdf_${submission.id || index}`,
-        title: this.generatedPdfTitle(submission, index),
-        url: submission.pdfUrl,
-        tag: 'Generated PDF',
-      })),
+      ...(maps?.pdfSubmissionsByWorkOrderId.get(workOrder.id) || []).map(
+        (submission, index) => ({
+          id: `generated_pdf_${submission.id || index}`,
+          title: this.generatedPdfTitle(submission, index),
+          url: submission.pdfUrl,
+          tag: 'Generated PDF',
+        }),
+      ),
       ...(workOrder.fileUploads || []).filter(Boolean).map((url, index) => ({
         id: `file_${index}`,
         title: this.fileNameFromUrl(url),
@@ -1340,7 +1681,7 @@ export class WorkOrdersService {
       visibleDocumentTypes.has(document.url),
     );
     const client = project?.clientId?.trim()
-      ? maps?.clientById.get(project.clientId) ?? null
+      ? (maps?.clientById.get(project.clientId) ?? null)
       : null;
 
     return {
@@ -1359,7 +1700,13 @@ export class WorkOrdersService {
             email: client.email,
             phone: client.phone,
             website: client.website,
-            address: [client.address, client.city, client.state, client.zipCode, client.country]
+            address: [
+              client.address,
+              client.city,
+              client.state,
+              client.zipCode,
+              client.country,
+            ]
               .map((item) => item?.trim())
               .filter(Boolean)
               .join(', '),
@@ -1373,25 +1720,39 @@ export class WorkOrdersService {
     };
   }
 
-  private mobileDocumentIsVisible(title: string, id: string, allowed: Set<string>) {
+  private mobileDocumentIsVisible(
+    title: string,
+    id: string,
+    allowed: Set<string>,
+  ) {
     const key = `${title} ${id}`.toLowerCase();
     if (key.includes('timesheet')) return allowed.has('Timesheet');
     if (key.includes('incident')) return allowed.has('Incident Report');
-    if (key.includes('site map') || key.includes('sitemap') || key.includes('site-map')) return allowed.has('Site Map');
+    if (
+      key.includes('site map') ||
+      key.includes('sitemap') ||
+      key.includes('site-map')
+    )
+      return allowed.has('Site Map');
     if (key.includes('safety')) return allowed.has('Safety Plan');
     return allowed.has('Work Order');
   }
 
   private roleNamesForWorker(workOrder: WorkOrder, workerId: string) {
     const names = new Set<string>();
-    for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+    for (const shift of Array.isArray(workOrder.shifts)
+      ? workOrder.shifts
+      : []) {
       const roles = Array.isArray(shift.roles)
         ? (shift.roles as Record<string, unknown>[])
         : [];
       for (const role of roles) {
-        const assignedWorkers = Array.isArray(role.assignedWorkers) ? role.assignedWorkers : [];
+        const assignedWorkers = Array.isArray(role.assignedWorkers)
+          ? role.assignedWorkers
+          : [];
         if (!assignedWorkers.includes(workerId)) continue;
-        if (typeof role.roleName === 'string' && role.roleName.trim()) names.add(role.roleName.trim());
+        if (typeof role.roleName === 'string' && role.roleName.trim())
+          names.add(role.roleName.trim());
       }
     }
     return [...names];
@@ -1399,7 +1760,9 @@ export class WorkOrdersService {
 
   private shiftRolesForWorker(workOrder: WorkOrder, workerId: string) {
     const rolesByShift: Record<string, string[]> = {};
-    for (const shift of Array.isArray(workOrder.shifts) ? workOrder.shifts : []) {
+    for (const shift of Array.isArray(workOrder.shifts)
+      ? workOrder.shifts
+      : []) {
       const shiftRecord = shift as Record<string, unknown>;
       const shiftId = typeof shiftRecord.id === 'string' ? shiftRecord.id : '';
       if (!shiftId) continue;
@@ -1408,7 +1771,9 @@ export class WorkOrdersService {
         ? (shiftRecord.roles as Record<string, unknown>[])
         : [];
       for (const role of roles) {
-        const assignedWorkers = Array.isArray(role.assignedWorkers) ? role.assignedWorkers : [];
+        const assignedWorkers = Array.isArray(role.assignedWorkers)
+          ? role.assignedWorkers
+          : [];
         if (!assignedWorkers.includes(workerId)) continue;
         if (typeof role.roleName === 'string' && role.roleName.trim()) {
           roleNames.add(role.roleName.trim());
@@ -1440,10 +1805,9 @@ export class WorkOrdersService {
     const submittedAt = submission.submittedAt
       ? new Date(submission.submittedAt).toISOString().slice(0, 10)
       : '';
-    return [
-      `Generated PDF ${index + 1}`,
-      submittedAt,
-    ].filter(Boolean).join(' - ');
+    return [`Generated PDF ${index + 1}`, submittedAt]
+      .filter(Boolean)
+      .join(' - ');
   }
 
   private formatMobileLocation(workOrder: WorkOrder, project?: Project) {
@@ -1483,7 +1847,10 @@ export class WorkOrdersService {
           ].sort()
         : [];
     const previousById = new Map(
-      previousShifts.map((shift) => [String(shift.id || ''), normalizedIds(shift)]),
+      previousShifts.map((shift) => [
+        String(shift.id || ''),
+        normalizedIds(shift),
+      ]),
     );
 
     const changed = nextShifts.some((shift) => {
@@ -1575,7 +1942,9 @@ export class WorkOrdersService {
     previousShifts: Record<string, unknown>[],
     nextShifts: Record<string, unknown>[],
   ) {
-    const nextById = new Map(nextShifts.map((shift) => [String(shift.id || ''), shift]));
+    const nextById = new Map(
+      nextShifts.map((shift) => [String(shift.id || ''), shift]),
+    );
     for (const previousShift of previousShifts) {
       if (!previousShift.pmApprovedAt) continue;
       const shiftId = String(previousShift.id || '');
@@ -1593,14 +1962,18 @@ export class WorkOrdersService {
   }
 
   async create(dto: CreateWorkOrderDto, actor?: UserAccessContext) {
-    await this.applyProjectAssignmentDateBounds(dto.projectId, dto.startDate, dto.endDate);
+    await this.applyProjectAssignmentDateBounds(
+      dto.projectId,
+      dto.startDate,
+      dto.endDate,
+    );
 
     const shifts = normalizeWorkOrderShifts(dto.shifts);
     this.assertWorkOrderDelegationChangesAllowed(actor, [], shifts);
     assertShiftsWithinAssignmentDateRange(dto.startDate, dto.endDate, shifts);
     await this.assertAssignedWorkersMeetRoleCertifications(shifts);
-    const orderNumber = (dto.orderNumber?.trim())
-      || (await this.numbering.nextWorkOrderNumber());
+    const orderNumber =
+      dto.orderNumber?.trim() || (await this.numbering.nextWorkOrderNumber());
     const entity = this.workOrdersRepo.create({
       ...dto,
       orderNumber,
@@ -1625,8 +1998,7 @@ export class WorkOrdersService {
       entity.assignmentZipCode = (dto.assignmentZipCode ?? '').trim();
     }
     if (dto.assignmentCountry !== undefined) {
-      entity.assignmentCountry =
-        (dto.assignmentCountry ?? '').trim() || 'USA';
+      entity.assignmentCountry = (dto.assignmentCountry ?? '').trim() || 'USA';
     }
 
     return this.workOrdersRepo.save(entity).then(async (saved) => {
@@ -1655,9 +2027,10 @@ export class WorkOrdersService {
     /** Must be captured before Object.assign: dto replaces entity.shifts, and normalize needs true DB-merge baseline. */
     const previousShiftsSnapshot: Record<string, unknown>[] =
       dto.shifts !== undefined
-        ? (JSON.parse(
-            JSON.stringify(workOrder.shifts ?? []),
-          ) as Record<string, unknown>[])
+        ? (JSON.parse(JSON.stringify(workOrder.shifts ?? [])) as Record<
+            string,
+            unknown
+          >[])
         : [];
 
     if (dto.shifts !== undefined) {
@@ -1803,13 +2176,17 @@ export class WorkOrdersService {
     actor?: UserAccessContext,
   ) {
     const workOrder = await this.findOne(workOrderId);
-    this.assertWorkOrderDelegationChangesAllowed(actor, [], [
-      {
-        id: '__bulk_shift__',
-        workOrderAuthorizedWorkerIds:
-          payload.workOrderAuthorizedWorkerIds ?? [],
-      },
-    ]);
+    this.assertWorkOrderDelegationChangesAllowed(
+      actor,
+      [],
+      [
+        {
+          id: '__bulk_shift__',
+          workOrderAuthorizedWorkerIds:
+            payload.workOrderAuthorizedWorkerIds ?? [],
+        },
+      ],
+    );
 
     if (!Array.isArray(payload.dates) || payload.dates.length === 0) {
       throw new BadRequestException('At least one date is required.');
@@ -1844,9 +2221,16 @@ export class WorkOrdersService {
     const hasConflictingShift = (date: string) =>
       existingShifts.some((s) => {
         if (!s || typeof s !== 'object') return false;
-        const row = s as { date?: unknown; startTime?: unknown; endTime?: unknown };
+        const row = s as {
+          date?: unknown;
+          startTime?: unknown;
+          endTime?: unknown;
+        };
         if (typeof row.date !== 'string' || row.date !== date) return false;
-        if (typeof row.startTime === 'string' && row.startTime === payload.startTime) {
+        if (
+          typeof row.startTime === 'string' &&
+          row.startTime === payload.startTime
+        ) {
           return true;
         }
         return false;
@@ -1935,9 +2319,7 @@ export class WorkOrdersService {
     const completedShiftKeys = (
       await this.resolveMobileShiftCompletion([workOrder])
     ).completedShiftKeys;
-    if (
-      [...completedShiftKeys].some((key) => key.startsWith(`${id}:`))
-    ) {
+    if ([...completedShiftKeys].some((key) => key.startsWith(`${id}:`))) {
       throw new ForbiddenException(
         'Assignments containing completed shifts cannot be deleted.',
       );
@@ -2008,17 +2390,21 @@ export class WorkOrdersService {
 
     const activeCertificationIdSetForWorker = (w: Worker): Set<string> =>
       new Set(
-        (w.workerCertifications ?? []).filter((wc) => {
-          const st = String(wc.certification?.status ?? '').toLowerCase();
-          return st !== 'inactive';
-        }).map((wc) => wc.certificationId),
+        (w.workerCertifications ?? [])
+          .filter((wc) => {
+            const st = String(wc.certification?.status ?? '').toLowerCase();
+            return st !== 'inactive';
+          })
+          .map((wc) => wc.certificationId),
       );
     const workerHasRequiredRole = (w: Worker, roleName: string): boolean => {
       const target = roleName.trim().toLowerCase();
       if (!target) return true;
       return (w.workerRoles ?? []).some((role) => {
         const status = String(role.status ?? '').toLowerCase();
-        return status !== 'inactive' && role.name.trim().toLowerCase() === target;
+        return (
+          status !== 'inactive' && role.name.trim().toLowerCase() === target
+        );
       });
     };
 
@@ -2038,16 +2424,20 @@ export class WorkOrdersService {
             : [];
         const required = rawRequired
           .filter(
-              (id): id is string => typeof id === 'string' && id.trim() !== '',
-            ).map((id) => id.trim());
+            (id): id is string => typeof id === 'string' && id.trim() !== '',
+          )
+          .map((id) => id.trim());
         if (required.length === 0) continue;
 
         const requiredSet = new Set(required);
 
         const assigned = Array.isArray(role.assignedWorkers)
-          ? role.assignedWorkers.filter(
-              (id): id is string => typeof id === 'string' && id.trim() !== '',
-            ).map((id) => id.trim())
+          ? role.assignedWorkers
+              .filter(
+                (id): id is string =>
+                  typeof id === 'string' && id.trim() !== '',
+              )
+              .map((id) => id.trim())
           : [];
 
         for (const workerId of assigned) {
@@ -2099,7 +2489,9 @@ export class WorkOrdersService {
    * rows in the new tables get `shifts: []`. The legacy `work_orders.shifts`
    * JSON is no longer consulted by findOne/findAll.
    */
-  private async mergeShiftsWithRelational<T extends WorkOrder>(rows: T[]): Promise<T[]> {
+  private async mergeShiftsWithRelational<T extends WorkOrder>(
+    rows: T[],
+  ): Promise<T[]> {
     if (rows.length === 0) return rows;
     try {
       const ids = rows.map((r) => r.id);

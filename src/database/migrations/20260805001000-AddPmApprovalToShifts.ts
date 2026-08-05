@@ -23,7 +23,7 @@ export class AddPmApprovalToShifts20260805001000 implements MigrationInterface {
         triggers_notification, requires_approval, automatic, status,
         created_at, updated_at
       ) VALUES (
-        'shift_pm_approved', 'shift', 'pm_approved', 'PM Approved', '#0F766E', 80,
+        'shift_pm_approved', 'shift', 'pm_approved', 'PM Approved', '#14B8A6', 80,
         TRUE, FALSE, FALSE, TRUE, 'active', NOW(), NOW()
       )
       ON CONFLICT (id) DO UPDATE SET

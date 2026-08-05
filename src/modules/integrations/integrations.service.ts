@@ -226,6 +226,10 @@ export class IntegrationsService {
   }
 
   async sendNotification(body: NotificationBody, baseUrl: string) {
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      body.confirmation?.workOrderId,
+      body.confirmation?.shiftId,
+    );
     const action = body.action || 'send_in_app';
     const prepared = await this.prepareNotification(body, baseUrl, action);
     const result: NotificationResult =

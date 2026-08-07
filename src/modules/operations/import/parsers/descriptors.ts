@@ -127,10 +127,24 @@ const descriptors: Record<string, CatalogDescriptor> = {
     sheetName: 'Materials',
     exampleRow: { id: 'mat_sign_aluminum', name: 'Sign Aluminum 48x48', type: 'Signage', identifier: 'SIGN-ALU-48', brand: 'Custom', price: 0, status: 'available', lastMaintenance: '', nextMaintenance: '', notes: '' },
     columns: [
-      { key: 'id', header: 'id', required: false, aliases: ['material_id'] },
+      {
+        key: 'id',
+        header: 'id',
+        required: false,
+        aliases: ['internal_id'],
+        notes: 'Clave interna opcional',
+      },
       { key: 'name', header: 'name', required: true, type: 'string' },
       { key: 'type', header: 'type', required: true, type: 'string' },
-      { key: 'identifier', header: 'identifier', required: false, type: 'string' },
+      {
+        key: 'identifier',
+        header: 'identifier',
+        required: true,
+        type: 'string',
+        aliases: ['material_id'],
+        notes:
+          'Material ID visible; junto con name y type identifica el registro durante la importación',
+      },
       { key: 'brand', header: 'brand', required: false, type: 'string' },
       { key: 'price', header: 'price', required: false, type: 'number' },
       { key: 'status', header: 'status', required: true, type: 'string' },

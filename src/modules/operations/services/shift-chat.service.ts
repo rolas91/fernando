@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { IsNull, Not, Repository } from 'typeorm';
 import { Notification } from '../../../entities/notification.entity';
+import { Project } from '../../../entities/project.entity';
 import { ShiftChatMessage } from '../../../entities/shift-chat-message.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { Worker } from '../../../entities/worker.entity';
@@ -18,6 +19,7 @@ import { IntegrationsService } from '../../integrations/integrations.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { ShiftsQueryService } from './shifts-query.service';
 import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
+import { shiftChatConversationTitle } from '../utils/shift-chat-conversation.util';
 
 @Injectable()
 export class ShiftChatService {
@@ -26,6 +28,8 @@ export class ShiftChatService {
     private readonly chatRepo: Repository<ShiftChatMessage>,
     @InjectRepository(WorkOrder)
     private readonly workOrdersRepo: Repository<WorkOrder>,
+    @InjectRepository(Project)
+    private readonly projectsRepo: Repository<Project>,
     @InjectRepository(Worker)
     private readonly workersRepo: Repository<Worker>,
     @InjectRepository(Notification)
@@ -261,8 +265,10 @@ export class ShiftChatService {
   ) {
     const recipientIds = this.assignedWorkerIdsForShift(workOrder, message.shiftId)
       .filter((workerId) => workerId !== senderWorkerId);
-    const body = this.notificationBody(message);
-    const title = `${message.senderName || 'Shift chat'} sent a message`;
+    const messagePreview = this.notificationBody(message);
+    const conversation = await this.conversationDetails(workOrder, message.shiftId);
+    const title = conversation.title;
+    const body = `${message.senderName || 'Shift chat'}: ${messagePreview}`;
     const shiftDate = this.shiftDateForMessage(workOrder, message.shiftId);
     await this.notificationsRepo.save(this.notificationsRepo.create({
       id: `notif_${randomUUID()}`,
@@ -317,6 +323,10 @@ export class ShiftChatService {
           shiftDate,
           messageId: message.id,
           senderName: message.senderName,
+          conversationTitle: conversation.title,
+          projectNumber: conversation.projectNumber,
+          projectName: conversation.projectName,
+          shiftName: conversation.shiftName,
         });
         notification.deliveryStatus = result.simulated
           ? 'simulated'
@@ -335,6 +345,29 @@ export class ShiftChatService {
       return record.id === shiftId;
     }) as Record<string, unknown> | undefined;
     return typeof shift?.date === 'string' ? shift.date : undefined;
+  }
+
+  private async conversationDetails(workOrder: WorkOrder, shiftId: string) {
+    const project = workOrder.projectId
+      ? await this.projectsRepo.findOne({ where: { id: workOrder.projectId } })
+      : null;
+    const shift = (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).find(
+      (item) => (item as Record<string, unknown>).id === shiftId,
+    ) as Record<string, unknown> | undefined;
+    const shiftName =
+      typeof shift?.shiftName === 'string'
+        ? shift.shiftName
+        : typeof shift?.name === 'string'
+          ? shift.name
+          : '';
+    const projectNumber = project?.number || '';
+    const projectName = project?.name || workOrder.title || '';
+    return {
+      projectNumber,
+      projectName,
+      shiftName,
+      title: shiftChatConversationTitle({ projectNumber, projectName, shiftName }),
+    };
   }
 
   private kindFromContentType(contentType?: string) {

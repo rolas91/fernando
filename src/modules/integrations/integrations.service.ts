@@ -299,6 +299,10 @@ export class IntegrationsService {
     shiftDate?: string;
     messageId: string;
     senderName: string;
+    conversationTitle: string;
+    projectNumber: string;
+    projectName: string;
+    shiftName: string;
   }): Promise<NotificationResult> {
     const worker = await this.workersRepo.findOne({ where: { id: params.workerId } });
     const tokens = (worker?.fcmTokens || []).filter((token) => token.trim());
@@ -334,6 +338,10 @@ export class IntegrationsService {
         shiftDate: params.shiftDate || '',
         messageId: params.messageId,
         senderName: params.senderName,
+        conversationTitle: params.conversationTitle,
+        projectNumber: params.projectNumber,
+        projectName: params.projectName,
+        shiftName: params.shiftName,
       },
       channelId: 'shift_notifications',
       priority: 'high',

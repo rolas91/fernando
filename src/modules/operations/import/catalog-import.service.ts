@@ -60,6 +60,30 @@ const PARSERS: Record<CatalogScope, RowParser> = {
 
 const SAMPLE_SIZE = 5;
 
+function normalizedMaterialIdentityPart(value: unknown): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value).trim().toLowerCase();
+}
+
+export function isSameMaterialImportRecord(
+  left:
+    | Pick<Material, 'identifier' | 'name' | 'type'>
+    | Record<string, unknown>,
+  right:
+    | Pick<Material, 'identifier' | 'name' | 'type'>
+    | Record<string, unknown>,
+): boolean {
+  const leftIdentifier = normalizedMaterialIdentityPart(left.identifier);
+  const leftName = normalizedMaterialIdentityPart(left.name);
+  const leftType = normalizedMaterialIdentityPart(left.type);
+  if (!leftIdentifier || !leftName || !leftType) return false;
+  return (
+    leftIdentifier === normalizedMaterialIdentityPart(right.identifier) &&
+    leftName === normalizedMaterialIdentityPart(right.name) &&
+    leftType === normalizedMaterialIdentityPart(right.type)
+  );
+}
+
 @Injectable()
 export class CatalogImportService {
   private readonly logger = new Logger(CatalogImportService.name);
@@ -293,6 +317,14 @@ export class CatalogImportService {
     scope: CatalogScope,
     data: Record<string, unknown>,
   ): Promise<{ id: string } | null> {
+    if (scope === 'materials') {
+      const materials = await this.materialsRepo.find();
+      const found = materials.find((material) =>
+        isSameMaterialImportRecord(material, data),
+      );
+      return found ? { id: found.id } : null;
+    }
+
     const id = typeof data.id === 'string' ? data.id : undefined;
     if (id) {
       const repo = this.repoFor(scope);
@@ -461,7 +493,23 @@ export class CatalogImportService {
         return;
       }
       case 'materials': {
-        const entity = this.materialsRepo.create(data as unknown as Material);
+        const payload = { ...data };
+        const requestedId =
+          typeof payload.id === 'string' || typeof payload.id === 'number'
+            ? String(payload.id).trim()
+            : '';
+        if (requestedId) {
+          const idCollision = await this.materialsRepo.findOne({
+            where: { id: requestedId },
+            withDeleted: true,
+          });
+          if (idCollision) payload.id = `mat_${randomUUID()}`;
+        } else {
+          payload.id = `mat_${randomUUID()}`;
+        }
+        const entity = this.materialsRepo.create(
+          payload as unknown as Material,
+        );
         await this.materialsRepo.save(entity);
         this.emitUpdated('materials');
         return;
@@ -618,7 +666,9 @@ export class CatalogImportService {
       case 'materials': {
         const item = await this.materialsRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Material ${id} not found`);
-        Object.assign(item, data);
+        const payload = { ...data };
+        delete payload.id;
+        Object.assign(item, payload);
         await this.materialsRepo.save(item);
         this.emitUpdated('materials');
         return;

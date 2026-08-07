@@ -88,7 +88,12 @@ function buildAssetParser(catalog: AssetCatalog) {
     if (name.error) pushError(errors, { ...name.error, row }, row);
     const type = readString(raw, 'type', [], { required: true });
     if (type.error) pushError(errors, { ...type.error, row }, row);
-    const identifier = readString(raw, 'identifier');
+    const identifier = readString(
+      raw,
+      'identifier',
+      catalog === 'material' ? ['material_id'] : [],
+      { required: catalog === 'material' },
+    );
     if (identifier.error) pushError(errors, { ...identifier.error, row }, row);
     const brand = readString(raw, 'brand');
     if (brand.error) pushError(errors, { ...brand.error, row }, row);
@@ -107,7 +112,13 @@ function buildAssetParser(catalog: AssetCatalog) {
       return { row, raw, data: null, errors, action: 'skip' };
     }
 
-    const id = (idIn.value && idIn.value.trim()) || idFromName(name.value || '', idPrefix);
+    const generatedIdSource =
+      catalog === 'material'
+        ? `${identifier.value || ''}_${name.value || ''}_${type.value || ''}`
+        : name.value || '';
+    const id =
+      (idIn.value && idIn.value.trim()) ||
+      idFromName(generatedIdSource, idPrefix);
     const data: Record<string, unknown> = {
       id,
       name: name.value,

@@ -592,11 +592,19 @@ export class WorkOrdersService {
           }
           return true;
         })
-        .sort(
-          (a, b) =>
-            b.shift.date.localeCompare(a.shift.date) ||
-            b.shift.startTime.localeCompare(a.shift.startTime),
-        );
+        .sort((a, b) => {
+          const aIsPast = a.shift.date < todayKey;
+          const bIsPast = b.shift.date < todayKey;
+          if (aIsPast !== bIsPast) return aIsPast ? 1 : -1;
+          const byDate = aIsPast
+            ? b.shift.date.localeCompare(a.shift.date)
+            : a.shift.date.localeCompare(b.shift.date);
+          if (byDate !== 0) return byDate;
+          return (
+            (mobileClockMinutes(a.shift.startTime) ?? Number.MAX_SAFE_INTEGER) -
+            (mobileClockMinutes(b.shift.startTime) ?? Number.MAX_SAFE_INTEGER)
+          );
+        });
       const total = rows.length;
       const pageRows = rows.slice((page - 1) * limit, page * limit);
       const pageWorkOrderIds = new Set(
@@ -1350,11 +1358,14 @@ export class WorkOrdersService {
         };
       })
       .filter((shift): shift is NonNullable<typeof shift> => Boolean(shift))
-      .sort(
-        (a, b) =>
-          b.date.localeCompare(a.date) ||
-          b.startTime.localeCompare(a.startTime),
-      );
+      .sort((a, b) => {
+        const byDate = a.date.localeCompare(b.date);
+        if (byDate !== 0) return byDate;
+        return (
+          (mobileClockMinutes(a.startTime) ?? Number.MAX_SAFE_INTEGER) -
+          (mobileClockMinutes(b.startTime) ?? Number.MAX_SAFE_INTEGER)
+        );
+      });
     const visibleShiftIds = new Set(
       workerShifts.map((shift) => shift.id).filter(Boolean),
     );

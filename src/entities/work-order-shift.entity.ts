@@ -112,7 +112,7 @@ export class WorkOrderShift {
   plannedEquipment: Array<{ type: string; estimatedQuantity: number }>;
 
   @Column({ name: 'planned_materials', type: 'jsonb', default: () => "'[]'::jsonb" })
-  plannedMaterials: Array<{ type: string; estimatedQuantity: number }>;
+  plannedMaterials: Array<{ type: string; estimatedQuantity: number; materialIds?: string[] }>;
 
   @Column({ name: 'work_order_types', type: 'jsonb', default: () => "'[]'::jsonb" })
   workOrderTypes: string[];

@@ -334,4 +334,29 @@ describe('Work Order PDF Builder layout', () => {
     expect(pdf).toContain('CMS Boards and Message Boards');
     expect(pdf).not.toContain('CMS Bo...');
   });
+
+  it('does not truncate material descriptions in the PDF', () => {
+    const description = '1101 - Temp Tape Yellow 4 inch 100 Yard Roll';
+    const pdf = buildWorkOrderPdf(
+      submission,
+      template('Work Order'),
+      {
+        workers: [],
+        equipment: [],
+        materials: [
+          {
+            identifier: '1101',
+            description,
+            type: 'Sales',
+            quantity: '1',
+          },
+        ],
+        workOrderTypes: [],
+        shift: { date: '2026-08-02' },
+      },
+    ).toString('latin1');
+
+    expect(pdf).toContain(description);
+    expect(pdf).not.toContain('Temp Tape Yellow 4 inch 100...');
+  });
 });

@@ -2048,7 +2048,7 @@ export function buildWorkOrderPdf(
     });
     if (showMaterials && material) {
       const materialType = fitPdfTextToWidth(material.type || '', materialCols[1] - 4, 5.2);
-      ops.push(pdfText(fitText(material.description, 34), materialXs[0] + 2, top - 8.7, 5.2));
+      ops.push(pdfText(stringifyFieldValue(material.description), materialXs[0] + 2, top - 8.7, 5.2));
       ops.push(pdfText(materialType.text, materialXs[1] + 2, top - 8.7, materialType.size));
       ops.push(pdfText(fitText(material.quantity || '', 8), materialXs[2] + 2, top - 8.7, 5.2));
     }
@@ -2212,7 +2212,7 @@ export function buildWorkOrderPdf(
         const rowHeight = 18;
         const materialType = fitPdfTextToWidth(material.type || '', widths[1] - 8, 6);
         widths.forEach((columnWidth, index) => pageOps.push(pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight)));
-        pageOps.push(pdfText(fitText(material.description, 58), xs[0] + 4, rowTop - 12, 6));
+        pageOps.push(pdfText(stringifyFieldValue(material.description), xs[0] + 4, rowTop - 12, 6));
         pageOps.push(pdfText(materialType.text, xs[1] + 4, rowTop - 12, materialType.size));
         pageOps.push(pdfText(fitText(material.quantity || '', 12), xs[2] + 4, rowTop - 12, 6));
         rowTop -= rowHeight;

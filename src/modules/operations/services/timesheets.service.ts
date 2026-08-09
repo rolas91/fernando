@@ -1,10 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { createHash } from 'node:crypto';
 import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
 import { CompanySettings } from '../../../entities/company-settings.entity';
-import { Timesheet, type TimesheetVariant } from '../../../entities/timesheet.entity';
+import {
+  Timesheet,
+  type TimesheetVariant,
+} from '../../../entities/timesheet.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { Shift as ShiftCatalog } from '../../../entities/shift.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
@@ -47,9 +55,13 @@ export class TimesheetsService {
       where: { workOrderId, shiftId },
       order: { variant: 'ASC', workerId: 'ASC' },
     });
-    const workOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+    const workOrder = await this.workOrdersRepo.findOne({
+      where: { id: workOrderId },
+    });
     const shifts = await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId);
-    const shift = (shifts ?? []).find((entry) => stringValue(entry.id) === shiftId);
+    const shift = (shifts ?? []).find(
+      (entry) => stringValue(entry.id) === shiftId,
+    );
     const roles = Array.isArray(shift?.roles)
       ? (shift.roles as Record<string, unknown>[])
       : [];
@@ -57,7 +69,8 @@ export class TimesheetsService {
     const missingAssignedRows = roles.flatMap((role) => {
       const assignedWorkers = Array.isArray(role.assignedWorkers)
         ? role.assignedWorkers.filter(
-            (workerId): workerId is string => typeof workerId === 'string' && Boolean(workerId),
+            (workerId): workerId is string =>
+              typeof workerId === 'string' && Boolean(workerId),
           )
         : [];
       return assignedWorkers
@@ -95,24 +108,40 @@ export class TimesheetsService {
       rows.filter((row) => row.variant === 'client').map((row) => row.workerId),
     );
     const internalWorkers = new Set(
-      rows.filter((row) => row.variant === 'internal').map((row) => row.workerId),
+      rows
+        .filter((row) => row.variant === 'internal')
+        .map((row) => row.workerId),
     );
     const missingClientRows = rows
-      .filter((row) => row.variant === 'internal' && !clientWorkers.has(row.workerId))
+      .filter(
+        (row) => row.variant === 'internal' && !clientWorkers.has(row.workerId),
+      )
       .map((row) =>
         this.timesheetsRepo.create({
           ...row,
-          id: deterministicTimesheetId(workOrderId, shiftId, row.workerId, 'client'),
+          id: deterministicTimesheetId(
+            workOrderId,
+            shiftId,
+            row.workerId,
+            'client',
+          ),
           variant: 'client',
           manuallyEdited: false,
         }),
       );
     const missingInternalRows = rows
-      .filter((row) => row.variant === 'client' && !internalWorkers.has(row.workerId))
+      .filter(
+        (row) => row.variant === 'client' && !internalWorkers.has(row.workerId),
+      )
       .map((row) =>
         this.timesheetsRepo.create({
           ...row,
-          id: deterministicTimesheetId(workOrderId, shiftId, row.workerId, 'internal'),
+          id: deterministicTimesheetId(
+            workOrderId,
+            shiftId,
+            row.workerId,
+            'internal',
+          ),
           variant: 'internal',
           manuallyEdited: false,
         }),
@@ -123,7 +152,9 @@ export class TimesheetsService {
       rows.push(...missingRows);
     }
     return rows.sort(
-      (a, b) => a.variant.localeCompare(b.variant) || a.workerId.localeCompare(b.workerId),
+      (a, b) =>
+        a.variant.localeCompare(b.variant) ||
+        a.workerId.localeCompare(b.workerId),
     );
   }
 
@@ -134,7 +165,10 @@ export class TimesheetsService {
   }
 
   async create(dto: CreateTimesheetDto) {
-    await this.shiftsWrite.assertShiftNotPmApproved(dto.workOrderId, dto.shiftId);
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      dto.workOrderId,
+      dto.shiftId,
+    );
     return this.timesheetsRepo
       .save(
         this.timesheetsRepo.create({
@@ -181,7 +215,8 @@ export class TimesheetsService {
 
     for (const row of rows) {
       const workerId = stringValue(row.workerId);
-      const workOrderId = stringValue(row.workOrderId) || opts?.workOrderId || '';
+      const workOrderId =
+        stringValue(row.workOrderId) || opts?.workOrderId || '';
       const shiftId = stringValue(row.shiftId) || opts?.shiftId || '';
       if (!workerId || !workOrderId || !shiftId) continue;
 
@@ -197,15 +232,29 @@ export class TimesheetsService {
         if (existing?.manuallyEdited) continue;
 
         const status = operationalTimesheetStatus(row.status, existing?.status);
-        const clockIn = stringValue(row.startTime) || stringValue(row.clockIn) || existing?.clockIn || '';
-        const clockOut = stringValue(row.endTime) || stringValue(row.clockOut) || existing?.clockOut || '';
+        const clockIn =
+          stringValue(row.startTime) ||
+          stringValue(row.clockIn) ||
+          existing?.clockIn ||
+          '';
+        const clockOut =
+          stringValue(row.endTime) ||
+          stringValue(row.clockOut) ||
+          existing?.clockOut ||
+          '';
         validateTimesheetStartTime(
           clockIn,
           scheduledTimes.startTime,
           scheduledTimes.endTime,
         );
-        const lunchTaken = booleanValue(row.lunchTaken, existing?.lunchTaken ?? false);
-        const breakMinutes = numberValue(row.breakMinutes, existing?.breakMinutes ?? 0);
+        const lunchTaken = booleanValue(
+          row.lunchTaken,
+          existing?.lunchTaken ?? false,
+        );
+        const breakMinutes = numberValue(
+          row.breakMinutes,
+          existing?.breakMinutes ?? 0,
+        );
         const timesheetDate =
           stringValue(row.shiftDate) ||
           stringValue(row.date) ||
@@ -229,11 +278,16 @@ export class TimesheetsService {
             existing?.id ||
             deterministicTimesheetId(workOrderId, shiftId, workerId, variant),
           workerId,
-          projectId: stringValue(row.projectId) || opts?.projectId || existing?.projectId || '',
+          projectId:
+            stringValue(row.projectId) ||
+            opts?.projectId ||
+            existing?.projectId ||
+            '',
           workOrderId,
           shiftId,
           variant,
-          sourceSubmissionId: opts?.sourceSubmissionId || existing?.sourceSubmissionId || null,
+          sourceSubmissionId:
+            opts?.sourceSubmissionId || existing?.sourceSubmissionId || null,
           manuallyEdited: false,
           date: timesheetDate,
           clockIn,
@@ -243,7 +297,8 @@ export class TimesheetsService {
           overtimeHours: String(hours.ot),
           doubleTimeHours: String(hours.dt),
           lunchTaken,
-          employeeNote: stringValue(row.employeeNote) || existing?.employeeNote || '',
+          employeeNote:
+            stringValue(row.employeeNote) || existing?.employeeNote || '',
           signature: signatureValue(row.signature) || existing?.signature || '',
           status,
           approvedBy: existing?.approvedBy || '',
@@ -269,9 +324,9 @@ export class TimesheetsService {
     const shiftId = stringValue(row.shiftId) || opts?.shiftId || '';
     const workerId = stringValue(row.workerId);
     const scheduledTimes =
-      (workOrderId && shiftId
+      workOrderId && shiftId
         ? await this.getScheduledShiftTimes(workOrderId, shiftId, workerId)
-        : { startTime: '', endTime: '' });
+        : { startTime: '', endTime: '' };
     const scheduledStartTime =
       scheduledTimes.startTime || stringValue(row.scheduledStartTime);
     const scheduledEndTime =
@@ -327,12 +382,14 @@ export class TimesheetsService {
       : null;
     if (!shiftTemplate) {
       const targetStart = timeToMinutes(catalogClock(startTime));
-      const activeTemplates = targetStart === null
-        ? []
-        : await this.shiftCatalogRepo.find({ where: { status: 'active' } });
+      const activeTemplates =
+        targetStart === null
+          ? []
+          : await this.shiftCatalogRepo.find({ where: { status: 'active' } });
       shiftTemplate =
         activeTemplates.find(
-          (candidate) => timeToMinutes(candidate.startTime || '') === targetStart,
+          (candidate) =>
+            timeToMinutes(candidate.startTime || '') === targetStart,
         ) ?? null;
     }
     const durationMinutes = shiftCatalogDurationMinutes(shiftTemplate);
@@ -353,7 +410,8 @@ export class TimesheetsService {
 
     for (const row of rows) {
       const workerId = stringValue(row.workerId);
-      const workOrderId = stringValue(row.workOrderId) || opts?.workOrderId || '';
+      const workOrderId =
+        stringValue(row.workOrderId) || opts?.workOrderId || '';
       const shiftId = stringValue(row.shiftId) || opts?.shiftId || '';
       if (!workerId || !workOrderId || !shiftId) continue;
 
@@ -371,8 +429,12 @@ export class TimesheetsService {
 
   async update(id: string, dto: UpdateTimesheetDto) {
     const item = await this.findOne(id);
-    await this.shiftsWrite.assertShiftNotPmApproved(item.workOrderId, item.shiftId);
-    const { variant: _variant, ...updates } = dto;
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      item.workOrderId,
+      item.shiftId,
+    );
+    const updates = { ...dto };
+    delete updates.variant;
     const clockIn = updates.clockIn ?? item.clockIn;
     const clockOut = updates.clockOut ?? item.clockOut;
     const date = updates.date ?? item.date;
@@ -393,7 +455,11 @@ export class TimesheetsService {
         item.shiftId,
         item.workerId,
       );
-      validateTimesheetStartTime(clockIn, scheduled.startTime, scheduled.endTime);
+      validateTimesheetStartTime(
+        clockIn,
+        scheduled.startTime,
+        scheduled.endTime,
+      );
       const hours = calculateTimesheetHours(
         {
           clockIn,
@@ -416,7 +482,8 @@ export class TimesheetsService {
       ...updates,
       manuallyEdited: true,
       ...calculatedHours,
-      ...(updates.regularHours !== undefined || calculatedHours.regularHours !== undefined
+      ...(updates.regularHours !== undefined ||
+      calculatedHours.regularHours !== undefined
         ? {
             regularHours:
               updates.regularHours !== undefined
@@ -424,7 +491,8 @@ export class TimesheetsService {
                 : calculatedHours.regularHours,
           }
         : {}),
-      ...(updates.overtimeHours !== undefined || calculatedHours.overtimeHours !== undefined
+      ...(updates.overtimeHours !== undefined ||
+      calculatedHours.overtimeHours !== undefined
         ? {
             overtimeHours:
               updates.overtimeHours !== undefined
@@ -432,7 +500,8 @@ export class TimesheetsService {
                 : calculatedHours.overtimeHours,
           }
         : {}),
-      ...(updates.doubleTimeHours !== undefined || calculatedHours.doubleTimeHours !== undefined
+      ...(updates.doubleTimeHours !== undefined ||
+      calculatedHours.doubleTimeHours !== undefined
         ? {
             doubleTimeHours:
               updates.doubleTimeHours !== undefined
@@ -448,7 +517,10 @@ export class TimesheetsService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
-    await this.shiftsWrite.assertShiftNotPmApproved(item.workOrderId, item.shiftId);
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      item.workOrderId,
+      item.shiftId,
+    );
     await this.timesheetsRepo.remove(item);
     this.realtime.emitTableUpdated('timesheets');
     return { success: true };
@@ -570,11 +642,18 @@ function operationalTimesheetStatus(value: unknown, existingStatus?: string) {
   const incoming = stringValue(value).toLowerCase();
   const existing = stringValue(existingStatus).toLowerCase();
   const lockedStatuses = new Set(['approved', 'rejected']);
-  if (lockedStatuses.has(existing) && (!incoming || incoming === 'completed' || incoming === 'submitted')) {
+  if (
+    lockedStatuses.has(existing) &&
+    (!incoming || incoming === 'completed' || incoming === 'submitted')
+  ) {
     return existing;
   }
   if (!incoming) return existing || 'pending';
-  if (incoming === 'completed' || incoming === 'submitted' || incoming === 'done') {
+  if (
+    incoming === 'completed' ||
+    incoming === 'submitted' ||
+    incoming === 'done'
+  ) {
     return 'completed';
   }
   return incoming;
@@ -586,7 +665,9 @@ function roundHours(value: number) {
 
 function timeToMinutes(value: string) {
   const normalized = value.trim();
-  const twelveHourMatch = normalized.match(/^(\d{1,2}):(\d{2})\s*([AP])\.?M\.?$/i);
+  const twelveHourMatch = normalized.match(
+    /^(\d{1,2}):(\d{2})\s*([AP])\.?M\.?$/i,
+  );
   if (twelveHourMatch) {
     let hours = Number(twelveHourMatch[1]);
     const minutes = Number(twelveHourMatch[2]);
@@ -637,7 +718,10 @@ export function timesheetCalculationRules(
         ? 'ot'
         : 'st',
     noLunchCreditEffectiveDate: stringValue(rules?.noLunchCreditEffectiveDate),
-    yesLunchDeductionEnabled: booleanValue(rules?.yesLunchDeductionEnabled, false),
+    yesLunchDeductionEnabled: booleanValue(
+      rules?.yesLunchDeductionEnabled,
+      false,
+    ),
     yesLunchDeductionMinimumHours: nonNegativeNumber(
       rules?.yesLunchDeductionMinimumHours,
       0,
@@ -646,18 +730,21 @@ export function timesheetCalculationRules(
   };
 }
 
-export function calculateTimesheetHours(row: {
-  startTime?: string;
-  endTime?: string;
-  clockIn?: string;
-  clockOut?: string;
-  scheduledStartTime?: string;
-  scheduledEndTime?: string;
-  date?: string;
-  shiftDate?: string;
-  lunchTaken?: boolean;
-  breakMinutes?: number;
-}, rules: TimesheetCalculationRules = timesheetCalculationRules()) {
+export function calculateTimesheetHours(
+  row: {
+    startTime?: string;
+    endTime?: string;
+    clockIn?: string;
+    clockOut?: string;
+    scheduledStartTime?: string;
+    scheduledEndTime?: string;
+    date?: string;
+    shiftDate?: string;
+    lunchTaken?: boolean;
+    breakMinutes?: number;
+  },
+  rules: TimesheetCalculationRules = timesheetCalculationRules(),
+) {
   const startLabel = stringValue(row.startTime) || stringValue(row.clockIn);
   const endLabel = stringValue(row.endTime) || stringValue(row.clockOut);
   const timeline = timesheetTimeline(
@@ -669,10 +756,14 @@ export function calculateTimesheetHours(row: {
   const start = timeline.adjustedStart;
   const end = timeline.adjustedEnd;
   if (start === null || end === null) {
-    throw new BadRequestException('Timesheet Start Time and End Time must use HH:mm format.');
+    throw new BadRequestException(
+      'Timesheet Start Time and End Time must use HH:mm format.',
+    );
   }
   if (end <= start) {
-    throw new BadRequestException('Timesheet End Time must be greater than Start Time.');
+    throw new BadRequestException(
+      'Timesheet End Time must be greater than Start Time.',
+    );
   }
 
   const elapsedHours = (end - start) / 60;
@@ -688,7 +779,10 @@ export function calculateTimesheetHours(row: {
   const regularLimit = rules.regularHoursLimit;
   const doubleTimeThreshold = Math.max(rules.doubleTimeThreshold, regularLimit);
   const dt = Math.max(0, payableHours - doubleTimeThreshold);
-  const ot = Math.max(0, Math.min(payableHours, doubleTimeThreshold) - regularLimit);
+  const ot = Math.max(
+    0,
+    Math.min(payableHours, doubleTimeThreshold) - regularLimit,
+  );
   const lunchCredit =
     rules.noLunchCreditEnabled &&
     row.lunchTaken === false &&
@@ -699,7 +793,8 @@ export function calculateTimesheetHours(row: {
     stringValue(row.date) || stringValue(row.shiftDate),
     rules,
   );
-  const st = Math.min(payableHours, regularLimit) + (target === 'st' ? lunchCredit : 0);
+  const st =
+    Math.min(payableHours, regularLimit) + (target === 'st' ? lunchCredit : 0);
   const creditedOt = ot + (target === 'ot' ? lunchCredit : 0);
 
   return {
@@ -853,13 +948,15 @@ function nonNegativeNumber(value: unknown, fallback: number) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-function deterministicTimesheetId(
+export function deterministicTimesheetId(
   workOrderId: string,
   shiftId: string,
   workerId: string,
   variant: TimesheetVariant,
 ): string {
-  const suffix = variant === 'client' ? '_client' : '';
-  const safe = `${workOrderId}_${shiftId}_${workerId}${suffix}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return `ts_${safe}`.slice(0, 64);
+  const hash = createHash('sha256')
+    .update(`${workOrderId}\0${shiftId}\0${workerId}\0${variant}`)
+    .digest('hex')
+    .slice(0, 40);
+  return `ts_${hash}_${variant}`;
 }

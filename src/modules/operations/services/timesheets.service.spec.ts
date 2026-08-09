@@ -1,8 +1,49 @@
 import {
   calculateTimesheetHours,
+  deterministicTimesheetId,
   timesheetCalculationRules,
   validateTimesheetStartTime,
 } from './timesheets.service';
+
+describe('deterministicTimesheetId', () => {
+  const workOrderId = 'wo_12345678-1234-1234-1234-123456789012';
+  const shiftId = 'shift_12345678-1234-1234-1234-123456789012';
+  const workerId = 'worker_12345678-1234-1234-1234-123456789012';
+
+  it('creates stable IDs that fit the database column', () => {
+    const id = deterministicTimesheetId(
+      workOrderId,
+      shiftId,
+      workerId,
+      'client',
+    );
+
+    expect(id).toBe(
+      deterministicTimesheetId(workOrderId, shiftId, workerId, 'client'),
+    );
+    expect(id.length).toBeLessThanOrEqual(64);
+    expect(id).toMatch(/_client$/);
+  });
+
+  it('keeps client and internal timesheets distinct', () => {
+    const clientId = deterministicTimesheetId(
+      workOrderId,
+      shiftId,
+      workerId,
+      'client',
+    );
+    const internalId = deterministicTimesheetId(
+      workOrderId,
+      shiftId,
+      workerId,
+      'internal',
+    );
+
+    expect(clientId).not.toBe(internalId);
+    expect(internalId.length).toBeLessThanOrEqual(64);
+    expect(internalId).toMatch(/_internal$/);
+  });
+});
 
 describe('calculateTimesheetHours', () => {
   const rules = timesheetCalculationRules({

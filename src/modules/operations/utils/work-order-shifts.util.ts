@@ -215,6 +215,63 @@ export function normalizeWorkOrderShifts(
   });
 }
 
+/**
+ * A date change makes every earlier worker response stale. Reset the full
+ * confirmation request/response history so the normal status calculation
+ * returns Ready to Notify until dispatch sends the updated shift again.
+ */
+export function invalidateConfirmationsForChangedShiftDates(
+  shifts: unknown,
+  previousShifts: unknown,
+): Record<string, unknown>[] {
+  const normalized = normalizeWorkOrderShifts(shifts, previousShifts);
+  const previousById = new Map<string, Record<string, unknown>>();
+  (Array.isArray(previousShifts) ? previousShifts : []).forEach((value) => {
+    const shift = asObject(value);
+    const id = typeof shift.id === 'string' ? shift.id.trim() : '';
+    if (id) previousById.set(id, shift);
+  });
+
+  return normalized.map((shift) => {
+    const shiftId = typeof shift.id === 'string' ? shift.id.trim() : '';
+    const previous = shiftId ? previousById.get(shiftId) : undefined;
+    if (!previous) return shift;
+
+    const previousDate =
+      typeof previous.date === 'string' ? previous.date.trim() : '';
+    const nextDate = typeof shift.date === 'string' ? shift.date.trim() : '';
+    const dateChanged = Boolean(
+      previousDate && nextDate && previousDate !== nextDate,
+    );
+    if (!dateChanged) {
+      return {
+        ...shift,
+        confirmationResetReason:
+          shift.confirmationResetReason ?? previous.confirmationResetReason,
+      };
+    }
+
+    const roles = Array.isArray(shift.roles)
+      ? (shift.roles as Record<string, unknown>[])
+      : [];
+    const hasAssignedWorkers = roles.some(
+      (role) => asStringArray(role.assignedWorkers).length > 0,
+    );
+
+    return {
+      ...shift,
+      ...(hasAssignedWorkers ? { status: 'ready_to_notify' } : {}),
+      confirmationResetReason: 'date_changed',
+      roles: roles.map((role) => ({
+        ...role,
+        workerConfirmations: asStringArray(role.assignedWorkers).map(
+          buildPendingConfirmation,
+        ),
+      })),
+    };
+  });
+}
+
 export function updateShiftWorkerConfirmation(
   shifts: unknown,
   target: {

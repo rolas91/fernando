@@ -37,6 +37,14 @@ export class WorkOrderShift {
   @Column({ type: 'varchar', length: 64, nullable: true, default: null })
   status: string | null;
 
+  @Column({
+    name: 'confirmation_reset_reason',
+    type: 'varchar',
+    length: 32,
+    nullable: true,
+  })
+  confirmationResetReason: string | null;
+
   /**
    * Manual cancellation flag. When true, the shift computes to the automatic
    * `shift_cancelled` status regardless of `status` or confirmations.

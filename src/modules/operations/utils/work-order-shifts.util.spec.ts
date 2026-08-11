@@ -1,9 +1,111 @@
 import {
+  invalidateConfirmationsForChangedShiftDates,
   normalizeWorkOrderShifts,
   preserveOtherWorkerConfirmations,
   snapshotWorkerConfirmations,
   updateShiftWorkerConfirmation,
 } from './work-order-shifts.util';
+import {
+  computeShiftStatus,
+  InMemoryShiftCompletionLookup,
+} from './shift-status.util';
+
+describe('invalidateConfirmationsForChangedShiftDates', () => {
+  const previous = [
+    {
+      id: 'shift-1',
+      date: '2026-08-11',
+      status: 'ready_to_notify',
+      roles: [
+        {
+          id: 'role-1',
+          roleName: 'Flagger',
+          requiredCount: 2,
+          assignedWorkers: ['worker-a', 'worker-b'],
+          workerConfirmations: [
+            {
+              workerId: 'worker-a',
+              status: 'confirmed',
+              respondedAt: '2026-08-10T10:00:00.000Z',
+              requestedAt: '2026-08-09T10:00:00.000Z',
+              notificationChannel: 'in_app',
+            },
+            {
+              workerId: 'worker-b',
+              status: 'declined',
+              respondedAt: '2026-08-10T11:00:00.000Z',
+              requestedAt: '2026-08-09T10:00:00.000Z',
+              notificationChannel: 'sms',
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  it('resets every response and request when the shift date changes', () => {
+    const changed = invalidateConfirmationsForChangedShiftDates(
+      [{ ...previous[0], date: '2026-08-12' }],
+      previous,
+    );
+
+    expect(changed[0]).toMatchObject({
+      date: '2026-08-12',
+      status: 'ready_to_notify',
+      confirmationResetReason: 'date_changed',
+    });
+    expect(
+      (changed[0].roles as Array<Record<string, unknown>>)[0]
+        .workerConfirmations,
+    ).toEqual([
+      { workerId: 'worker-a', status: 'pending' },
+      { workerId: 'worker-b', status: 'pending' },
+    ]);
+
+    expect(
+      computeShiftStatus({
+        workOrderId: 'wo-1',
+        shift: changed[0],
+        completion: new InMemoryShiftCompletionLookup(),
+      }).status,
+    ).toBe('ready_to_notify');
+
+    const requested = {
+      ...changed[0],
+      roles: (changed[0].roles as Array<Record<string, unknown>>).map(
+        (role) => ({
+          ...role,
+          workerConfirmations: (
+            role.workerConfirmations as Array<Record<string, unknown>>
+          ).map((confirmation) => ({
+            ...confirmation,
+            requestedAt: '2026-08-11T12:00:00.000Z',
+            notificationChannel: 'in_app',
+          })),
+        }),
+      ),
+    };
+    expect(
+      computeShiftStatus({
+        workOrderId: 'wo-1',
+        shift: requested,
+        completion: new InMemoryShiftCompletionLookup(),
+      }).status,
+    ).toBe('awaiting_response');
+  });
+
+  it('preserves responses when another shift field changes', () => {
+    const unchangedDate = invalidateConfirmationsForChangedShiftDates(
+      [{ ...previous[0], shiftName: 'Updated name' }],
+      previous,
+    );
+
+    expect(
+      (unchangedDate[0].roles as Array<Record<string, unknown>>)[0]
+        .workerConfirmations,
+    ).toEqual(previous[0].roles[0].workerConfirmations);
+  });
+});
 
 const shiftsWithOneConfirmed = [
   {

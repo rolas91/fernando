@@ -490,6 +490,43 @@ export class IntegrationsService {
       };
     }
 
+    if (shift.confirmationResetReason === 'date_changed') {
+      const currentRequest = Array.isArray(role.workerConfirmations)
+        ? role.workerConfirmations.find(
+            (item: Record<string, unknown>) =>
+              item?.workerId === confirmation.workerId,
+          )
+        : undefined;
+      const currentRequestedAt =
+        typeof currentRequest?.requestedAt === 'string'
+          ? currentRequest.requestedAt
+          : '';
+      const linkRequestedAt =
+        confirmation.requestedAt instanceof Date
+          ? confirmation.requestedAt.toISOString()
+          : typeof confirmation.requestedAt === 'string'
+            ? confirmation.requestedAt
+            : '';
+      if (
+        !currentRequestedAt ||
+        !linkRequestedAt ||
+        new Date(currentRequestedAt).getTime() !==
+          new Date(linkRequestedAt).getTime()
+      ) {
+        return {
+          httpStatus: 409,
+          state: 'invalid',
+          title: 'Shift updated',
+          description:
+            'The shift date changed and this confirmation link expired. Please use the newest notification to confirm your availability.',
+          workerName,
+          projectName: workOrder.title,
+          shiftDate:
+            typeof shift.date === 'string' ? shift.date : undefined,
+        };
+      }
+    }
+
     const alreadyConfirmed = confirmation.status === 'confirmed';
     if (!alreadyConfirmed) {
       const respondedAt = new Date();

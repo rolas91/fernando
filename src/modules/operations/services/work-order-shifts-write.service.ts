@@ -15,6 +15,7 @@ export type ShiftWriteInput = {
   startTime: string;
   endTime: string;
   status?: string;
+  confirmationResetReason?: string | null;
   cancelled?: boolean;
   pmApprovedAt?: string | null;
   pmApprovedByUserId?: string | null;
@@ -124,6 +125,7 @@ export class WorkOrderShiftsWriteService {
           startTime: s.startTime,
           endTime: s.endTime,
           status: s.status?.trim() || null,
+          confirmationResetReason: s.confirmationResetReason?.trim() || null,
           cancelled: s.cancelled ?? false,
           pmApprovedAt: s.pmApprovedAt ? new Date(s.pmApprovedAt) : null,
           pmApprovedByUserId: s.pmApprovedByUserId ?? null,
@@ -350,6 +352,10 @@ export class WorkOrderShiftsWriteService {
         startTime,
         endTime,
         status: typeof raw.status === 'string' ? raw.status : '',
+        confirmationResetReason:
+          typeof raw.confirmationResetReason === 'string'
+            ? raw.confirmationResetReason
+            : null,
         cancelled: raw.cancelled === true,
         pmApprovedAt:
           typeof raw.pmApprovedAt === 'string' ? raw.pmApprovedAt : null,

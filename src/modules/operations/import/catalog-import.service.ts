@@ -31,6 +31,7 @@ import {
 import { parseClientRow } from './parsers/clients.parser';
 import { parseWorkerRow } from './parsers/workers.parser';
 import { getDescriptor } from './parsers/descriptors';
+import { idFromName } from './parsers/common';
 import type {
   ApplyResult,
   CatalogScope,
@@ -233,6 +234,14 @@ export class CatalogImportService {
       type: 'pattern',
       pattern: 'solid',
       fgColor: { argb: 'FFE0E7FF' },
+    };
+    descriptor.columns.forEach((column, index) => {
+      if (column.notes) ws.getCell(1, index + 1).note = column.notes;
+    });
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    ws.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: descriptor.columns.length },
     };
     ws.addRow(descriptor.exampleRow);
     const buffer = await wb.xlsx.writeBuffer();
@@ -575,9 +584,9 @@ export class CatalogImportService {
         if (payload.hourlyRate !== undefined) {
           payload.hourlyRate = String(payload.hourlyRate);
         }
-        const skillIds = await this.resolveNames(this.skillsRepo, skills);
-        const roleIds = await this.resolveNames(this.workerRolesRepo, workerRoles);
-        const certIds = await this.resolveNames(this.certificationsRepo, certs);
+        const skillIds = await this.resolveOrCreateNames(this.skillsRepo, skills, 'skl');
+        const roleIds = await this.resolveOrCreateNames(this.workerRolesRepo, workerRoles, 'wrl');
+        const certIds = await this.resolveOrCreateNames(this.certificationsRepo, certs, 'cert');
         const skillsEntities = skillIds.length
           ? await this.skillsRepo.findBy({ id: In(skillIds) })
           : [];
@@ -594,7 +603,7 @@ export class CatalogImportService {
         if (certIds.length > 0) {
           await this.replaceWorkerCertifications(saved.id, certIds);
         }
-        this.emitUpdated('workers');
+        this.emitUpdated('workers', 'skills', 'worker_roles', 'certifications');
         return;
       }
       default:
@@ -748,23 +757,23 @@ export class CatalogImportService {
         Object.assign(item, payload);
         item.country = (item.country ?? '').trim() || 'USA';
         if (skills.length) {
-          const skillIds = await this.resolveNames(this.skillsRepo, skills);
+          const skillIds = await this.resolveOrCreateNames(this.skillsRepo, skills, 'skl');
           item.skills = skillIds.length
             ? await this.skillsRepo.findBy({ id: In(skillIds) })
             : [];
         }
         if (workerRoles.length) {
-          const roleIds = await this.resolveNames(this.workerRolesRepo, workerRoles);
+          const roleIds = await this.resolveOrCreateNames(this.workerRolesRepo, workerRoles, 'wrl');
           item.workerRoles = roleIds.length
             ? await this.workerRolesRepo.findBy({ id: In(roleIds) })
             : [];
         }
         await this.workersRepo.save(item);
         if (certs.length) {
-          const certIds = await this.resolveNames(this.certificationsRepo, certs);
+          const certIds = await this.resolveOrCreateNames(this.certificationsRepo, certs, 'cert');
           await this.replaceWorkerCertifications(id, certIds);
         }
-        this.emitUpdated('workers');
+        this.emitUpdated('workers', 'skills', 'worker_roles', 'certifications');
         return;
       }
       default:
@@ -798,21 +807,45 @@ export class CatalogImportService {
     if (records.length > 0) await this.workerCertificationsRepo.save(records);
   }
 
-  private async resolveNames<T extends { id: string }>(
+  private async resolveOrCreateNames<
+    T extends { id: string; name: string; description: string; status: string },
+  >(
     repo: Repository<T>,
     names: string[],
+    idPrefix: string,
   ): Promise<string[]> {
     if (!names || names.length === 0) return [];
     const all = await repo.find();
     const lowerMap = new Map<string, string>();
+    const usedIds = new Set<string>();
     for (const item of all) {
-      const n = (item as unknown as { name?: string }).name;
-      if (n) lowerMap.set(n.trim().toLowerCase(), item.id);
+      usedIds.add(item.id.toLowerCase());
+      lowerMap.set(item.id.trim().toLowerCase(), item.id);
+      if (item.name) lowerMap.set(item.name.trim().toLowerCase(), item.id);
     }
     const out: string[] = [];
-    for (const name of names) {
-      const id = lowerMap.get(name.trim().toLowerCase());
-      if (id && !out.includes(id)) out.push(id);
+    for (const rawName of names) {
+      const name = rawName.trim();
+      if (!name) continue;
+      const lookupKey = name.toLowerCase();
+      let id = lowerMap.get(lookupKey);
+      if (!id) {
+        const baseId = idFromName(name, idPrefix);
+        id = baseId;
+        if (usedIds.has(id.toLowerCase())) {
+          id = `${baseId.slice(0, 55)}_${randomUUID().slice(0, 8)}`;
+        }
+        const entity = repo.create();
+        entity.id = id;
+        entity.name = name;
+        entity.description = '';
+        entity.status = 'active';
+        await repo.save(entity);
+        usedIds.add(id.toLowerCase());
+        lowerMap.set(lookupKey, id);
+        lowerMap.set(id.toLowerCase(), id);
+      }
+      if (!out.includes(id)) out.push(id);
     }
     return out;
   }

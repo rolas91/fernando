@@ -30,6 +30,7 @@ import {
 import { computeShiftStatus } from '../utils/shift-status.util';
 import {
   normalizeWorkOrderShifts,
+  invalidateConfirmationsForChangedShiftDates,
   preserveOtherWorkerConfirmations,
   snapshotWorkerConfirmations,
   updateShiftWorkerConfirmation,
@@ -2060,7 +2061,7 @@ export class WorkOrdersService {
 
     Object.assign(workOrder, dto);
     if (dto.shifts !== undefined) {
-      workOrder.shifts = normalizeWorkOrderShifts(
+      workOrder.shifts = invalidateConfirmationsForChangedShiftDates(
         dto.shifts,
         previousShiftsSnapshot,
       );

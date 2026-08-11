@@ -302,7 +302,7 @@ export function readCsv(
     return { value: [], row: 0 };
   }
   const parts = String(v)
-    .split(/[,;|]/)
+    .split(/[,;/|]/)
     .map((p) => {
       let s = p;
       if (trim) s = s.trim();

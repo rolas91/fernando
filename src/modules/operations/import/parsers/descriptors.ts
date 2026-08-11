@@ -252,9 +252,9 @@ const descriptors: Record<string, CatalogDescriptor> = {
       { key: 'hourlyRate', header: 'hourlyRate', required: true, type: 'number', aliases: ['hourly_rate'] },
       { key: 'emergencyContact', header: 'emergencyContact', required: false, aliases: ['emergency_contact'] },
       { key: 'notes', header: 'notes', required: false, type: 'string' },
-      { key: 'skills', header: 'skills', required: false, type: 'csv', notes: 'Nombres separados por coma' },
-      { key: 'workerRoles', header: 'workerRoles', required: false, type: 'csv', aliases: ['roles'], notes: 'Nombres separados por coma' },
-      { key: 'certifications', header: 'certifications', required: false, type: 'csv', notes: 'Nombres separados por coma' },
+      { key: 'skills', header: 'skills', required: false, type: 'csv', notes: 'Nombres separados por coma, slash (/), punto y coma o pipe (|)' },
+      { key: 'workerRoles', header: 'workerRoles', required: false, type: 'csv', aliases: ['roles'], notes: 'Nombres separados por coma, slash (/), punto y coma o pipe (|)' },
+      { key: 'certifications', header: 'certifications', required: false, type: 'csv', notes: 'Nombres separados por coma, slash (/), punto y coma o pipe (|)' },
     ],
   },
 };

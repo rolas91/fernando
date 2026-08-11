@@ -1,3 +1,11 @@
+jest.mock('expo-server-sdk', () => ({
+  Expo: class Expo {
+    static isExpoPushToken() {
+      return true;
+    }
+  },
+}));
+
 import { IntegrationsService } from './integrations.service';
 
 function makeRepo() {
@@ -72,6 +80,7 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
       roleId: 'r-1',
       workerId: 'w-1',
       status: 'pending',
+      requestedAt: new Date('2026-06-21T10:00:00.000Z'),
     });
     workOrdersRepo.findOne.mockResolvedValue({ id: 'wo-1' });
     workersRepo.findOne.mockResolvedValue({
@@ -86,11 +95,19 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
         date: '2026-06-22',
         startTime: '07:00',
         endTime: '15:30',
+        confirmationResetReason: 'date_changed',
         roles: [
           {
             id: 'r-1',
             roleName: 'Flagger',
             assignedWorkers: ['w-1'],
+            workerConfirmations: [
+              {
+                workerId: 'w-1',
+                status: 'pending',
+                requestedAt: '2026-06-21T10:00:00.000Z',
+              },
+            ],
           },
         ],
       },
@@ -138,6 +155,54 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
 
     expect(result.state).toBe('invalid');
     expect(result.httpStatus).toBe(409);
+    expect(shiftsWrite.updateWorkerConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('rejects an old confirmation link after the shift date changes', async () => {
+    const {
+      service,
+      confirmationsRepo,
+      workOrdersRepo,
+      workersRepo,
+      shiftsQuery,
+      shiftsWrite,
+    } = makeService();
+    confirmationsRepo.findOne.mockResolvedValue({
+      id: 'c-1',
+      token: 'old-token',
+      workOrderId: 'wo-1',
+      shiftId: 's-1',
+      roleId: 'r-1',
+      workerId: 'w-1',
+      status: 'confirmed',
+      requestedAt: new Date('2026-08-10T10:00:00.000Z'),
+    });
+    workOrdersRepo.findOne.mockResolvedValue({ id: 'wo-1', title: 'Project A' });
+    workersRepo.findOne.mockResolvedValue({
+      id: 'w-1',
+      firstName: 'Jane',
+      lastName: 'Doe',
+    });
+    shiftsQuery.loadShiftsForWorkOrder.mockResolvedValue([
+      {
+        id: 's-1',
+        date: '2026-08-12',
+        confirmationResetReason: 'date_changed',
+        roles: [
+          {
+            id: 'r-1',
+            assignedWorkers: ['w-1'],
+            workerConfirmations: [{ workerId: 'w-1', status: 'pending' }],
+          },
+        ],
+      },
+    ]);
+
+    const result = await service.confirmShiftAssignment('old-token');
+
+    expect(result.state).toBe('invalid');
+    expect(result.httpStatus).toBe(409);
+    expect(result.description).toContain('date changed');
     expect(shiftsWrite.updateWorkerConfirmation).not.toHaveBeenCalled();
   });
 

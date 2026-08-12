@@ -4,6 +4,7 @@ jest.mock('../../integrations/integrations.service', () => ({
 
 import {
   countsTowardShiftCompletion,
+  mobileShiftHasEnded,
   workOrderAccessNotificationChanges,
   WorkOrdersService,
 } from './work-orders.service';
@@ -37,6 +38,20 @@ describe('countsTowardShiftCompletion', () => {
         pdfUrl: '',
       }),
     ).toBe(false);
+  });
+});
+
+describe('mobileShiftHasEnded', () => {
+  it('ends a same-day shift at its local end time', () => {
+    const shift = { date: '2026-08-11', startTime: '08:00', endTime: '17:00' };
+    expect(mobileShiftHasEnded(shift, '2026-08-11T16:59')).toBe(false);
+    expect(mobileShiftHasEnded(shift, '2026-08-11T17:00')).toBe(true);
+  });
+
+  it('keeps an overnight shift active until the following day', () => {
+    const shift = { date: '2026-08-11', startTime: '22:00', endTime: '06:00' };
+    expect(mobileShiftHasEnded(shift, '2026-08-12T05:59')).toBe(false);
+    expect(mobileShiftHasEnded(shift, '2026-08-12T06:00')).toBe(true);
   });
 });
 

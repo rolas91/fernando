@@ -102,11 +102,13 @@ export class WorkOrdersController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'now', required: false, type: String })
   findMobileAssignments(
     @Req() req: ReqWithOpsUser,
     @Query('search') search?: string,
     @Query('filter') filter?: 'all' | 'upcoming' | 'this_week' | 'completed',
     @Query('today') today?: string,
+    @Query('now') now?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -114,6 +116,7 @@ export class WorkOrdersController {
       search,
       filter,
       today,
+      now,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });

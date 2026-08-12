@@ -52,6 +52,7 @@ type MobileAssignmentQuery = {
   search?: string;
   filter?: 'all' | 'upcoming' | 'this_week' | 'completed';
   today?: string;
+  now?: string;
   page?: number;
   limit?: number;
 };
@@ -251,6 +252,42 @@ function mobileShiftEndTime(startTime: string, template?: ShiftCatalog) {
       : templateEnd - templateStart + 24 * 60;
   const end = (shiftStart + duration) % (24 * 60);
   return `${String(Math.floor(end / 60)).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`;
+}
+
+export function mobileShiftHasEnded(
+  shift: { date?: string; startTime?: string; endTime?: string },
+  localNow: string,
+) {
+  const dateMatch = shift.date?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const nowMatch = localNow.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!dateMatch || !nowMatch) return false;
+
+  const nowValue = Date.UTC(
+    Number(nowMatch[1]),
+    Number(nowMatch[2]) - 1,
+    Number(nowMatch[3]),
+    Number(nowMatch[4]),
+    Number(nowMatch[5]),
+  );
+  const endMinutes = mobileClockMinutes(shift.endTime);
+  if (endMinutes === null) {
+    return nowValue >= Date.UTC(
+      Number(dateMatch[1]),
+      Number(dateMatch[2]) - 1,
+      Number(dateMatch[3]) + 1,
+    );
+  }
+
+  const startMinutes = mobileClockMinutes(shift.startTime);
+  const crossesMidnight = startMinutes !== null && endMinutes <= startMinutes;
+  const endValue = Date.UTC(
+    Number(dateMatch[1]),
+    Number(dateMatch[2]) - 1,
+    Number(dateMatch[3]) + (crossesMidnight ? 1 : 0),
+    Math.floor(endMinutes / 60),
+    endMinutes % 60,
+  );
+  return nowValue >= endValue;
 }
 
 @Injectable()
@@ -556,6 +593,10 @@ export class WorkOrdersService {
       const todayKey = /^\d{4}-\d{2}-\d{2}$/.test(query.today || '')
         ? (query.today as string)
         : serverTodayKey;
+      const serverNow = new Date();
+      const localNowKey = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(query.now || '')
+        ? (query.now as string)
+        : `${serverTodayKey}T${String(serverNow.getHours()).padStart(2, '0')}:${String(serverNow.getMinutes()).padStart(2, '0')}`;
       const today = new Date(`${todayKey}T12:00:00Z`);
       const weekStart = new Date(today);
       const day = today.getUTCDay();
@@ -582,12 +623,17 @@ export class WorkOrdersService {
           assignment.shifts.map((shift) => ({ assignment, shift })),
         )
         .filter(({ shift }) => {
-          if (filter === 'completed') return Boolean(shift.completed);
+          const noResponse =
+            shift.confirmationStatus === 'pending' &&
+            shift.confirmationRequested === true &&
+            mobileShiftHasEnded(shift, localNowKey);
+          if (filter === 'completed') return Boolean(shift.completed) || noResponse;
           if (filter === 'upcoming')
-            return !shift.completed && shift.date >= todayKey;
+            return !shift.completed && !noResponse && shift.date >= todayKey;
           if (filter === 'this_week') {
             return (
               !shift.completed &&
+              !noResponse &&
               shift.date >= weekStartKey &&
               shift.date <= weekEndKey
             );

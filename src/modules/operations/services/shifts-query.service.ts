@@ -33,7 +33,7 @@ export class ShiftsQueryService {
   ): Promise<Record<string, unknown>[] | null> {
     const shiftRows = await this.shiftsRepo.find({
       where: { workOrderId },
-      order: { date: 'ASC' },
+      order: { date: 'ASC', displayOrder: 'ASC' },
       relations: { pmApprovedByUser: true },
     });
     if (shiftRows.length === 0) return null;
@@ -73,6 +73,7 @@ export class ShiftsQueryService {
         workOrderId: shift.workOrderId,
         shiftName: shift.shiftName,
         date: shift.date,
+        displayOrder: shift.displayOrder,
         startTime: shift.startTime,
         endTime: shift.endTime,
         status: shift.status,
@@ -148,7 +149,7 @@ export class ShiftsQueryService {
 
     const shiftRows = await this.shiftsRepo.find({
       where: { workOrderId: In(workOrderIds) },
-      order: { date: 'ASC' },
+      order: { date: 'ASC', displayOrder: 'ASC' },
       relations: { pmApprovedByUser: true },
     });
     if (shiftRows.length === 0) return out;
@@ -198,6 +199,7 @@ export class ShiftsQueryService {
             workOrderId: shift.workOrderId,
             shiftName: shift.shiftName,
             date: shift.date,
+            displayOrder: shift.displayOrder,
             startTime: shift.startTime,
             endTime: shift.endTime,
             status: shift.status,

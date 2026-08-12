@@ -31,6 +31,7 @@ import { computeShiftStatus } from '../utils/shift-status.util';
 import {
   normalizeWorkOrderShifts,
   invalidateConfirmationsForChangedShiftDates,
+  placeNewShiftsFirstWithinDates,
   preserveOtherWorkerConfirmations,
   snapshotWorkerConfirmations,
   updateShiftWorkerConfirmation,
@@ -2065,6 +2066,10 @@ export class WorkOrdersService {
         dto.shifts,
         previousShiftsSnapshot,
       );
+      workOrder.shifts = placeNewShiftsFirstWithinDates(
+        workOrder.shifts as Record<string, unknown>[],
+        previousShiftsSnapshot,
+      );
       this.assertWorkOrderDelegationChangesAllowed(
         actor,
         previousShiftsSnapshot,
@@ -2318,8 +2323,8 @@ export class WorkOrdersService {
         created,
       );
       await this.shiftsWrite.replaceShiftsForWorkOrder(saved.id, [
-        ...existingWriteInputs,
         ...newWriteInputs,
+        ...existingWriteInputs,
       ]);
     }
     await this.refreshShifts(saved);

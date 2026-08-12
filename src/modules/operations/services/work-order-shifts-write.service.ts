@@ -12,6 +12,7 @@ export type ShiftWriteInput = {
   id: string;
   shiftName: string;
   date: string;
+  displayOrder?: number;
   startTime: string;
   endTime: string;
   status?: string;
@@ -106,7 +107,7 @@ export class WorkOrderShiftsWriteService {
       }
       if (shifts.length === 0) return;
 
-      const shiftRows = shifts.map((s) => {
+      const shiftRows = shifts.map((s, index) => {
         const assignedWorkerIds = new Set(
           s.roles.flatMap((role) => role.assignedWorkers.map((worker) => worker.workerId)),
         );
@@ -122,6 +123,9 @@ export class WorkOrderShiftsWriteService {
           workOrderId,
           shiftName: s.shiftName?.trim() ?? '',
           date: s.date,
+          // The incoming array is the user's current visual order. Re-number
+          // every save so editing one shift cannot move it unexpectedly.
+          displayOrder: index,
           startTime: s.startTime,
           endTime: s.endTime,
           status: s.status?.trim() || null,
@@ -349,6 +353,10 @@ export class WorkOrderShiftsWriteService {
         id,
         shiftName: String(raw.shiftName ?? '').trim(),
         date,
+        displayOrder:
+          typeof raw.displayOrder === 'number' && Number.isFinite(raw.displayOrder)
+            ? Math.max(0, Math.floor(raw.displayOrder))
+            : undefined,
         startTime,
         endTime,
         status: typeof raw.status === 'string' ? raw.status : '',

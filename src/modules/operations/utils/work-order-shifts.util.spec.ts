@@ -1,10 +1,31 @@
 import {
   invalidateConfirmationsForChangedShiftDates,
   normalizeWorkOrderShifts,
+  placeNewShiftsFirstWithinDates,
   preserveOtherWorkerConfirmations,
   snapshotWorkerConfirmations,
   updateShiftWorkerConfirmation,
 } from './work-order-shifts.util';
+
+describe('placeNewShiftsFirstWithinDates', () => {
+  it('puts a new shift first on its date without moving edited shifts', () => {
+    const previous = [
+      { id: 'shift-a', date: '2026-08-12' },
+      { id: 'shift-b', date: '2026-08-12' },
+    ];
+
+    expect(
+      placeNewShiftsFirstWithinDates(
+        [
+          { id: 'shift-a', date: '2026-08-12', shiftName: 'Edited' },
+          { id: 'shift-b', date: '2026-08-12' },
+          { id: 'shift-new', date: '2026-08-12' },
+        ],
+        previous,
+      ).map((shift) => shift.id),
+    ).toEqual(['shift-new', 'shift-a', 'shift-b']);
+  });
+});
 import {
   computeShiftStatus,
   InMemoryShiftCompletionLookup,

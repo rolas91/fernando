@@ -110,6 +110,12 @@ describe('ShiftsQueryService', () => {
     );
     const result = await service.loadShiftsForWorkOrder('wo-1');
 
+    expect(shiftsRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        order: { date: 'ASC', displayOrder: 'ASC' },
+      }),
+    );
+
     expect(result).toMatchObject([
       {
         id: 's1',

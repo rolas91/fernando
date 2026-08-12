@@ -28,6 +28,9 @@ export class WorkOrderShift {
   @Column({ type: 'date' })
   date: string;
 
+  @Column({ name: 'display_order', type: 'integer', default: 0 })
+  displayOrder: number;
+
   @Column({ name: 'start_time', type: 'varchar', length: 16, default: '' })
   startTime: string;
 

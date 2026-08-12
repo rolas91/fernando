@@ -272,6 +272,38 @@ export function invalidateConfirmationsForChangedShiftDates(
   });
 }
 
+/** Places newly-created shifts before existing shifts on the same date. */
+export function placeNewShiftsFirstWithinDates(
+  shifts: Record<string, unknown>[],
+  previousShifts: unknown,
+): Record<string, unknown>[] {
+  const previousIds = new Set(
+    (Array.isArray(previousShifts) ? previousShifts : [])
+      .map((value) => asObject(value).id)
+      .filter((id): id is string => typeof id === 'string' && Boolean(id)),
+  );
+  if (previousIds.size === 0) return shifts;
+
+  const groups = new Map<
+    string,
+    { newlyCreated: Record<string, unknown>[]; existing: Record<string, unknown>[] }
+  >();
+  shifts.forEach((shift) => {
+    const date = typeof shift.date === 'string' ? shift.date : '';
+    const group = groups.get(date) ?? { newlyCreated: [], existing: [] };
+    const id = typeof shift.id === 'string' ? shift.id : '';
+    (id && previousIds.has(id) ? group.existing : group.newlyCreated).push(
+      shift,
+    );
+    groups.set(date, group);
+  });
+
+  return [...groups.values()].flatMap((group) => [
+    ...group.newlyCreated,
+    ...group.existing,
+  ]);
+}
+
 export function updateShiftWorkerConfirmation(
   shifts: unknown,
   target: {

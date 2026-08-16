@@ -472,12 +472,20 @@ export class FormContextResolutionService {
         const configuredIds = Array.isArray(row.materialIds)
           ? new Set(row.materialIds.map((id) => String(id).trim()).filter(Boolean))
           : null;
+        const configuredQuantities = isRecord(row.materialQuantities)
+          ? row.materialQuantities
+          : {};
         const items = materials
           .filter((item) =>
             normalizedType(item.type) === normalizedType(row.type) &&
             item.status !== 'retired' &&
             (configuredIds === null || configuredIds.has(item.id)))
-          .map((item) => ({ id: item.id, type: item.type, label: formatMaterial(item) }));
+          .map((item) => ({
+            id: item.id,
+            type: item.type,
+            label: formatMaterial(item),
+            estimatedQuantity: Math.max(0, Number(configuredQuantities[item.id]) || 0),
+          }));
         return {
           type: String(row.type).trim(),
           estimatedQuantity: quantity(row),

@@ -34,7 +34,7 @@ export type ShiftWriteInput = {
   clientTimesheetNotes?: string;
   internalTimesheetNotes?: string;
   plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
-  plannedMaterials?: Array<{ type: string; estimatedQuantity: number; materialIds?: string[] }>;
+  plannedMaterials?: Array<{ type: string; estimatedQuantity: number; materialIds?: string[]; materialQuantities?: Record<string, number> }>;
   workOrderTypes?: string[];
   workOrderAuthorizedWorkerIds?: string[];
   defaultRoleStartTime?: string | null;

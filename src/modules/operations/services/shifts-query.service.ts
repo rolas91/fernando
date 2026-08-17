@@ -34,7 +34,7 @@ export class ShiftsQueryService {
     const shiftRows = await this.shiftsRepo.find({
       where: { workOrderId },
       order: { date: 'ASC', displayOrder: 'ASC' },
-      relations: { pmApprovedByUser: true },
+      relations: { pmApprovedByUser: true, createdByUser: true },
     });
     if (shiftRows.length === 0) return null;
 
@@ -85,6 +85,9 @@ export class ShiftsQueryService {
           ? `${shift.pmApprovedByUser.firstName} ${shift.pmApprovedByUser.lastName}`.trim()
           : undefined,
         createdByUserId: shift.createdByUserId ?? undefined,
+        createdByName: shift.createdByUser
+          ? `${shift.createdByUser.firstName} ${shift.createdByUser.lastName}`.trim()
+          : undefined,
         requesterUserId: shift.requesterUserId ?? undefined,
         address: shift.address ?? undefined,
         crossStreetLocationDetail: shift.crossStreetLocationDetail ?? undefined,
@@ -150,7 +153,7 @@ export class ShiftsQueryService {
     const shiftRows = await this.shiftsRepo.find({
       where: { workOrderId: In(workOrderIds) },
       order: { date: 'ASC', displayOrder: 'ASC' },
-      relations: { pmApprovedByUser: true },
+      relations: { pmApprovedByUser: true, createdByUser: true },
     });
     if (shiftRows.length === 0) return out;
 
@@ -211,6 +214,9 @@ export class ShiftsQueryService {
               ? `${shift.pmApprovedByUser.firstName} ${shift.pmApprovedByUser.lastName}`.trim()
               : undefined,
             createdByUserId: shift.createdByUserId ?? undefined,
+            createdByName: shift.createdByUser
+              ? `${shift.createdByUser.firstName} ${shift.createdByUser.lastName}`.trim()
+              : undefined,
             requesterUserId: shift.requesterUserId ?? undefined,
             address: shift.address ?? undefined,
             crossStreetLocationDetail: shift.crossStreetLocationDetail ?? undefined,

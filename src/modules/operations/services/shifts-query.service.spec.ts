@@ -56,6 +56,10 @@ describe('ShiftsQueryService', () => {
         endTime: '15:30',
         defaultRoleStartTime: '07:00',
         shiftTemplateId: 'tpl-1',
+        createdByUserId: 'user-created',
+        createdByUser: { firstName: 'Casey', lastName: 'Creator' },
+        pmApprovedByUserId: 'user-approved',
+        pmApprovedByUser: { firstName: 'Alex', lastName: 'Approver' },
       },
     ]);
     shiftsRepo.count.mockResolvedValue(1);
@@ -125,6 +129,10 @@ describe('ShiftsQueryService', () => {
         endTime: '15:30',
         defaultRoleStartTime: '07:00',
         shiftTemplateId: 'tpl-1',
+        createdByUserId: 'user-created',
+        createdByName: 'Casey Creator',
+        pmApprovedByUserId: 'user-approved',
+        pmApprovedByName: 'Alex Approver',
         roles: [
           {
             id: 'r1',

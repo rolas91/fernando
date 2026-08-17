@@ -170,6 +170,64 @@ describe('calculateTimesheetHours', () => {
       ),
     ).toEqual({ st: 8, ot: 1, dt: 0, total: 9 });
   });
+
+  it('classifies every Saturday hour as OT and hours after 12 as DT', () => {
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '06:00',
+          endTime: '20:00',
+          date: '2026-08-15',
+          lunchTaken: true,
+        },
+        rules,
+      ),
+    ).toEqual({ st: 0, ot: 12, dt: 2, total: 14 });
+  });
+
+  it('classifies every Sunday hour as DT', () => {
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '07:00',
+          endTime: '16:00',
+          date: '2026-08-16',
+          lunchTaken: true,
+        },
+        rules,
+      ),
+    ).toEqual({ st: 0, ot: 0, dt: 9, total: 9 });
+  });
+
+  it('uses editable weekend switches and Saturday threshold', () => {
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '07:00',
+          endTime: '18:00',
+          date: '2026-08-15',
+          lunchTaken: true,
+        },
+        {
+          ...rules,
+          saturdayAllOvertime: true,
+          saturdayDoubleTimeThreshold: 10,
+        },
+      ),
+    ).toEqual({ st: 0, ot: 10, dt: 1, total: 11 });
+
+    expect(
+      calculateTimesheetHours(
+        {
+          startTime: '07:00',
+          endTime: '16:00',
+          date: '2026-08-15',
+          lunchTaken: true,
+        },
+        { ...rules, saturdayAllOvertime: false },
+      ),
+    ).toEqual({ st: 8, ot: 1, dt: 0, total: 9 });
+  });
 });
 
 describe('validateTimesheetStartTime', () => {

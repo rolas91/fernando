@@ -691,6 +691,9 @@ function timeToMinutes(value: string) {
 export type TimesheetCalculationRules = {
   regularHoursLimit: number;
   doubleTimeThreshold: number;
+  saturdayAllOvertime: boolean;
+  saturdayDoubleTimeThreshold: number;
+  sundayAllDoubleTime: boolean;
   noLunchCreditEnabled: boolean;
   noLunchCreditMinimumHours: number;
   noLunchCreditHours: number;
@@ -707,6 +710,12 @@ export function timesheetCalculationRules(
   return {
     regularHoursLimit: positiveNumber(rules?.regularHoursLimit, 8),
     doubleTimeThreshold: positiveNumber(rules?.doubleTimeThreshold, 12),
+    saturdayAllOvertime: booleanValue(rules?.saturdayAllOvertime, true),
+    saturdayDoubleTimeThreshold: positiveNumber(
+      rules?.saturdayDoubleTimeThreshold,
+      12,
+    ),
+    sundayAllDoubleTime: booleanValue(rules?.sundayAllDoubleTime, true),
     noLunchCreditEnabled: booleanValue(rules?.noLunchCreditEnabled, true),
     noLunchCreditMinimumHours: nonNegativeNumber(
       rules?.noLunchCreditMinimumHours,
@@ -776,13 +785,6 @@ export function calculateTimesheetHours(
       ? rules.yesLunchDeductionHours
       : 0;
   const payableHours = Math.max(0, totalHours - lunchDeduction);
-  const regularLimit = rules.regularHoursLimit;
-  const doubleTimeThreshold = Math.max(rules.doubleTimeThreshold, regularLimit);
-  const dt = Math.max(0, payableHours - doubleTimeThreshold);
-  const ot = Math.max(
-    0,
-    Math.min(payableHours, doubleTimeThreshold) - regularLimit,
-  );
   const lunchCredit =
     rules.noLunchCreditEnabled &&
     row.lunchTaken === false &&
@@ -793,9 +795,38 @@ export function calculateTimesheetHours(
     stringValue(row.date) || stringValue(row.shiftDate),
     rules,
   );
-  const st =
-    Math.min(payableHours, regularLimit) + (target === 'st' ? lunchCredit : 0);
-  const creditedOt = ot + (target === 'ot' ? lunchCredit : 0);
+  const weekday = timesheetWeekday(
+    stringValue(row.date) || stringValue(row.shiftDate),
+  );
+  let st: number;
+  let creditedOt: number;
+  let dt: number;
+
+  if (weekday === 0 && rules.sundayAllDoubleTime) {
+    st = 0;
+    creditedOt = 0;
+    dt = payableHours + lunchCredit;
+  } else if (weekday === 6 && rules.saturdayAllOvertime) {
+    const saturdayThreshold = rules.saturdayDoubleTimeThreshold;
+    st = 0;
+    dt = Math.max(0, payableHours - saturdayThreshold);
+    creditedOt = Math.min(payableHours, saturdayThreshold) + lunchCredit;
+  } else {
+    const regularLimit = rules.regularHoursLimit;
+    const doubleTimeThreshold = Math.max(
+      rules.doubleTimeThreshold,
+      regularLimit,
+    );
+    dt = Math.max(0, payableHours - doubleTimeThreshold);
+    const ot = Math.max(
+      0,
+      Math.min(payableHours, doubleTimeThreshold) - regularLimit,
+    );
+    st =
+      Math.min(payableHours, regularLimit) +
+      (target === 'st' ? lunchCredit : 0);
+    creditedOt = ot + (target === 'ot' ? lunchCredit : 0);
+  }
 
   return {
     st: roundHours(st),
@@ -803,6 +834,18 @@ export function calculateTimesheetHours(
     dt: roundHours(dt),
     total: roundHours(st + creditedOt + dt),
   };
+}
+
+function timesheetWeekday(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return -1;
+  const date = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    12,
+  );
+  return Number.isNaN(date.getTime()) ? -1 : date.getDay();
 }
 
 export function validateTimesheetStartTime(

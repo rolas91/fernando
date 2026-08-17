@@ -62,6 +62,12 @@ const DEFAULT_SETTINGS: Pick<
     overtimeMultiplier: 1.5,
     doubleTimeThreshold: 12,
     doubleTimeMultiplier: 2.0,
+    nightShiftPremium: 3,
+    overtimeNightPremium: 4.5,
+    doubleTimeNightPremium: 6,
+    saturdayAllOvertime: true,
+    saturdayDoubleTimeThreshold: 12,
+    sundayAllDoubleTime: true,
     noLunchCreditEnabled: true,
     noLunchCreditMinimumHours: 7,
     noLunchCreditHours: 1,
@@ -1266,8 +1272,10 @@ async function seedCatalogs(dataSource: DataSource) {
     existing.jobStatuses,
     DEFAULT_SETTINGS.jobStatuses,
   );
-  existing.overtimeRules =
-    existing.overtimeRules || DEFAULT_SETTINGS.overtimeRules;
+  existing.overtimeRules = {
+    ...(DEFAULT_SETTINGS.overtimeRules || {}),
+    ...(existing.overtimeRules || {}),
+  };
   existing.name = existing.name || DEFAULT_SETTINGS.name;
   existing.address = existing.address || DEFAULT_SETTINGS.address;
   existing.phone = existing.phone || DEFAULT_SETTINGS.phone;

@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
@@ -71,6 +75,10 @@ export class AuthService {
     const ok = await this.passwordHasher.compare(password, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (user.status !== 'active') {
+      throw new ForbiddenException('Account unavailable');
     }
 
     await this.users.touchLastLogin(user.id, new Date());

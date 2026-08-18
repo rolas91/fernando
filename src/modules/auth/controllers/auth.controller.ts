@@ -17,11 +17,14 @@ import { UsersService } from '../../users/services/users.service';
 import { LoginCommand } from '../commands/login.command';
 import { RegisterCommand } from '../commands/register.command';
 import { ChangePasswordDto } from '../dto/change-password.dto';
+import { CompletePasswordResetDto } from '../dto/complete-password-reset.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PasswordHasherService } from '../services/password-hasher.service';
+import { PasswordRecoveryService } from '../services/password-recovery.service';
 
 type AuthedRequest = Request & {
   user: UserAccessContext;
@@ -35,6 +38,7 @@ export class AuthController {
     private readonly queryBus: QueryBus,
     private readonly usersService: UsersService,
     private readonly passwordHasher: PasswordHasherService,
+    private readonly passwordRecovery: PasswordRecoveryService,
   ) {}
 
   @Post('register')
@@ -55,6 +59,18 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   login(@Body() dto: LoginDto) {
     return this.commandBus.execute(new LoginCommand(dto.email, dto.password));
+  }
+
+  @Post('forgot-password')
+  @ApiBody({ type: ForgotPasswordDto })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.passwordRecovery.requestReset(dto.email);
+  }
+
+  @Post('reset-password')
+  @ApiBody({ type: CompletePasswordResetDto })
+  resetPassword(@Body() dto: CompletePasswordResetDto) {
+    return this.passwordRecovery.completeReset(dto.token, dto.newPassword);
   }
 
   @Get('me')

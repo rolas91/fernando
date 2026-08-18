@@ -3,10 +3,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import type { SignOptions } from 'jsonwebtoken';
 import { AccessModule } from '../access/access.module';
 import { UsersModule } from '../users/users.module';
 import { ensureRuntimeEnv } from '../../config/ensure-env';
+import { PasswordResetToken } from '../../entities/password-reset-token.entity';
 import { AuthController } from './controllers/auth.controller';
 import { UsersController } from './controllers/users.controller';
 import { LoginHandler } from './handlers/login.handler';
@@ -14,6 +16,7 @@ import { RegisterHandler } from './handlers/register.handler';
 import { AuthTokenService } from './services/auth-token.service';
 import { AuthService } from './services/auth.service';
 import { PasswordHasherService } from './services/password-hasher.service';
+import { PasswordRecoveryService } from './services/password-recovery.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 const commandHandlers = [RegisterHandler, LoginHandler];
@@ -23,6 +26,7 @@ const commandHandlers = [RegisterHandler, LoginHandler];
     AccessModule,
     CqrsModule,
     UsersModule,
+    TypeOrmModule.forFeature([PasswordResetToken]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -44,6 +48,7 @@ const commandHandlers = [RegisterHandler, LoginHandler];
     AuthService,
     AuthTokenService,
     PasswordHasherService,
+    PasswordRecoveryService,
     JwtStrategy,
   ],
   exports: [AuthTokenService, PasswordHasherService],

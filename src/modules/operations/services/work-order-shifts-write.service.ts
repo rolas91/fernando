@@ -95,16 +95,7 @@ export class WorkOrderShiftsWriteService {
   ): Promise<void> {
     const roleIds = new Set<string>();
     for (const shift of shifts) {
-      const roleNames = new Set<string>();
       for (const role of shift.roles) {
-        const normalizedRoleName = role.roleName.trim().toLowerCase();
-        if (roleNames.has(normalizedRoleName)) {
-          throw new BadRequestException(
-            `Shift "${shift.shiftName || shift.id}" cannot contain the role "${role.roleName.trim()}" more than once. Increase its quantity instead.`,
-          );
-        }
-        roleNames.add(normalizedRoleName);
-
         if (roleIds.has(role.id)) {
           throw new BadRequestException(
             `Duplicate shift role identifier "${role.id}". Refresh the page and try again.`,

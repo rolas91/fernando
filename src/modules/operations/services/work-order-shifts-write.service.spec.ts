@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { ShiftWriteInput } from './work-order-shifts-write.service';
 import { WorkOrderShiftsWriteService } from './work-order-shifts-write.service';
 
-describe('WorkOrderShiftsWriteService role validation', () => {
+describe('WorkOrderShiftsWriteService role identifier validation', () => {
   const dataSource = { transaction: jest.fn() };
   const service = new WorkOrderShiftsWriteService(
     dataSource as never,
@@ -13,7 +13,7 @@ describe('WorkOrderShiftsWriteService role validation', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('rejects the same role name twice in one shift before opening a transaction', async () => {
+  it('rejects duplicate role identifiers before opening a transaction', async () => {
     const shift: ShiftWriteInput = {
       id: 'shift-1',
       shiftName: 'Night Shift',
@@ -28,8 +28,8 @@ describe('WorkOrderShiftsWriteService role validation', () => {
           assignedWorkers: [],
         },
         {
-          id: 'role-2',
-          roleName: ' flagger ',
+          id: 'role-1',
+          roleName: 'Lead',
           requiredCount: 2,
           assignedWorkers: [],
         },
@@ -40,7 +40,7 @@ describe('WorkOrderShiftsWriteService role validation', () => {
       service.replaceShiftsForWorkOrder('work-order-1', [shift]),
     ).rejects.toEqual(
       new BadRequestException(
-        'Shift "Night Shift" cannot contain the role "flagger" more than once. Increase its quantity instead.',
+        'Duplicate shift role identifier "role-1". Refresh the page and try again.',
       ),
     );
     expect(dataSource.transaction).not.toHaveBeenCalled();

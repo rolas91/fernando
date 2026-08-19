@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
@@ -88,6 +93,27 @@ export class WorkOrderShiftsWriteService {
     workOrderId: string,
     shifts: ShiftWriteInput[],
   ): Promise<void> {
+    const roleIds = new Set<string>();
+    for (const shift of shifts) {
+      const roleNames = new Set<string>();
+      for (const role of shift.roles) {
+        const normalizedRoleName = role.roleName.trim().toLowerCase();
+        if (roleNames.has(normalizedRoleName)) {
+          throw new BadRequestException(
+            `Shift "${shift.shiftName || shift.id}" cannot contain the role "${role.roleName.trim()}" more than once. Increase its quantity instead.`,
+          );
+        }
+        roleNames.add(normalizedRoleName);
+
+        if (roleIds.has(role.id)) {
+          throw new BadRequestException(
+            `Duplicate shift role identifier "${role.id}". Refresh the page and try again.`,
+          );
+        }
+        roleIds.add(role.id);
+      }
+    }
+
     await this.dataSource.transaction(async (manager) => {
       const shiftRepo = manager.getRepository(WorkOrderShift);
       const roleRepo = manager.getRepository(WorkOrderShiftRole);

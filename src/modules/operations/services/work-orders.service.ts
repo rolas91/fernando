@@ -1531,11 +1531,12 @@ export class WorkOrdersService {
   ) {
     const equipmentIds = new Set<string>();
     const materialIds = new Set<string>();
+    const equipmentShiftIds = new Map<string, Set<string>>();
+    const materialShiftIds = new Map<string, Set<string>>();
     for (const submission of submissions) {
-      if (
-        visibleShiftIds &&
-        (!submission.shiftId || !visibleShiftIds.has(submission.shiftId))
-      ) {
+      const shiftId =
+        typeof submission.shiftId === 'string' ? submission.shiftId.trim() : '';
+      if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId))) {
         continue;
       }
       const pending: unknown[] = [submission.data];
@@ -1547,10 +1548,24 @@ export class WorkOrdersService {
               continue;
             const row = entry as Record<string, unknown>;
             if (typeof row.equipmentId === 'string' && row.equipmentId.trim()) {
-              equipmentIds.add(row.equipmentId.trim());
+              const equipmentId = row.equipmentId.trim();
+              equipmentIds.add(equipmentId);
+              if (shiftId) {
+                const shiftIds =
+                  equipmentShiftIds.get(equipmentId) ?? new Set<string>();
+                shiftIds.add(shiftId);
+                equipmentShiftIds.set(equipmentId, shiftIds);
+              }
             }
             if (typeof row.materialId === 'string' && row.materialId.trim()) {
-              materialIds.add(row.materialId.trim());
+              const materialId = row.materialId.trim();
+              materialIds.add(materialId);
+              if (shiftId) {
+                const shiftIds =
+                  materialShiftIds.get(materialId) ?? new Set<string>();
+                shiftIds.add(shiftId);
+                materialShiftIds.set(materialId, shiftIds);
+              }
             }
           }
           continue;
@@ -1560,7 +1575,12 @@ export class WorkOrdersService {
         }
       }
     }
-    return { equipmentIds, materialIds };
+    return {
+      equipmentIds,
+      materialIds,
+      equipmentShiftIds,
+      materialShiftIds,
+    };
   }
 
   private collectMobileQuickAccessIds(
@@ -1635,10 +1655,11 @@ export class WorkOrdersService {
       workOrder,
       visibleShiftIds,
     );
-    const { equipmentIds, materialIds } = this.collectSubmittedResourceIds(
-      maps?.resourceSubmissionsByWorkOrderId.get(workOrder.id) || [],
-      visibleShiftIds,
-    );
+    const { equipmentIds, materialIds, equipmentShiftIds, materialShiftIds } =
+      this.collectSubmittedResourceIds(
+        maps?.resourceSubmissionsByWorkOrderId.get(workOrder.id) || [],
+        visibleShiftIds,
+      );
     const crew = [...workerIds].map((id) => {
       const worker = maps?.workerById.get(id);
       const name = worker
@@ -1683,6 +1704,7 @@ export class WorkOrdersService {
           type: item?.type || 'Equipment',
           identifier: item?.identifier || '',
           kind: 'equipment',
+          shiftIds: [...(equipmentShiftIds.get(id) ?? [])],
         };
       }),
       ...[...materialIds].map((id) => {
@@ -1696,6 +1718,7 @@ export class WorkOrdersService {
           type: item?.type || 'Material',
           identifier: item?.identifier || '',
           kind: 'material',
+          shiftIds: [...(materialShiftIds.get(id) ?? [])],
         };
       }),
     ];

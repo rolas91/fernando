@@ -262,7 +262,7 @@ export class SpacesStorageService {
   private assertConfigured() {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException(
-        'DigitalOcean Spaces is not configured in this environment.',
+        'File storage is unavailable. Please contact your administrator.',
       );
     }
   }
@@ -315,7 +315,7 @@ export class SpacesStorageService {
       this.logger.error(
         `Spaces upload failed for key=${key}: ${response.status} ${detail}`,
       );
-      throw new InternalServerErrorException('Could not upload file to DigitalOcean Spaces.');
+      throw new InternalServerErrorException('Could not upload the file. Please try again.');
     }
   }
 
@@ -333,7 +333,7 @@ export class SpacesStorageService {
       this.logger.error(
         `Spaces delete failed for key=${key}: ${response.status} ${detail}`,
       );
-      throw new InternalServerErrorException('Could not delete file from DigitalOcean Spaces.');
+      throw new InternalServerErrorException('Could not delete the file. Please try again.');
     }
   }
 
@@ -451,7 +451,7 @@ export class SpacesStorageService {
       }
     }
 
-    throw new InternalServerErrorException('Could not resolve the Spaces object key from the provided URL.');
+    throw new InternalServerErrorException('Could not locate the file from the provided URL.');
   }
 
   private getBucketHost() {

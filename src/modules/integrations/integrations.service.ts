@@ -321,7 +321,7 @@ export class IntegrationsService {
         success: true,
         simulated: true,
         channel: 'in_app',
-        note: 'Push simulated because no valid Expo push tokens found.',
+        note: 'Notification simulated because no valid registered devices were found.',
       };
     }
 
@@ -373,7 +373,7 @@ export class IntegrationsService {
         success: false,
         simulated: false,
         channel: 'in_app',
-        error: sendResults.find((item) => !item.ok)?.error || 'Expo Push rejected all chat messages.',
+        error: sendResults.find((item) => !item.ok)?.error || 'Could not deliver the chat notifications.',
       };
     }
 
@@ -883,7 +883,7 @@ export class IntegrationsService {
         simulated: false,
         channel: 'whatsapp',
         error:
-          'Invalid WhatsApp number. Set TWILIO_WHATSAPP_FROM (recommended) or a valid TWILIO_FROM_NUMBER for WhatsApp.',
+          'The messaging number is invalid or unavailable. Please contact your administrator.',
       };
     }
 
@@ -1020,7 +1020,7 @@ export class IntegrationsService {
         success: false,
         simulated: false,
         channel,
-        error: failureBody || `Twilio error ${res.status}`,
+        error: 'Could not send the message. Please try again or contact your administrator.',
       };
     }
     const responseBody = (await res.json()) as {
@@ -1112,7 +1112,7 @@ export class IntegrationsService {
         success: true,
         simulated: true,
         channel: 'in_app',
-        note: 'Push simulated because no valid Expo push tokens found.',
+        note: 'Notification simulated because no valid registered devices were found.',
         confirmationUrl: body.confirmationUrl,
       };
     }
@@ -1162,7 +1162,7 @@ export class IntegrationsService {
         channel: 'in_app',
         error:
           sendResults.find((item) => !item.ok)?.error ||
-          'Expo Push rejected all messages.',
+          'Could not deliver the notifications.',
         confirmationUrl: body.confirmationUrl,
       };
     }

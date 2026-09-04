@@ -107,7 +107,7 @@ export class IntegrationsController {
         to: body.token,
         sound: 'default' as const,
         title: body.title || 'Test push from backend',
-        body: body.body || 'If you see this, Expo Push is working!',
+        body: body.body || 'Test notification received successfully!',
         data: { test: 'true' },
       },
     ];

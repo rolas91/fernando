@@ -110,6 +110,9 @@ export class WorkOrderShift {
   @Column({ name: 'visible_document_types', type: 'jsonb', default: () => "'[]'::jsonb" })
   visibleDocumentTypes: string[];
 
+  @Column({ name: 'form_template_ids', type: 'text', array: true, default: '{}' })
+  formTemplateIds: string[];
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 

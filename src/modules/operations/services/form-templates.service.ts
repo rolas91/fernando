@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FormTemplate } from '../../../entities/form-template.entity';
-import { WorkOrder } from '../../../entities/work-order.entity';
+import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { CreateFormTemplateDto } from '../dto/create-form-template.dto';
 import { UpdateFormTemplateDto } from '../dto/update-form-template.dto';
 import { normalizeFormFields } from '../utils/form-contract.util';
@@ -12,8 +12,8 @@ export class FormTemplatesService {
   constructor(
     @InjectRepository(FormTemplate)
     private readonly repo: Repository<FormTemplate>,
-    @InjectRepository(WorkOrder)
-    private readonly workOrdersRepo: Repository<WorkOrder>,
+    @InjectRepository(WorkOrderShift)
+    private readonly shiftsRepo: Repository<WorkOrderShift>,
   ) {}
 
   findAll() {
@@ -24,21 +24,30 @@ export class FormTemplatesService {
     projectId?: string;
     role?: string;
     workOrderId?: string;
+    shiftId?: string;
   }) {
     const projectId = filters.projectId?.trim();
     const role = filters.role?.trim();
     const workOrderId = filters.workOrderId?.trim();
+    const shiftId = filters.shiftId?.trim();
     const templates = await this.findAll();
 
     let pickupIds: Set<string> | null = null;
-    if (workOrderId) {
-      const wo = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
-      const ids = wo?.formTemplateIds?.filter((x) => x.trim().length > 0) ?? [];
-      if (ids.length > 0) pickupIds = new Set(ids);
+    if (shiftId) {
+      const shift = await this.shiftsRepo.findOne({
+        where: workOrderId ? { id: shiftId, workOrderId } : { id: shiftId },
+        select: { id: true, formTemplateIds: true },
+      });
+      pickupIds = new Set(
+        shift?.formTemplateIds?.map((id) => id.trim()).filter(Boolean) ?? [],
+      );
+    } else if (workOrderId) {
+      // Forms now belong to a concrete shift. A work order by itself has no form allowlist.
+      pickupIds = new Set();
     }
 
     return templates.filter((template) => {
-      if (pickupIds && !pickupIds.has(template.id)) return false;
+      if (pickupIds !== null && !pickupIds.has(template.id)) return false;
 
       const projectMatches =
         !projectId ||

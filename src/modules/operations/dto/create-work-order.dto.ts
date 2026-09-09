@@ -92,8 +92,4 @@ export class CreateWorkOrderDto {
   @IsArray()
   attachments?: string[];
 
-  /** Limita formularios vinculados a esta assignment; vacío = todos los aplicables por proyecto/roles */
-  @IsOptional()
-  @IsArray()
-  formTemplateIds?: string[];
 }

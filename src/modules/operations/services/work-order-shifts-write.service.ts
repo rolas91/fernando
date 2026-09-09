@@ -35,6 +35,7 @@ export type ShiftWriteInput = {
   requesterPhone?: string | null;
   requesterEmail?: string | null;
   visibleDocumentTypes?: string[];
+  formTemplateIds?: string[];
   notes?: string | null;
   clientTimesheetNotes?: string;
   internalTimesheetNotes?: string;
@@ -160,6 +161,7 @@ export class WorkOrderShiftsWriteService {
           requesterPhone: s.requesterPhone?.trim() || null,
           requesterEmail: s.requesterEmail?.trim().toLowerCase() || null,
           visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
+          formTemplateIds: [...new Set((s.formTemplateIds ?? []).map((id) => id.trim()).filter(Boolean))],
           notes: s.notes ?? null,
           clientTimesheetNotes: s.clientTimesheetNotes ?? '',
           internalTimesheetNotes: s.internalTimesheetNotes ?? '',
@@ -400,6 +402,9 @@ export class WorkOrderShiftsWriteService {
         requesterPhone: typeof raw.requesterPhone === 'string' ? raw.requesterPhone : null,
         requesterEmail: typeof raw.requesterEmail === 'string' ? raw.requesterEmail : null,
         visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes) ? raw.visibleDocumentTypes as string[] : [],
+        formTemplateIds: Array.isArray(raw.formTemplateIds)
+          ? raw.formTemplateIds.filter((value): value is string => typeof value === 'string')
+          : [],
         notes: typeof raw.notes === 'string' ? raw.notes : null,
         clientTimesheetNotes:
           typeof raw.clientTimesheetNotes === 'string' ? raw.clientTimesheetNotes : '',

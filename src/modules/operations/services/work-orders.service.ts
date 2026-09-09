@@ -1116,28 +1116,21 @@ export class WorkOrdersService {
     }
 
     for (const workOrder of workOrders) {
-      const pickedTemplateIds = new Set(
-        (workOrder.formTemplateIds || []).filter(Boolean),
-      );
-      const requiredTemplates = templates.filter((template) => {
-        if (template.isRequired === false) return false;
-        if (this.isIncidentTemplate(template)) return false;
-        if (
-          !this.isWorkOrderTemplate(template) &&
-          !this.isTimesheetTemplate(template)
-        ) {
-          return false;
-        }
-        return (
-          pickedTemplateIds.size === 0 || pickedTemplateIds.has(template.id)
-        );
-      });
-      if (requiredTemplates.length === 0) continue;
       const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
       for (const shift of shifts) {
         const record = shift as Record<string, unknown>;
         const shiftId = typeof record.id === 'string' ? record.id : '';
         if (!shiftId) continue;
+        const pickedTemplateIds = new Set(
+          (Array.isArray(record.formTemplateIds) ? record.formTemplateIds : [])
+            .filter((id): id is string => typeof id === 'string' && Boolean(id.trim())),
+        );
+        const requiredTemplates = templates.filter((template) => {
+          if (template.isRequired === false || !pickedTemplateIds.has(template.id)) return false;
+          if (this.isIncidentTemplate(template)) return false;
+          return this.isWorkOrderTemplate(template) || this.isTimesheetTemplate(template);
+        });
+        if (requiredTemplates.length === 0) continue;
         const shiftKey = `${workOrder.id}:${shiftId}`;
         const assignedWorkerIds = this.assignedWorkerIdsForShift(record);
         const completedTimesheetWorkers =
@@ -2065,7 +2058,6 @@ export class WorkOrdersService {
       shifts,
       dispatchNote: dto.dispatchNote?.trim() || '',
       fileUploads: this.normalizeTextArray(dto.fileUploads),
-      formTemplateIds: this.normalizeTextArray(dto.formTemplateIds),
     });
     if (dto.assignmentAddress !== undefined) {
       entity.assignmentAddress = (dto.assignmentAddress ?? '').trim();
@@ -2173,9 +2165,6 @@ export class WorkOrdersService {
     }
     if (dto.fileUploads !== undefined) {
       workOrder.fileUploads = this.normalizeTextArray(dto.fileUploads);
-    }
-    if (dto.formTemplateIds !== undefined) {
-      workOrder.formTemplateIds = this.normalizeTextArray(dto.formTemplateIds);
     }
     if (dto.assignmentAddress !== undefined) {
       workOrder.assignmentAddress = (dto.assignmentAddress ?? '').trim();
@@ -2360,6 +2349,7 @@ export class WorkOrdersService {
         requesterPhone: payload.requesterPhone,
         requesterEmail: payload.requesterEmail,
         visibleDocumentTypes: payload.visibleDocumentTypes || [],
+        formTemplateIds: this.normalizeTextArray(payload.formTemplateIds),
         notes: payload.notes,
         roles: payload.roles.map((role, roleIdx) => ({
           id: `sr_bulk_${nowId}_${date.replace(/-/g, '')}_${roleIdx}`,

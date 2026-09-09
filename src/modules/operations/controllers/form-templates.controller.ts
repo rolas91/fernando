@@ -70,9 +70,9 @@ export class FormTemplatesController {
         workOrderId,
         shiftId,
       );
-    if (projectId || role || workOrderId) {
+    if (projectId || role || workOrderId || shiftId) {
       return this.service
-        .findAssigned({ projectId, role, workOrderId })
+        .findAssigned({ projectId, role, workOrderId, shiftId })
         .then(filterForActor);
     }
     return this.service.findAll().then(filterForActor);

@@ -105,10 +105,10 @@ describe('WorkOrdersService mobile required-action completion', () => {
     );
     const workOrder = {
       id: 'wo-1',
-      formTemplateIds: ['template-wo', 'template-timesheet'],
       shifts: [
         {
           id: 'shift-1',
+          formTemplateIds: ['template-wo', 'template-timesheet'],
           roles: [
             {
               assignedWorkers: ['worker-a', 'worker-b'],
@@ -189,10 +189,10 @@ describe('WorkOrdersService mobile required-action completion', () => {
     );
     const workOrder = {
       id: 'wo-1',
-      formTemplateIds: ['template-wo', 'template-timesheet'],
       shifts: [
         {
           id: 'shift-1',
+          formTemplateIds: ['template-wo', 'template-timesheet'],
           roles: [
             {
               assignedWorkers: ['worker-a', 'worker-b'],
@@ -455,7 +455,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       dispatchNote: '',
       fileUploads: [],
       attachments: [],
-      formTemplateIds: [],
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null,
@@ -499,6 +498,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       shifts: [
         {
           id: 'shift-1',
+          formTemplateIds: ['template-wo'],
           roles: [
             {
               id: 'role-1',
@@ -509,7 +509,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
           ],
         },
       ],
-      formTemplateIds: ['template-wo'],
     } as WorkOrder;
 
     await expect(
@@ -684,7 +683,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       dispatchNote: '',
       fileUploads: [],
       attachments: [],
-      formTemplateIds: [],
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null,
@@ -790,7 +788,6 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       dispatchNote: '',
       fileUploads: [],
       attachments: [],
-      formTemplateIds: [],
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null,
@@ -858,7 +855,6 @@ describe('WorkOrdersService.findOne shifts merge', () => {
       dispatchNote: '',
       fileUploads: [],
       attachments: [],
-      formTemplateIds: [],
       createdAt: new Date(),
       updatedAt: '',
       role: 'viewer',

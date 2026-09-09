@@ -22,6 +22,7 @@ type ShiftRoleLike = {
 type ShiftLike = {
   id?: string;
   defaultRoleStartTime?: unknown;
+  formTemplateIds?: unknown;
   workOrderTypes?: unknown;
   roles?: unknown;
   [key: string]: unknown;
@@ -209,6 +210,7 @@ export function normalizeWorkOrderShifts(
     return {
       ...shiftRecord,
       defaultRoleStartTime: asOptionalString(shiftRecord.defaultRoleStartTime),
+      formTemplateIds: asStringArray(shiftRecord.formTemplateIds),
       workOrderTypes: asStringArray(shiftRecord.workOrderTypes),
       roles: normalizedRoles,
     };

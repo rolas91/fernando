@@ -1150,7 +1150,7 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
   },
 ];
 
-const DEFAULT_FORM_TEMPLATES: Array<
+export const DEFAULT_FORM_TEMPLATES: Array<
   Pick<
     FormTemplate,
     | 'id'
@@ -1835,7 +1835,6 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
         notes: SEED_DEMO_WORK_ORDER.notes,
         fileUploads: [],
         attachments: [],
-        formTemplateIds: [],
         dispatchNote: '',
       }),
     );
@@ -1921,7 +1920,9 @@ async function seedDr() {
   }
 }
 
-seedDr().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (require.main === module) {
+  seedDr().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

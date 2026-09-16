@@ -2290,36 +2290,12 @@ export class WorkOrdersService {
     const existingShifts = Array.isArray(workOrder.shifts)
       ? (workOrder.shifts as Record<string, unknown>[])
       : [];
-    const skipDuplicates = payload.skipDuplicates !== false;
-
-    /** Returns true if a shift already exists for that date with the same startTime. */
-    const hasConflictingShift = (date: string) =>
-      existingShifts.some((s) => {
-        if (!s || typeof s !== 'object') return false;
-        const row = s as {
-          date?: unknown;
-          startTime?: unknown;
-          endTime?: unknown;
-        };
-        if (typeof row.date !== 'string' || row.date !== date) return false;
-        if (
-          typeof row.startTime === 'string' &&
-          row.startTime === payload.startTime
-        ) {
-          return true;
-        }
-        return false;
-      });
 
     const created: Record<string, unknown>[] = [];
     const skipped: string[] = [];
     const nowId = Date.now();
 
     for (const date of uniqueDates) {
-      if (skipDuplicates && hasConflictingShift(date)) {
-        skipped.push(date);
-        continue;
-      }
       created.push({
         id: `s_bulk_${nowId}_${date.replace(/-/g, '')}`,
         workOrderId,

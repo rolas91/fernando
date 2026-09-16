@@ -92,8 +92,8 @@ export class BulkCreateShiftsDto {
   @Type(() => BulkShiftRoleDto)
   roles: BulkShiftRoleDto[];
 
-  /** When true, dates that already have a shift with the same startTime are skipped. */
+  /** Legacy client option; matching dates and start times no longer skip shifts. */
   @IsOptional()
   @IsBoolean()
-  skipDuplicates?: boolean = true;
+  skipDuplicates?: boolean = false;
 }

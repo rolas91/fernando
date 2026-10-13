@@ -55,10 +55,15 @@ export class ShiftChatService {
     shiftId: string,
     dto: CreateShiftChatMessageDto,
   ) {
-    const { worker, workOrder } = await this.assertActorCanAccessShift(actor, shiftId);
+    const { worker, workOrder } = await this.assertActorCanAccessShift(
+      actor,
+      shiftId,
+    );
     const body = (dto.body || '').trim();
     const mediaUrl = (dto.mediaUrl || '').trim();
-    const kind = dto.kind || (mediaUrl ? this.kindFromContentType(dto.mediaContentType) : 'text');
+    const kind =
+      dto.kind ||
+      (mediaUrl ? this.kindFromContentType(dto.mediaContentType) : 'text');
     if (!body && !mediaUrl) {
       throw new BadRequestException('Message body or media is required.');
     }
@@ -72,12 +77,11 @@ export class ShiftChatService {
       shiftId,
       senderUserId: actor?.id || '',
       senderWorkerId: worker?.id || '',
-      senderName:
-        worker
-          ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email
-          : `${actor?.firstName || ''} ${actor?.lastName || ''}`.trim() ||
-            actor?.email ||
-            'Scheduler',
+      senderName: worker
+        ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email
+        : `${actor?.firstName || ''} ${actor?.lastName || ''}`.trim() ||
+          actor?.email ||
+          'Scheduler',
       kind,
       body,
       mediaUrl,
@@ -179,17 +183,25 @@ export class ShiftChatService {
     return { id: message.id, shiftId };
   }
 
-  async assertActorCanAccessShift(actor: UserAccessContext | undefined, shiftId: string) {
+  async assertActorCanAccessShift(
+    actor: UserAccessContext | undefined,
+    shiftId: string,
+  ) {
     const workOrderId = await this.findWorkOrderIdForShift(shiftId);
-    const workOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+    const workOrder = await this.workOrdersRepo.findOne({
+      where: { id: workOrderId },
+    });
     if (!workOrder) throw new NotFoundException(`Shift ${shiftId} not found.`);
-    workOrder.shifts = (await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId)) ?? [];
+    workOrder.shifts =
+      (await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId)) ?? [];
     const worker = await this.resolveWorkerForActor(actor);
     if (this.isPrivilegedChatActor(actor)) {
       return { worker, workOrder };
     }
     if (!worker) {
-      throw new ForbiddenException('No worker profile is linked to this user email.');
+      throw new ForbiddenException(
+        'No worker profile is linked to this user email.',
+      );
     }
     if (!this.workerAssignedToShift(workOrder, shiftId, worker.id)) {
       throw new ForbiddenException('Worker is not assigned to this shift.');
@@ -215,15 +227,27 @@ export class ShiftChatService {
   }
 
   private isPrivilegedChatActor(actor: UserAccessContext | undefined) {
-    return actor?.role === 'admin' || actor?.role === 'manager' || actor?.role === 'scheduler';
+    return (
+      actor?.role === 'admin' ||
+      actor?.role === 'manager' ||
+      actor?.role === 'scheduler'
+    );
   }
 
-  private workerAssignedToShift(workOrder: WorkOrder, shiftId: string, workerId: string) {
-    const shift = (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).find((item) => {
+  private workerAssignedToShift(
+    workOrder: WorkOrder,
+    shiftId: string,
+    workerId: string,
+  ) {
+    const shift = (
+      Array.isArray(workOrder.shifts) ? workOrder.shifts : []
+    ).find((item) => {
       const record = item as Record<string, unknown>;
       return record.id === shiftId;
     }) as Record<string, unknown> | undefined;
-    const roles = Array.isArray(shift?.roles) ? (shift.roles as Record<string, unknown>[]) : [];
+    const roles = Array.isArray(shift?.roles)
+      ? (shift.roles as Record<string, unknown>[])
+      : [];
     return roles.some((role) => {
       const assignedWorkers = Array.isArray(role.assignedWorkers)
         ? role.assignedWorkers
@@ -233,11 +257,15 @@ export class ShiftChatService {
   }
 
   private assignedWorkerIdsForShift(workOrder: WorkOrder, shiftId: string) {
-    const shift = (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).find((item) => {
+    const shift = (
+      Array.isArray(workOrder.shifts) ? workOrder.shifts : []
+    ).find((item) => {
       const record = item as Record<string, unknown>;
       return record.id === shiftId;
     }) as Record<string, unknown> | undefined;
-    const roles = Array.isArray(shift?.roles) ? (shift.roles as Record<string, unknown>[]) : [];
+    const roles = Array.isArray(shift?.roles)
+      ? (shift.roles as Record<string, unknown>[])
+      : [];
     const ids = new Set<string>();
     for (const role of roles) {
       const assignedWorkers = Array.isArray(role.assignedWorkers)
@@ -263,51 +291,60 @@ export class ShiftChatService {
     actor: UserAccessContext | undefined,
     message: ReturnType<ShiftChatService['serialize']>,
   ) {
-    const recipientIds = this.assignedWorkerIdsForShift(workOrder, message.shiftId)
-      .filter((workerId) => workerId !== senderWorkerId);
+    const recipientIds = this.assignedWorkerIdsForShift(
+      workOrder,
+      message.shiftId,
+    ).filter((workerId) => workerId !== senderWorkerId);
     const messagePreview = this.notificationBody(message);
-    const conversation = await this.conversationDetails(workOrder, message.shiftId);
+    const conversation = await this.conversationDetails(
+      workOrder,
+      message.shiftId,
+    );
     const title = conversation.title;
     const body = `${message.senderName || 'Shift chat'}: ${messagePreview}`;
     const shiftDate = this.shiftDateForMessage(workOrder, message.shiftId);
-    await this.notificationsRepo.save(this.notificationsRepo.create({
-      id: `notif_${randomUUID()}`,
-      type: 'shift_chat_message',
-      channel: 'web',
-      title,
-      message: body,
-      timestamp: new Date(),
-      read: false,
-      link: 'shift-chat',
-      workerId: null,
-      workOrderId: message.workOrderId,
-      shiftId: message.shiftId,
-      roleId: null,
-      deliveryStatus: 'in_app',
-      providerMessageId: `chat-sender:${actor?.id || ''}`,
-    }));
+    await this.notificationsRepo.save(
+      this.notificationsRepo.create({
+        id: `notif_${randomUUID()}`,
+        type: 'shift_chat_message',
+        channel: 'web',
+        title,
+        message: body,
+        timestamp: new Date(),
+        read: false,
+        link: 'shift-chat',
+        workerId: null,
+        workOrderId: message.workOrderId,
+        shiftId: message.shiftId,
+        roleId: null,
+        deliveryStatus: 'in_app',
+        providerMessageId: `chat-sender:${actor?.id || ''}`,
+      }),
+    );
 
     if (recipientIds.length === 0) {
       this.realtime.emitTableUpdated('notifications');
       return;
     }
     const notifications = await this.notificationsRepo.save(
-      recipientIds.map((workerId) => this.notificationsRepo.create({
-        id: `notif_${randomUUID()}`,
-        type: 'shift_chat_message',
-        channel: 'in_app',
-        title,
-        message: body,
-        timestamp: new Date(),
-        read: false,
-        link: 'shift-chat',
-        workerId,
-        workOrderId: message.workOrderId,
-        shiftId: message.shiftId,
-        roleId: null,
-        deliveryStatus: 'pending',
-        providerMessageId: null,
-      })),
+      recipientIds.map((workerId) =>
+        this.notificationsRepo.create({
+          id: `notif_${randomUUID()}`,
+          type: 'shift_chat_message',
+          channel: 'in_app',
+          title,
+          message: body,
+          timestamp: new Date(),
+          read: false,
+          link: 'shift-chat',
+          workerId,
+          workOrderId: message.workOrderId,
+          shiftId: message.shiftId,
+          roleId: null,
+          deliveryStatus: 'pending',
+          providerMessageId: null,
+        }),
+      ),
     );
 
     this.realtime.emitTableUpdated('notifications');
@@ -333,14 +370,17 @@ export class ShiftChatService {
           : result.success
             ? 'sent'
             : 'failed';
-        notification.providerMessageId = result.messageId || result.error || null;
+        notification.providerMessageId =
+          result.messageId || result.error || null;
         await this.notificationsRepo.save(notification);
       }),
     );
   }
 
   private shiftDateForMessage(workOrder: WorkOrder, shiftId: string) {
-    const shift = (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).find((item) => {
+    const shift = (
+      Array.isArray(workOrder.shifts) ? workOrder.shifts : []
+    ).find((item) => {
       const record = item as Record<string, unknown>;
       return record.id === shiftId;
     }) as Record<string, unknown> | undefined;
@@ -351,9 +391,11 @@ export class ShiftChatService {
     const project = workOrder.projectId
       ? await this.projectsRepo.findOne({ where: { id: workOrder.projectId } })
       : null;
-    const shift = (Array.isArray(workOrder.shifts) ? workOrder.shifts : []).find(
-      (item) => (item as Record<string, unknown>).id === shiftId,
-    ) as Record<string, unknown> | undefined;
+    const shift = (
+      Array.isArray(workOrder.shifts) ? workOrder.shifts : []
+    ).find((item) => (item as Record<string, unknown>).id === shiftId) as
+      | Record<string, unknown>
+      | undefined;
     const shiftName =
       typeof shift?.shiftName === 'string'
         ? shift.shiftName
@@ -366,7 +408,11 @@ export class ShiftChatService {
       projectNumber,
       projectName,
       shiftName,
-      title: shiftChatConversationTitle({ projectNumber, projectName, shiftName }),
+      title: shiftChatConversationTitle({
+        projectNumber,
+        projectName,
+        shiftName,
+      }),
     };
   }
 

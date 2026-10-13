@@ -27,7 +27,9 @@ export class IntegrationsController {
       .trim();
     const protocol = forwardedProto || req.protocol || 'http';
     const host =
-      forwardedHost || req.get('host') || `localhost:${process.env.PORT || 3000}`;
+      forwardedHost ||
+      req.get('host') ||
+      `localhost:${process.env.PORT || 3000}`;
     return `${protocol}://${host}`;
   }
 
@@ -42,10 +44,7 @@ export class IntegrationsController {
   @ApiOkResponse({
     description: 'Notification dispatch result including provider metadata.',
   })
-  sendNotification(
-    @Body() body: SendNotificationDto,
-    @Req() req: Request,
-  ) {
+  sendNotification(@Body() body: SendNotificationDto, @Req() req: Request) {
     return this.integrationsService.sendNotification(
       body,
       this.resolveBaseUrl(req),
@@ -97,7 +96,9 @@ export class IntegrationsController {
   }
 
   @Post('debug/test-push')
-  async debugTestPush(@Body() body: { token: string; title?: string; body?: string }) {
+  async debugTestPush(
+    @Body() body: { token: string; title?: string; body?: string },
+  ) {
     if (!body?.token) {
       return { error: 'token is required' };
     }

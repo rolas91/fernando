@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddShiftConfirmationResetReason20260811001000
-  implements MigrationInterface
-{
+export class AddShiftConfirmationResetReason20260811001000 implements MigrationInterface {
   name = 'AddShiftConfirmationResetReason20260811001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -29,9 +29,7 @@ function utcStartOfToday(): number {
 }
 
 @ValidatorConstraint({ name: 'isDateOnlyPastOrPresent', async: false })
-export class IsDateOnlyPastOrPresentConstraint
-  implements ValidatorConstraintInterface
-{
+export class IsDateOnlyPastOrPresentConstraint implements ValidatorConstraintInterface {
   validate(value: unknown) {
     if (value === undefined || value === null || value === '') return true;
     if (typeof value !== 'string') return false;
@@ -41,7 +39,7 @@ export class IsDateOnlyPastOrPresentConstraint
   }
 
   defaultMessage(_args?: ValidationArguments) {
-    return 'La fecha de contratación debe ser hoy o una fecha pasada.';
+    return 'The hire date must be today or a past date.';
   }
 }
 
@@ -58,9 +56,7 @@ export function IsDateOnlyPastOrPresent(validationOptions?: ValidationOptions) {
 }
 
 @ValidatorConstraint({ name: 'isDateOnlyTodayOrFuture', async: false })
-export class IsDateOnlyTodayOrFutureConstraint
-  implements ValidatorConstraintInterface
-{
+export class IsDateOnlyTodayOrFutureConstraint implements ValidatorConstraintInterface {
   validate(value: unknown) {
     if (value === undefined || value === null || value === '') return true;
     if (typeof value !== 'string') return false;
@@ -70,7 +66,7 @@ export class IsDateOnlyTodayOrFutureConstraint
   }
 
   defaultMessage(_args?: ValidationArguments) {
-    return 'La fecha de vencimiento del permiso debe ser hoy o una fecha futura.';
+    return 'The permit expiration date must be today or a future date.';
   }
 }
 
@@ -86,7 +82,7 @@ export function IsDateOnlyTodayOrFuture(validationOptions?: ValidationOptions) {
   };
 }
 
-/** NANP USA: opcional país 1 + 10 dígitos con área 2–9 inicial. */
+                                                                   
 @ValidatorConstraint({ name: 'isUsNanpPhone', async: false })
 export class IsUsNanpPhoneConstraint implements ValidatorConstraintInterface {
   validate(value: unknown) {
@@ -103,7 +99,7 @@ export class IsUsNanpPhoneConstraint implements ValidatorConstraintInterface {
   }
 
   defaultMessage(_args?: ValidationArguments) {
-    return 'El teléfono debe tener 10 dígitos válidos (EE. UU.).';
+    return 'The phone number must contain 10 valid digits (U.S.).';
   }
 }
 

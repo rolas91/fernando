@@ -106,7 +106,10 @@ export class AddMaterialsModule20260505000100 implements MigrationInterface {
 
     const hasCompanySettings = await queryRunner.hasTable('company_settings');
     if (hasCompanySettings) {
-      const hasColumn = await queryRunner.hasColumn('company_settings', 'material_types');
+      const hasColumn = await queryRunner.hasColumn(
+        'company_settings',
+        'material_types',
+      );
       if (!hasColumn) {
         await queryRunner.addColumn(
           'company_settings',
@@ -190,7 +193,10 @@ export class AddMaterialsModule20260505000100 implements MigrationInterface {
 
     const hasCompanySettings = await queryRunner.hasTable('company_settings');
     if (hasCompanySettings) {
-      const hasColumn = await queryRunner.hasColumn('company_settings', 'material_types');
+      const hasColumn = await queryRunner.hasColumn(
+        'company_settings',
+        'material_types',
+      );
       if (hasColumn) {
         await queryRunner.dropColumn('company_settings', 'material_types');
       }

@@ -92,18 +92,28 @@ export class CatalogImportService {
 
   constructor(
     @InjectRepository(Skill) private readonly skillsRepo: Repository<Skill>,
-    @InjectRepository(WorkerRole) private readonly workerRolesRepo: Repository<WorkerRole>,
-    @InjectRepository(ProjectType) private readonly projectTypesRepo: Repository<ProjectType>,
-    @InjectRepository(WorkOrderType) private readonly workOrderTypesRepo: Repository<WorkOrderType>,
-    @InjectRepository(Certification) private readonly certificationsRepo: Repository<Certification>,
-    @InjectRepository(Equipment) private readonly equipmentRepo: Repository<Equipment>,
-    @InjectRepository(Material) private readonly materialsRepo: Repository<Material>,
-    @InjectRepository(StatusCatalog) private readonly statusCatalogRepo: Repository<StatusCatalog>,
-    @InjectRepository(CommercialCatalogItem) private readonly commercialRepo: Repository<CommercialCatalogItem>,
+    @InjectRepository(WorkerRole)
+    private readonly workerRolesRepo: Repository<WorkerRole>,
+    @InjectRepository(ProjectType)
+    private readonly projectTypesRepo: Repository<ProjectType>,
+    @InjectRepository(WorkOrderType)
+    private readonly workOrderTypesRepo: Repository<WorkOrderType>,
+    @InjectRepository(Certification)
+    private readonly certificationsRepo: Repository<Certification>,
+    @InjectRepository(Equipment)
+    private readonly equipmentRepo: Repository<Equipment>,
+    @InjectRepository(Material)
+    private readonly materialsRepo: Repository<Material>,
+    @InjectRepository(StatusCatalog)
+    private readonly statusCatalogRepo: Repository<StatusCatalog>,
+    @InjectRepository(CommercialCatalogItem)
+    private readonly commercialRepo: Repository<CommercialCatalogItem>,
     @InjectRepository(Client) private readonly clientsRepo: Repository<Client>,
-    @InjectRepository(Project) private readonly projectsRepo: Repository<Project>,
+    @InjectRepository(Project)
+    private readonly projectsRepo: Repository<Project>,
     @InjectRepository(Worker) private readonly workersRepo: Repository<Worker>,
-    @InjectRepository(WorkerCertification) private readonly workerCertificationsRepo: Repository<WorkerCertification>,
+    @InjectRepository(WorkerCertification)
+    private readonly workerCertificationsRepo: Repository<WorkerCertification>,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -111,7 +121,11 @@ export class CatalogImportService {
     return this.jobs.get(id);
   }
 
-  async preview(scope: CatalogScope, buffer: Buffer, filename?: string): Promise<PreviewResult> {
+  async preview(
+    scope: CatalogScope,
+    buffer: Buffer,
+    filename?: string,
+  ): Promise<PreviewResult> {
     const rawRows = await this.parseWorkbook(buffer, scope);
     const parser = PARSERS[scope];
     const parsed: ParsedRow[] = rawRows.map((raw, idx) => parser(raw, idx + 2));
@@ -131,7 +145,12 @@ export class CatalogImportService {
   async apply(
     scope: CatalogScope,
     buffer: Buffer,
-    options: { mode: ImportMode; dryRun?: boolean; filename?: string; onProgress?: (p: { processed: number; total: number }) => void } = { mode: 'upsert' },
+    options: {
+      mode: ImportMode;
+      dryRun?: boolean;
+      filename?: string;
+      onProgress?: (p: { processed: number; total: number }) => void;
+    } = { mode: 'upsert' },
   ): Promise<ApplyResult> {
     const started = Date.now();
     const preview = await this.preview(scope, buffer);
@@ -163,11 +182,18 @@ export class CatalogImportService {
         else result.skipped++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        result.errors.push({ row: row.row, code: 'UPSERT_FAILED', message: msg });
+        result.errors.push({
+          row: row.row,
+          code: 'UPSERT_FAILED',
+          message: msg,
+        });
         result.skipped++;
         this.logger.warn(`Import row ${row.row} (${scope}) failed: ${msg}`);
       }
-      if (options.onProgress && (i % 25 === 0 || i === preview.rows.length - 1)) {
+      if (
+        options.onProgress &&
+        (i % 25 === 0 || i === preview.rows.length - 1)
+      ) {
         options.onProgress({ processed: i + 1, total: preview.rows.length });
       }
     }
@@ -214,7 +240,10 @@ export class CatalogImportService {
       job.status = 'error';
       job.error = err instanceof Error ? err.message : String(err);
       job.finishedAt = new Date().toISOString();
-      this.logger.error(`Async import job ${job.id} (${job.scope}) failed`, err as Error);
+      this.logger.error(
+        `Async import job ${job.id} (${job.scope}) failed`,
+        err as Error,
+      );
     }
   }
 
@@ -254,10 +283,17 @@ export class CatalogImportService {
     return Array.from(set);
   }
 
-  private async parseWorkbook(buffer: Buffer, scope: CatalogScope): Promise<Array<Record<string, unknown>>> {
+  private async parseWorkbook(
+    buffer: Buffer,
+    scope: CatalogScope,
+  ): Promise<Array<Record<string, unknown>>> {
     const wb = new ExcelJS.Workbook();
-    const nodeBuffer = (Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as Uint8Array));
-    await wb.xlsx.load(nodeBuffer as unknown as Parameters<typeof wb.xlsx.load>[0]);
+    const nodeBuffer = Buffer.isBuffer(buffer)
+      ? buffer
+      : Buffer.from(buffer as Uint8Array);
+    await wb.xlsx.load(
+      nodeBuffer as unknown as Parameters<typeof wb.xlsx.load>[0],
+    );
     const descriptor = getDescriptor(scope);
     const ws = wb.getWorksheet(descriptor.sheetName) || wb.worksheets[0];
     if (!ws) return [];
@@ -286,12 +322,23 @@ export class CatalogImportService {
   private cellValue(cell: ExcelJS.Cell): unknown {
     const v = cell.value;
     if (v === null || v === undefined) return null;
-    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return v;
+    if (
+      typeof v === 'string' ||
+      typeof v === 'number' ||
+      typeof v === 'boolean'
+    )
+      return v;
     if (v instanceof Date) return v;
     if (typeof v === 'object') {
-      const obj = v as { result?: unknown; text?: unknown; richText?: Array<{ text: string }>; formula?: unknown };
+      const obj = v as {
+        result?: unknown;
+        text?: unknown;
+        richText?: Array<{ text: string }>;
+        formula?: unknown;
+      };
       if (obj.result !== undefined) return obj.result;
-      if (Array.isArray(obj.richText)) return obj.richText.map((r) => r.text).join('');
+      if (Array.isArray(obj.richText))
+        return obj.richText.map((r) => r.text).join('');
       if (obj.text !== undefined) return obj.text;
       if (obj.formula !== undefined) return obj.formula;
     }
@@ -360,7 +407,9 @@ export class CatalogImportService {
       const scopeVal = String(data.scope || '').toLowerCase();
       const valueVal = String(data.value || '').toLowerCase();
       const found = list.find(
-        (s) => s.scope.toLowerCase() === scopeVal && s.value.toLowerCase() === valueVal,
+        (s) =>
+          s.scope.toLowerCase() === scopeVal &&
+          s.value.toLowerCase() === valueVal,
       );
       if (found) return { id: found.id };
     }
@@ -372,7 +421,9 @@ export class CatalogImportService {
       }
     }
     if (scope === 'workers') {
-      const email = String(data.email || '').trim().toLowerCase();
+      const email = String(data.email || '')
+        .trim()
+        .toLowerCase();
       if (email) {
         const list = await this.workersRepo.find();
         const found = list.find((w) => w.email.trim().toLowerCase() === email);
@@ -383,7 +434,9 @@ export class CatalogImportService {
       const number = String(data.number || '').trim();
       if (number) {
         const list = await this.projectsRepo.find();
-        const found = list.find((p) => p.number.trim().toLowerCase() === number.toLowerCase());
+        const found = list.find(
+          (p) => p.number.trim().toLowerCase() === number.toLowerCase(),
+        );
         if (found) return { id: found.id };
       }
     }
@@ -437,7 +490,10 @@ export class CatalogImportService {
     }
   }
 
-  private async createEntity(scope: CatalogScope, data: Record<string, unknown>): Promise<void> {
+  private async createEntity(
+    scope: CatalogScope,
+    data: Record<string, unknown>,
+  ): Promise<void> {
     switch (scope) {
       case 'skills': {
         const entity = this.skillsRepo.create({
@@ -524,17 +580,21 @@ export class CatalogImportService {
         return;
       }
       case 'status-catalog': {
-        const entity = this.statusCatalogRepo.create(data as unknown as StatusCatalog);
+        const entity = this.statusCatalogRepo.create(
+          data as unknown as StatusCatalog,
+        );
         await this.statusCatalogRepo.save(entity);
         this.emitUpdated('status_catalog');
         return;
       }
       case 'commercial-catalog-items': {
         const sku = String((data as { sku?: string }).sku || '').trim();
-        if (!sku) throw new Error('SKU es requerido');
+        if (!sku) throw new Error('SKU is required');
         const exists = await this.commercialRepo.findOne({ where: { sku } });
-        if (exists) throw new Error(`SKU ${sku} ya existe`);
-        const entity = this.commercialRepo.create(data as unknown as CommercialCatalogItem);
+        if (exists) throw new Error(`SKU ${sku} already exists`);
+        const entity = this.commercialRepo.create(
+          data as unknown as CommercialCatalogItem,
+        );
         if (!entity.id) entity.id = `cci_${randomUUID()}`;
         await this.commercialRepo.save(entity);
         this.emitUpdated('commercial_catalog_items');
@@ -552,17 +612,24 @@ export class CatalogImportService {
         return;
       }
       case 'projects': {
-        const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+        const payload: Record<string, unknown> = {
+          ...(data as Record<string, unknown>),
+        };
         const clientName = String(payload.clientName || '').trim();
         if (!payload.clientId && clientName) {
           const clients = await this.clientsRepo.find();
-          const found = clients.find((c) => c.name.trim().toLowerCase() === clientName.toLowerCase());
+          const found = clients.find(
+            (c) => c.name.trim().toLowerCase() === clientName.toLowerCase(),
+          );
           if (found) payload.clientId = found.id;
         }
         const projectTypeName = String(payload.projectTypeName || '').trim();
         if (!payload.projectTypeId && projectTypeName) {
           const types = await this.projectTypesRepo.find();
-          const foundType = types.find((t) => t.name.trim().toLowerCase() === projectTypeName.toLowerCase());
+          const foundType = types.find(
+            (t) =>
+              t.name.trim().toLowerCase() === projectTypeName.toLowerCase(),
+          );
           if (foundType) payload.projectTypeId = foundType.id;
         }
         delete payload.clientName;
@@ -574,7 +641,9 @@ export class CatalogImportService {
         return;
       }
       case 'workers': {
-        const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+        const payload: Record<string, unknown> = {
+          ...(data as Record<string, unknown>),
+        };
         const skills = (payload.skills as string[] | undefined) || [];
         const workerRoles = (payload.workerRoles as string[] | undefined) || [];
         const certs = (payload.certifications as string[] | undefined) || [];
@@ -584,9 +653,21 @@ export class CatalogImportService {
         if (payload.hourlyRate !== undefined) {
           payload.hourlyRate = String(payload.hourlyRate);
         }
-        const skillIds = await this.resolveOrCreateNames(this.skillsRepo, skills, 'skl');
-        const roleIds = await this.resolveOrCreateNames(this.workerRolesRepo, workerRoles, 'wrl');
-        const certIds = await this.resolveOrCreateNames(this.certificationsRepo, certs, 'cert');
+        const skillIds = await this.resolveOrCreateNames(
+          this.skillsRepo,
+          skills,
+          'skl',
+        );
+        const roleIds = await this.resolveOrCreateNames(
+          this.workerRolesRepo,
+          workerRoles,
+          'wrl',
+        );
+        const certIds = await this.resolveOrCreateNames(
+          this.certificationsRepo,
+          certs,
+          'cert',
+        );
         const skillsEntities = skillIds.length
           ? await this.skillsRepo.findBy({ id: In(skillIds) })
           : [];
@@ -611,13 +692,18 @@ export class CatalogImportService {
     }
   }
 
-  private async updateEntity(scope: CatalogScope, id: string, data: Record<string, unknown>): Promise<void> {
+  private async updateEntity(
+    scope: CatalogScope,
+    id: string,
+    data: Record<string, unknown>,
+  ): Promise<void> {
     switch (scope) {
       case 'skills': {
         const item = await this.skillsRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Skill ${id} not found`);
         if (data.name !== undefined) item.name = data.name as string;
-        if (data.description !== undefined) item.description = data.description as string;
+        if (data.description !== undefined)
+          item.description = data.description as string;
         if (data.status !== undefined) item.status = data.status as string;
         await this.skillsRepo.save(item);
         this.emitUpdated('skills', 'workers');
@@ -627,7 +713,8 @@ export class CatalogImportService {
         const item = await this.workerRolesRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Worker role ${id} not found`);
         if (data.name !== undefined) item.name = data.name as string;
-        if (data.description !== undefined) item.description = data.description as string;
+        if (data.description !== undefined)
+          item.description = data.description as string;
         if (data.status !== undefined) item.status = data.status as string;
         await this.workerRolesRepo.save(item);
         this.emitUpdated('worker_roles', 'workers');
@@ -637,7 +724,8 @@ export class CatalogImportService {
         const item = await this.projectTypesRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Project type ${id} not found`);
         if (data.name !== undefined) item.name = data.name as string;
-        if (data.description !== undefined) item.description = data.description as string;
+        if (data.description !== undefined)
+          item.description = data.description as string;
         if (data.status !== undefined) item.status = data.status as string;
         await this.projectTypesRepo.save(item);
         this.emitUpdated('project_types');
@@ -647,7 +735,8 @@ export class CatalogImportService {
         const item = await this.workOrderTypesRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Work order type ${id} not found`);
         if (data.name !== undefined) item.name = data.name as string;
-        if (data.description !== undefined) item.description = data.description as string;
+        if (data.description !== undefined)
+          item.description = data.description as string;
         if (data.status !== undefined) item.status = data.status as string;
         await this.workOrderTypesRepo.save(item);
         this.emitUpdated('work_order_types');
@@ -657,9 +746,11 @@ export class CatalogImportService {
         const item = await this.certificationsRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Certification ${id} not found`);
         if (data.name !== undefined) item.name = data.name as string;
-        if (data.description !== undefined) item.description = data.description as string;
+        if (data.description !== undefined)
+          item.description = data.description as string;
         if (data.status !== undefined) item.status = data.status as string;
-        if (data.documentUrl !== undefined) item.documentUrl = data.documentUrl as string;
+        if (data.documentUrl !== undefined)
+          item.documentUrl = data.documentUrl as string;
         await this.certificationsRepo.save(item);
         this.emitUpdated('certifications', 'workers');
         return;
@@ -714,17 +805,24 @@ export class CatalogImportService {
       case 'projects': {
         const item = await this.projectsRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Project ${id} not found`);
-        const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+        const payload: Record<string, unknown> = {
+          ...(data as Record<string, unknown>),
+        };
         const clientName = String(payload.clientName || '').trim();
         if (!payload.clientId && clientName) {
           const clients = await this.clientsRepo.find();
-          const found = clients.find((c) => c.name.trim().toLowerCase() === clientName.toLowerCase());
+          const found = clients.find(
+            (c) => c.name.trim().toLowerCase() === clientName.toLowerCase(),
+          );
           if (found) payload.clientId = found.id;
         }
         const projectTypeName = String(payload.projectTypeName || '').trim();
         if (!payload.projectTypeId && projectTypeName) {
           const types = await this.projectTypesRepo.find();
-          const foundType = types.find((t) => t.name.trim().toLowerCase() === projectTypeName.toLowerCase());
+          const foundType = types.find(
+            (t) =>
+              t.name.trim().toLowerCase() === projectTypeName.toLowerCase(),
+          );
           if (foundType) payload.projectTypeId = foundType.id;
         }
         delete payload.clientName;
@@ -742,7 +840,9 @@ export class CatalogImportService {
           relations: { skills: true, workerRoles: true },
         });
         if (!item) throw new Error(`Worker ${id} not found`);
-        const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) };
+        const payload: Record<string, unknown> = {
+          ...(data as Record<string, unknown>),
+        };
         const skills = (payload.skills as string[] | undefined) || [];
         const workerRoles = (payload.workerRoles as string[] | undefined) || [];
         const certs = (payload.certifications as string[] | undefined) || [];
@@ -757,20 +857,32 @@ export class CatalogImportService {
         Object.assign(item, payload);
         item.country = (item.country ?? '').trim() || 'USA';
         if (skills.length) {
-          const skillIds = await this.resolveOrCreateNames(this.skillsRepo, skills, 'skl');
+          const skillIds = await this.resolveOrCreateNames(
+            this.skillsRepo,
+            skills,
+            'skl',
+          );
           item.skills = skillIds.length
             ? await this.skillsRepo.findBy({ id: In(skillIds) })
             : [];
         }
         if (workerRoles.length) {
-          const roleIds = await this.resolveOrCreateNames(this.workerRolesRepo, workerRoles, 'wrl');
+          const roleIds = await this.resolveOrCreateNames(
+            this.workerRolesRepo,
+            workerRoles,
+            'wrl',
+          );
           item.workerRoles = roleIds.length
             ? await this.workerRolesRepo.findBy({ id: In(roleIds) })
             : [];
         }
         await this.workersRepo.save(item);
         if (certs.length) {
-          const certIds = await this.resolveOrCreateNames(this.certificationsRepo, certs, 'cert');
+          const certIds = await this.resolveOrCreateNames(
+            this.certificationsRepo,
+            certs,
+            'cert',
+          );
           await this.replaceWorkerCertifications(id, certIds);
         }
         this.emitUpdated('workers', 'skills', 'worker_roles', 'certifications');
@@ -809,11 +921,7 @@ export class CatalogImportService {
 
   private async resolveOrCreateNames<
     T extends { id: string; name: string; description: string; status: string },
-  >(
-    repo: Repository<T>,
-    names: string[],
-    idPrefix: string,
-  ): Promise<string[]> {
+  >(repo: Repository<T>, names: string[], idPrefix: string): Promise<string[]> {
     if (!names || names.length === 0) return [];
     const all = await repo.find();
     const lowerMap = new Map<string, string>();

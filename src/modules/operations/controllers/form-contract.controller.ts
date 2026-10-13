@@ -6,10 +6,10 @@ import { FORM_CONTRACT_VERSION } from '../utils/form-contract.util';
 @ApiTags('operations')
 @Controller('form-contract')
 export class FormContractController {
-  /**
-   * Bindable path catalog (editor + mobile client).
-   * `assignment.*` is an alias for `workOrder.*` when saved in dataBinding.path.
-   */
+     
+                                                    
+                                                                                 
+     
   @Get('data-bindings')
   getDataBindings() {
     return {
@@ -73,7 +73,8 @@ export class FormContractController {
       fieldDataBinding: {
         shape: {
           path: 'Canonical path from GET /form-contract/data-bindings',
-          optional: 'boolean (default true) - missing data does not block the field',
+          optional:
+            'boolean (default true) - missing data does not block the field',
         },
       },
     };

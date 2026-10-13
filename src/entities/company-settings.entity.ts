@@ -55,12 +55,18 @@ export class CompanySettings {
   @Column({ name: 'work_order_pdf_builder', type: 'jsonb', nullable: true })
   workOrderPdfBuilder: Record<string, unknown> | null;
 
-  /*
-   * Retired: assignment_auto_status remains as an unused database column so
-   * existing installations do not require a destructive migration.
-   */
+    
+                                                                            
+                                                                   
+     
 
-  @Column({ name: 'minimum_rest_hours', type: 'numeric', precision: 4, scale: 1, default: 8.0 })
+  @Column({
+    name: 'minimum_rest_hours',
+    type: 'numeric',
+    precision: 4,
+    scale: 1,
+    default: 8.0,
+  })
   minimumRestHours: number;
 
   @Column({

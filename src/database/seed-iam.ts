@@ -24,7 +24,7 @@ async function seedIam() {
 
     if (!adminEmail || !adminPassword) {
       console.log(
-        'Seed IAM OK. (ADMIN_EMAIL/ADMIN_PASSWORD no definidos; no se creó admin)',
+        'IAM seed completed. (ADMIN_EMAIL/ADMIN_PASSWORD are not set; no admin was created)',
       );
       return;
     }

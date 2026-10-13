@@ -53,7 +53,11 @@ export class ShiftChatGateway implements OnGatewayConnection {
     @MessageBody() body: CreateShiftChatMessageDto & { shiftId?: string },
   ) {
     const shiftId = (body?.shiftId || '').trim();
-    const message = await this.shiftChat.createMessage(client.data.actor, shiftId, body);
+    const message = await this.shiftChat.createMessage(
+      client.data.actor,
+      shiftId,
+      body,
+    );
     this.emitShiftMessage(shiftId, message);
     return message;
   }
@@ -62,8 +66,13 @@ export class ShiftChatGateway implements OnGatewayConnection {
     this.server.to(this.roomName(shiftId)).emit('shift-chat:message', message);
   }
 
-  emitShiftMessageDeleted(shiftId: string, payload: { id: string; shiftId: string }) {
-    this.server.to(this.roomName(shiftId)).emit('shift-chat:message-deleted', payload);
+  emitShiftMessageDeleted(
+    shiftId: string,
+    payload: { id: string; shiftId: string },
+  ) {
+    this.server
+      .to(this.roomName(shiftId))
+      .emit('shift-chat:message-deleted', payload);
   }
 
   private async resolveActor(client: Socket) {

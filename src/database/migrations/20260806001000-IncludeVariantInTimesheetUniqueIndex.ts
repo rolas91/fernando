@@ -1,8 +1,6 @@
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class IncludeVariantInTimesheetUniqueIndex20260806001000
-  implements MigrationInterface
-{
+export class IncludeVariantInTimesheetUniqueIndex20260806001000 implements MigrationInterface {
   name = 'IncludeVariantInTimesheetUniqueIndex20260806001000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddGeoAndPostalExpandWorkersClientsProjects20260506002000
-  implements MigrationInterface
-{
+export class AddGeoAndPostalExpandWorkersClientsProjects20260506002000 implements MigrationInterface {
   name = 'AddGeoAndPostalExpandWorkersClientsProjects20260506002000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

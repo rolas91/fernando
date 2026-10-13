@@ -10,7 +10,9 @@ type RepoMock<T> = {
   __records?: Record<string, unknown[]>;
 };
 
-function makeRepo<T extends Record<string, unknown> = Record<string, unknown>>(): RepoMock<T> {
+function makeRepo<
+  T extends Record<string, unknown> = Record<string, unknown>,
+>(): RepoMock<T> {
   return {
     find: jest.fn(),
     count: jest.fn(),
@@ -163,8 +165,12 @@ describe('ShiftsQueryService', () => {
     const shiftsRepo = makeRepo();
     shiftsRepo.find.mockResolvedValue([
       {
-        id: 's1', workOrderId: 'wo-1', date: '2026-07-18',
-        startTime: '07:00', endTime: '15:00', visibleDocumentTypes: [],
+        id: 's1',
+        workOrderId: 'wo-1',
+        date: '2026-07-18',
+        startTime: '07:00',
+        endTime: '15:00',
+        visibleDocumentTypes: [],
         plannedEquipment: [{ type: 'Excavator', estimatedQuantity: 2 }],
         plannedMaterials: [{ type: 'Concrete', estimatedQuantity: 4 }],
         workOrderTypes: ['Field Service', 'On Rent'],
@@ -179,8 +185,11 @@ describe('ShiftsQueryService', () => {
     const matRepo = makeRepo();
     matRepo.createQueryBuilder.mockReturnValue(qb([]));
     const service = new ShiftsQueryService(
-      shiftsRepo as never, rolesRepo as never, workersRepo as never,
-      equipRepo as never, matRepo as never,
+      shiftsRepo as never,
+      rolesRepo as never,
+      workersRepo as never,
+      equipRepo as never,
+      matRepo as never,
     );
 
     const result = await service.loadShiftsForWorkOrders(['wo-1']);

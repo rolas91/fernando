@@ -137,7 +137,11 @@ const shiftsWithOneConfirmed = [
         requiredCount: 2,
         assignedWorkers: ['worker-a', 'worker-b'],
         workerConfirmations: [
-          { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
+          {
+            workerId: 'worker-a',
+            status: 'confirmed',
+            respondedAt: '2026-06-06T10:00:00.000Z',
+          },
           { workerId: 'worker-b', status: 'pending' },
         ],
       },
@@ -189,10 +193,16 @@ describe('updateShiftWorkerConfirmation', () => {
       shiftsWithOneConfirmed,
     );
 
-    const role = normalized[0].roles?.[0] as { workerConfirmations?: Array<{ workerId: string; status: string }> };
+    const role = normalized[0].roles?.[0] as {
+      workerConfirmations?: Array<{ workerId: string; status: string }>;
+    };
 
     expect(role.workerConfirmations).toEqual([
-      { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
+      {
+        workerId: 'worker-a',
+        status: 'confirmed',
+        respondedAt: '2026-06-06T10:00:00.000Z',
+      },
       { workerId: 'worker-b', status: 'pending' },
     ]);
   });
@@ -211,11 +221,21 @@ describe('updateShiftWorkerConfirmation', () => {
       },
     );
 
-    const role = next[0].roles?.[0] as { workerConfirmations?: Array<{ workerId: string; status: string }> };
+    const role = next[0].roles?.[0] as {
+      workerConfirmations?: Array<{ workerId: string; status: string }>;
+    };
 
     expect(role.workerConfirmations).toEqual([
-      { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
-      { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-06T10:05:00.000Z' },
+      {
+        workerId: 'worker-a',
+        status: 'confirmed',
+        respondedAt: '2026-06-06T10:00:00.000Z',
+      },
+      {
+        workerId: 'worker-b',
+        status: 'confirmed',
+        respondedAt: '2026-06-06T10:05:00.000Z',
+      },
     ]);
   });
 });
@@ -232,7 +252,11 @@ describe('normalizeWorkOrderShifts - role id regeneration', () => {
             requiredCount: 2,
             assignedWorkers: ['worker-a', 'worker-b'],
             workerConfirmations: [
-              { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
+              {
+                workerId: 'worker-a',
+                status: 'confirmed',
+                respondedAt: '2026-06-06T10:00:00.000Z',
+              },
               { workerId: 'worker-b', status: 'pending' },
             ],
           },
@@ -254,10 +278,16 @@ describe('normalizeWorkOrderShifts - role id regeneration', () => {
     ];
 
     const normalized = normalizeWorkOrderShifts(incoming, previous);
-    const role = normalized[0].roles?.[0] as { workerConfirmations?: Array<{ workerId: string; status: string }> };
+    const role = normalized[0].roles?.[0] as {
+      workerConfirmations?: Array<{ workerId: string; status: string }>;
+    };
 
     expect(role.workerConfirmations).toEqual([
-      { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
+      {
+        workerId: 'worker-a',
+        status: 'confirmed',
+        respondedAt: '2026-06-06T10:00:00.000Z',
+      },
       { workerId: 'worker-b', status: 'pending' },
     ]);
   });
@@ -273,8 +303,16 @@ describe('preserveOtherWorkerConfirmations', () => {
         requiredCount: 2,
         assignedWorkers: ['worker-a', 'worker-b'],
         workerConfirmations: [
-          { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-06T10:00:00.000Z' },
-          { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-06T11:00:00.000Z' },
+          {
+            workerId: 'worker-a',
+            status: 'confirmed',
+            respondedAt: '2026-06-06T10:00:00.000Z',
+          },
+          {
+            workerId: 'worker-b',
+            status: 'confirmed',
+            respondedAt: '2026-06-06T11:00:00.000Z',
+          },
         ],
       },
     ],
@@ -288,19 +326,19 @@ describe('preserveOtherWorkerConfirmations', () => {
         roles: [
           {
             ...baseShift.roles[0],
-            workerConfirmations: [
-              { workerId: 'worker-a', status: 'pending' },
-            ],
+            workerConfirmations: [{ workerId: 'worker-a', status: 'pending' }],
           },
         ],
       },
     ];
-    const restored = preserveOtherWorkerConfirmations(
-      wiped,
-      snapshot,
-      { shiftId: 'shift-1', roleId: 'role-1', workerId: 'worker-a' },
-    );
-    const role = restored[0].roles?.[0] as { workerConfirmations?: Array<{ workerId: string; status: string }> };
+    const restored = preserveOtherWorkerConfirmations(wiped, snapshot, {
+      shiftId: 'shift-1',
+      roleId: 'role-1',
+      workerId: 'worker-a',
+    });
+    const role = restored[0].roles?.[0] as {
+      workerConfirmations?: Array<{ workerId: string; status: string }>;
+    };
     const b = role.workerConfirmations?.find((c) => c.workerId === 'worker-b');
     expect(b?.status).toBe('confirmed');
   });
@@ -329,35 +367,35 @@ describe('preserveOtherWorkerConfirmations', () => {
         roles: [
           {
             ...baseShift.roles[0],
-            workerConfirmations: [
-              { workerId: 'worker-a', status: 'pending' },
-            ],
+            workerConfirmations: [{ workerId: 'worker-a', status: 'pending' }],
           },
           {
             id: 'role-2',
             roleName: 'Foreman',
             requiredCount: 1,
             assignedWorkers: ['worker-c'],
-            workerConfirmations: [
-              { workerId: 'worker-c', status: 'pending' },
-            ],
+            workerConfirmations: [{ workerId: 'worker-c', status: 'pending' }],
           },
         ],
       },
     ];
-    const restored = preserveOtherWorkerConfirmations(
-      mutated,
-      snapshot,
-      { shiftId: 'shift-1', roleId: 'role-1', workerId: 'worker-a' },
-    );
-    const role1 = restored[0].roles?.[0] as { workerConfirmations?: Array<{ workerId: string; status: string }> };
-    const role2 = restored[0].roles?.[1] as { workerConfirmations?: Array<{ workerId: string; status: string }> };
+    const restored = preserveOtherWorkerConfirmations(mutated, snapshot, {
+      shiftId: 'shift-1',
+      roleId: 'role-1',
+      workerId: 'worker-a',
+    });
+    const role1 = restored[0].roles?.[0] as {
+      workerConfirmations?: Array<{ workerId: string; status: string }>;
+    };
+    const role2 = restored[0].roles?.[1] as {
+      workerConfirmations?: Array<{ workerId: string; status: string }>;
+    };
     const a = role1.workerConfirmations?.find((c) => c.workerId === 'worker-a');
     const b = role1.workerConfirmations?.find((c) => c.workerId === 'worker-b');
     const c = role2.workerConfirmations?.find((c) => c.workerId === 'worker-c');
     expect(a?.status).toBe('pending');
     expect(b?.status).toBe('confirmed');
-    /** Other roles are not touched by this helper; they need their own restore call. */
+                                                                                        
     expect(c?.status).toBe('pending');
   });
 });

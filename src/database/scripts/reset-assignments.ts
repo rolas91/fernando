@@ -15,7 +15,9 @@ async function main() {
     ds.query(`SELECT COUNT(*)::int AS c FROM work_order_shifts`),
     ds.query(`SELECT COUNT(*)::int AS c FROM work_order_shift_roles`),
     ds.query(`SELECT COUNT(*)::int AS c FROM work_order_shift_role_workers`),
-    ds.query(`SELECT COUNT(*)::int AS c FROM work_orders WHERE deleted_at IS NULL`),
+    ds.query(
+      `SELECT COUNT(*)::int AS c FROM work_orders WHERE deleted_at IS NULL`,
+    ),
   ]);
   const before: ResetResult = {
     workOrders: counts[3][0].c,
@@ -31,16 +33,16 @@ async function main() {
     await manager.query(`DELETE FROM work_order_shift_role_workers`);
     await manager.query(`DELETE FROM work_order_shift_roles`);
     await manager.query(`DELETE FROM work_order_shifts`);
-    await manager.query(
-      `DELETE FROM work_orders WHERE deleted_at IS NULL`,
-    );
+    await manager.query(`DELETE FROM work_orders WHERE deleted_at IS NULL`);
   });
 
   const afterCounts = await Promise.all([
     ds.query(`SELECT COUNT(*)::int AS c FROM work_order_shifts`),
     ds.query(`SELECT COUNT(*)::int AS c FROM work_order_shift_roles`),
     ds.query(`SELECT COUNT(*)::int AS c FROM work_order_shift_role_workers`),
-    ds.query(`SELECT COUNT(*)::int AS c FROM work_orders WHERE deleted_at IS NULL`),
+    ds.query(
+      `SELECT COUNT(*)::int AS c FROM work_orders WHERE deleted_at IS NULL`,
+    ),
   ]);
   const after: ResetResult = {
     workOrders: afterCounts[3][0].c,
@@ -51,7 +53,9 @@ async function main() {
 
   console.log('--- AFTER ---');
   console.log(JSON.stringify(after, null, 2));
-  console.log('Reset complete. Catalogs (workers, equipment, materials, projects, clients, shift templates) preserved.');
+  console.log(
+    'Reset complete. Catalogs (workers, equipment, materials, projects, clients, shift templates) preserved.',
+  );
 
   if (AppDataSource.isInitialized) await AppDataSource.destroy();
 }

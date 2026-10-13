@@ -1,4 +1,10 @@
-import { IsArray, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateWorkOrderDto {
@@ -91,5 +97,4 @@ export class CreateWorkOrderDto {
   @IsOptional()
   @IsArray()
   attachments?: string[];
-
 }

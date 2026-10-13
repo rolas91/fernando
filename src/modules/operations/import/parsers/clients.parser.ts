@@ -30,7 +30,8 @@ export function parseClientRow(
     return { row, raw, data: null, errors, action: 'skip' };
   }
 
-  const id = (idIn.value && idIn.value.trim()) || idFromName(name.value || '', 'cli');
+  const id =
+    (idIn.value && idIn.value.trim()) || idFromName(name.value || '', 'cli');
   const data: Record<string, unknown> = {
     id,
     name: name.value,

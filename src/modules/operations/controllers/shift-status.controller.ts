@@ -38,40 +38,39 @@ export class ShiftStatusController {
 
   private assertAdmin(actor?: UserAccessContext) {
     if (!actor || (actor.role !== 'admin' && !actor.roles.includes('admin'))) {
-      throw new ForbiddenException('Only an administrator can approve or reopen a shift.');
+      throw new ForbiddenException(
+        'Only an administrator can approve or reopen a shift.',
+      );
     }
   }
 
-  /**
-   * GET /work-orders/shifts/status-catalog
-   * Returns the seven shift statuses the calendar uses (manual + automatic),
-   * each with its color, sort order and `automatic` flag.
-   */
+     
+                                           
+                                                                             
+                                                          
+     
   @Get('status-catalog')
   listStatusCatalog() {
     return this.shiftStatus.listShiftStatuses();
   }
 
-  /**
-   * GET /work-orders/shifts/stats?from=YYYY-MM-DD&to=YYYY-MM-DD
-   * Returns the seven counters for every shift in the date range plus
-   * the convenience aggregates (totalShifts, pending, workersMissing).
-   */
+     
+                                                                
+                                                                      
+                                                                       
+     
   @Get('stats')
   @ApiQuery({ name: 'from', required: false, type: String })
   @ApiQuery({ name: 'to', required: false, type: String })
-  getStats(
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
+  getStats(@Query('from') from?: string, @Query('to') to?: string) {
     return this.shiftStatus.computeStats({ from, to });
   }
 
-  /**
-   * PATCH /work-orders/shifts/:workOrderId/:shiftId/status
-   * Sets the user-pickable manual status of a shift
-   * (customer_pending | dispatch_pending | ready_to_notify).
-   */
+     
+                                                           
+                                                    
+                                                             
+     
   @Patch(':workOrderId/:shiftId/status')
   @ApiBody({
     schema: {
@@ -96,11 +95,11 @@ export class ShiftStatusController {
     return updated;
   }
 
-  /**
-   * POST /work-orders/shifts/:workOrderId/:shiftId/cancel
-   * Manually cancels a shift (sets the cancelled flag → automatic
-   * shift_cancelled in the next stats rollup).
-   */
+     
+                                                          
+                                                                  
+                                               
+     
   @Post(':workOrderId/:shiftId/cancel')
   async cancelShift(
     @Param('workOrderId') workOrderId: string,
@@ -108,7 +107,10 @@ export class ShiftStatusController {
   ) {
     await this.workOrders.assertShiftMutable(workOrderId, shiftId);
     await this.shiftsWrite.assertShiftNotPmApproved(workOrderId, shiftId);
-    const updated = await this.shiftsWrite.cancelShift({ workOrderId, shiftId });
+    const updated = await this.shiftsWrite.cancelShift({
+      workOrderId,
+      shiftId,
+    });
     const notifications = updated
       ? await this.integrations.notifyShiftCancellation(workOrderId, shiftId)
       : { attempted: 0, sent: 0 };
@@ -116,16 +118,19 @@ export class ShiftStatusController {
     return { shift: updated, notifications };
   }
 
-  /**
-   * POST /work-orders/shifts/:workOrderId/:shiftId/restore
-   * Reverses a manual cancellation.
-   */
+     
+                                                           
+                                    
+     
   @Post(':workOrderId/:shiftId/restore')
   async restoreShift(
     @Param('workOrderId') workOrderId: string,
     @Param('shiftId') shiftId: string,
   ) {
-    const updated = await this.shiftsWrite.restoreShift({ workOrderId, shiftId });
+    const updated = await this.shiftsWrite.restoreShift({
+      workOrderId,
+      shiftId,
+    });
     this.realtime.emitTableUpdated('work_orders');
     return updated;
   }
@@ -143,7 +148,9 @@ export class ShiftStatusController {
     });
     if (!effective) throw new NotFoundException(`Shift ${shiftId} not found`);
     if (effective.status !== 'shift_completed') {
-      throw new BadRequestException('Only a completed shift can be PM Approved.');
+      throw new BadRequestException(
+        'Only a completed shift can be PM Approved.',
+      );
     }
     await this.formSubmissions.regenerateLatestWorkOrderPdfForShift(
       workOrderId,
@@ -166,7 +173,10 @@ export class ShiftStatusController {
     @Req() req: Request & { user?: UserAccessContext },
   ) {
     this.assertAdmin(req.user);
-    const updated = await this.shiftsWrite.reopenApprovedShift({ workOrderId, shiftId });
+    const updated = await this.shiftsWrite.reopenApprovedShift({
+      workOrderId,
+      shiftId,
+    });
     if (!updated) throw new NotFoundException(`Shift ${shiftId} not found`);
     this.realtime.emitTableUpdated('work_orders');
     return updated;

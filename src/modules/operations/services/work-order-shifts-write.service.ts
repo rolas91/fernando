@@ -29,8 +29,12 @@ export type ShiftWriteInput = {
   requesterUserId?: string | null;
   address?: string | null;
   crossStreetLocationDetail?: string | null;
-  addressLatitude?: number | null; addressLongitude?: number | null;
-  addressCity?: string | null; addressState?: string | null; addressZipCode?: string | null; addressCountry?: string | null;
+  addressLatitude?: number | null;
+  addressLongitude?: number | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressZipCode?: string | null;
+  addressCountry?: string | null;
   requesterName?: string | null;
   requesterPhone?: string | null;
   requesterEmail?: string | null;
@@ -40,7 +44,12 @@ export type ShiftWriteInput = {
   clientTimesheetNotes?: string;
   internalTimesheetNotes?: string;
   plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
-  plannedMaterials?: Array<{ type: string; estimatedQuantity: number; materialIds?: string[]; materialQuantities?: Record<string, number> }>;
+  plannedMaterials?: Array<{
+    type: string;
+    estimatedQuantity: number;
+    materialIds?: string[];
+    materialQuantities?: Record<string, number>;
+  }>;
   workOrderTypes?: string[];
   workOrderAuthorizedWorkerIds?: string[];
   defaultRoleStartTime?: string | null;
@@ -52,16 +61,22 @@ export type ShiftWriteInput = {
     startTime?: string | null;
     requiredCertificationIds?: string[];
     requiredSkillIds?: string[];
-    assignedWorkers: Array<{ workerId: string; status?: ShiftWorkerConfirmationStatus; respondedAt?: string | null; requestedAt?: string | null; notificationChannel?: string | null }>;
+    assignedWorkers: Array<{
+      workerId: string;
+      status?: ShiftWorkerConfirmationStatus;
+      respondedAt?: string | null;
+      requestedAt?: string | null;
+      notificationChannel?: string | null;
+    }>;
   }>;
 };
 
-/**
- * Single source of truth for writes against the relational shift tables.
- * - Uses transactions so a partial write never leaks.
- * - Replaces all rows for a work order in one call (simpler than diffing).
- * - Idempotent: callers can re-invoke with the same payload safely.
- */
+   
+                                                                         
+                                                      
+                                                                           
+                                                                    
+   
 @Injectable()
 export class WorkOrderShiftsWriteService {
   private readonly logger = new Logger(WorkOrderShiftsWriteService.name);
@@ -76,7 +91,10 @@ export class WorkOrderShiftsWriteService {
     private readonly workerAssignmentsRepo: Repository<WorkOrderShiftRoleWorker>,
   ) {}
 
-  async assertShiftNotPmApproved(workOrderId?: string | null, shiftId?: string | null) {
+  async assertShiftNotPmApproved(
+    workOrderId?: string | null,
+    shiftId?: string | null,
+  ) {
     if (!workOrderId || !shiftId) return;
     const shift = await this.shiftsRepo.findOne({
       where: { id: shiftId, workOrderId },
@@ -89,7 +107,7 @@ export class WorkOrderShiftsWriteService {
     }
   }
 
-  /** Replace all shifts/roles/assignments for a work order atomically. */
+                                                                          
   async replaceShiftsForWorkOrder(
     workOrderId: string,
     shifts: ShiftWriteInput[],
@@ -115,7 +133,9 @@ export class WorkOrderShiftsWriteService {
       const existingShiftIds = existingShifts.map((s) => s.id);
 
       if (existingShiftIds.length > 0) {
-        const existingRoles = await roleRepo.find({ where: { shiftId: In(existingShiftIds) } });
+        const existingRoles = await roleRepo.find({
+          where: { shiftId: In(existingShiftIds) },
+        });
         const existingRoleIds = existingRoles.map((r) => r.id);
         if (existingRoleIds.length > 0) {
           await workerRepo.delete({ roleId: In(existingRoleIds) });
@@ -127,13 +147,17 @@ export class WorkOrderShiftsWriteService {
 
       const shiftRows = shifts.map((s, index) => {
         const assignedWorkerIds = new Set(
-          s.roles.flatMap((role) => role.assignedWorkers.map((worker) => worker.workerId)),
+          s.roles.flatMap((role) =>
+            role.assignedWorkers.map((worker) => worker.workerId),
+          ),
         );
         const workOrderAuthorizedWorkerIds = [
           ...new Set(
             (s.workOrderAuthorizedWorkerIds ?? [])
               .map((workerId) => workerId.trim())
-              .filter((workerId) => workerId && assignedWorkerIds.has(workerId)),
+              .filter(
+                (workerId) => workerId && assignedWorkerIds.has(workerId),
+              ),
           ),
         ];
         return {
@@ -141,8 +165,8 @@ export class WorkOrderShiftsWriteService {
           workOrderId,
           shiftName: s.shiftName?.trim() ?? '',
           date: s.date,
-          // The incoming array is the user's current visual order. Re-number
-          // every save so editing one shift cannot move it unexpectedly.
+                                                                             
+                                                                         
           displayOrder: index,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -154,14 +178,23 @@ export class WorkOrderShiftsWriteService {
           createdByUserId: s.createdByUserId ?? null,
           requesterUserId: s.requesterUserId ?? null,
           address: s.address ?? null,
-          crossStreetLocationDetail: s.crossStreetLocationDetail?.trim() || null,
-          addressLatitude: s.addressLatitude ?? null, addressLongitude: s.addressLongitude ?? null,
-          addressCity: s.addressCity ?? null, addressState: s.addressState ?? null, addressZipCode: s.addressZipCode ?? null, addressCountry: s.addressCountry ?? null,
+          crossStreetLocationDetail:
+            s.crossStreetLocationDetail?.trim() || null,
+          addressLatitude: s.addressLatitude ?? null,
+          addressLongitude: s.addressLongitude ?? null,
+          addressCity: s.addressCity ?? null,
+          addressState: s.addressState ?? null,
+          addressZipCode: s.addressZipCode ?? null,
+          addressCountry: s.addressCountry ?? null,
           requesterName: s.requesterName ?? null,
           requesterPhone: s.requesterPhone?.trim() || null,
           requesterEmail: s.requesterEmail?.trim().toLowerCase() || null,
           visibleDocumentTypes: [...(s.visibleDocumentTypes ?? [])],
-          formTemplateIds: [...new Set((s.formTemplateIds ?? []).map((id) => id.trim()).filter(Boolean))],
+          formTemplateIds: [
+            ...new Set(
+              (s.formTemplateIds ?? []).map((id) => id.trim()).filter(Boolean),
+            ),
+          ],
           notes: s.notes ?? null,
           clientTimesheetNotes: s.clientTimesheetNotes ?? '',
           internalTimesheetNotes: s.internalTimesheetNotes ?? '',
@@ -206,7 +239,7 @@ export class WorkOrderShiftsWriteService {
     });
   }
 
-  /** Update a single worker's confirmation for a given (shift, role) tuple. */
+                                                                               
   async updateWorkerConfirmation(input: {
     workOrderId: string;
     shiftId: string;
@@ -222,10 +255,18 @@ export class WorkOrderShiftsWriteService {
       const roleRepo = manager.getRepository(WorkOrderShiftRole);
       const workerRepo = manager.getRepository(WorkOrderShiftRoleWorker);
 
-      const shift = await shiftRepo.findOne({ where: { id: input.shiftId, workOrderId: input.workOrderId } });
-      if (!shift) throw new Error(`Shift ${input.shiftId} not found for work order ${input.workOrderId}`);
-      const role = await roleRepo.findOne({ where: { id: input.roleId, shiftId: shift.id } });
-      if (!role) throw new Error(`Role ${input.roleId} not found for shift ${shift.id}`);
+      const shift = await shiftRepo.findOne({
+        where: { id: input.shiftId, workOrderId: input.workOrderId },
+      });
+      if (!shift)
+        throw new Error(
+          `Shift ${input.shiftId} not found for work order ${input.workOrderId}`,
+        );
+      const role = await roleRepo.findOne({
+        where: { id: input.roleId, shiftId: shift.id },
+      });
+      if (!role)
+        throw new Error(`Role ${input.roleId} not found for shift ${shift.id}`);
 
       const existing = await workerRepo.findOne({
         where: { roleId: role.id, workerId: input.workerId },
@@ -235,8 +276,12 @@ export class WorkOrderShiftsWriteService {
           { roleId: role.id, workerId: input.workerId },
           {
             confirmationStatus: input.status,
-            ...(input.respondedAt !== undefined ? { respondedAt: new Date(input.respondedAt) } : {}),
-            ...(input.requestedAt !== undefined ? { requestedAt: new Date(input.requestedAt) } : {}),
+            ...(input.respondedAt !== undefined
+              ? { respondedAt: new Date(input.respondedAt) }
+              : {}),
+            ...(input.requestedAt !== undefined
+              ? { requestedAt: new Date(input.requestedAt) }
+              : {}),
             ...(input.notificationChannel !== undefined
               ? { notificationChannel: input.notificationChannel }
               : {}),
@@ -255,7 +300,7 @@ export class WorkOrderShiftsWriteService {
     });
   }
 
-  /** Delete all shifts/roles/assignments for a work order. */
+                                                              
   async deleteShiftsForWorkOrder(workOrderId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const shiftRepo = manager.getRepository(WorkOrderShift);
@@ -276,17 +321,22 @@ export class WorkOrderShiftsWriteService {
     });
   }
 
-  /**
-   * Update the user-pickable manual status of a single shift
-   * (`customer_pending` | `dispatch_pending` | `ready_to_notify`).
-   * Returns the updated row, or null if the shift does not exist.
-   */
+     
+                                                             
+                                                                   
+                                                                  
+     
   async setShiftManualStatus(input: {
     workOrderId: string;
     shiftId: string;
     status: string;
   }): Promise<WorkOrderShift | null> {
-    const allowed = ['', 'customer_pending', 'dispatch_pending', 'ready_to_notify'];
+    const allowed = [
+      '',
+      'customer_pending',
+      'dispatch_pending',
+      'ready_to_notify',
+    ];
     const next = (input.status || '').trim().toLowerCase();
     if (!allowed.includes(next)) {
       throw new Error(
@@ -302,10 +352,10 @@ export class WorkOrderShiftsWriteService {
     return shift;
   }
 
-  /**
-   * Mark a shift as manually cancelled (sets `cancelled = true`).
-   * Reversible: calling `restoreShift` flips the flag back to false.
-   */
+     
+                                                                  
+                                                                     
+     
   async cancelShift(input: {
     workOrderId: string;
     shiftId: string;
@@ -359,7 +409,7 @@ export class WorkOrderShiftsWriteService {
     return this.shiftsRepo.save(shift);
   }
 
-  /** Build the ShiftWriteInput[] payload from a JSON array (for legacy fallbacks). */
+                                                                                      
   static fromJson(workOrderId: string, json: unknown): ShiftWriteInput[] {
     if (!Array.isArray(json)) return [];
     return json.map((raw: Record<string, unknown>) => {
@@ -373,7 +423,8 @@ export class WorkOrderShiftsWriteService {
         shiftName: String(raw.shiftName ?? '').trim(),
         date,
         displayOrder:
-          typeof raw.displayOrder === 'number' && Number.isFinite(raw.displayOrder)
+          typeof raw.displayOrder === 'number' &&
+          Number.isFinite(raw.displayOrder)
             ? Math.max(0, Math.floor(raw.displayOrder))
             : undefined,
         startTime,
@@ -387,41 +438,77 @@ export class WorkOrderShiftsWriteService {
         pmApprovedAt:
           typeof raw.pmApprovedAt === 'string' ? raw.pmApprovedAt : null,
         pmApprovedByUserId:
-          typeof raw.pmApprovedByUserId === 'string' ? raw.pmApprovedByUserId : null,
-        createdByUserId: typeof raw.createdByUserId === 'string' ? raw.createdByUserId : null,
-        requesterUserId: typeof raw.requesterUserId === 'string' ? raw.requesterUserId : null,
+          typeof raw.pmApprovedByUserId === 'string'
+            ? raw.pmApprovedByUserId
+            : null,
+        createdByUserId:
+          typeof raw.createdByUserId === 'string' ? raw.createdByUserId : null,
+        requesterUserId:
+          typeof raw.requesterUserId === 'string' ? raw.requesterUserId : null,
         address: typeof raw.address === 'string' ? raw.address : null,
-        crossStreetLocationDetail: typeof raw.crossStreetLocationDetail === 'string' ? raw.crossStreetLocationDetail : null,
-        addressLatitude: typeof raw.addressLatitude === 'number' ? raw.addressLatitude : null,
-        addressLongitude: typeof raw.addressLongitude === 'number' ? raw.addressLongitude : null,
-        addressCity: typeof raw.addressCity === 'string' ? raw.addressCity : null,
-        addressState: typeof raw.addressState === 'string' ? raw.addressState : null,
-        addressZipCode: typeof raw.addressZipCode === 'string' ? raw.addressZipCode : null,
-        addressCountry: typeof raw.addressCountry === 'string' ? raw.addressCountry : null,
-        requesterName: typeof raw.requesterName === 'string' ? raw.requesterName : null,
-        requesterPhone: typeof raw.requesterPhone === 'string' ? raw.requesterPhone : null,
-        requesterEmail: typeof raw.requesterEmail === 'string' ? raw.requesterEmail : null,
-        visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes) ? raw.visibleDocumentTypes as string[] : [],
+        crossStreetLocationDetail:
+          typeof raw.crossStreetLocationDetail === 'string'
+            ? raw.crossStreetLocationDetail
+            : null,
+        addressLatitude:
+          typeof raw.addressLatitude === 'number' ? raw.addressLatitude : null,
+        addressLongitude:
+          typeof raw.addressLongitude === 'number'
+            ? raw.addressLongitude
+            : null,
+        addressCity:
+          typeof raw.addressCity === 'string' ? raw.addressCity : null,
+        addressState:
+          typeof raw.addressState === 'string' ? raw.addressState : null,
+        addressZipCode:
+          typeof raw.addressZipCode === 'string' ? raw.addressZipCode : null,
+        addressCountry:
+          typeof raw.addressCountry === 'string' ? raw.addressCountry : null,
+        requesterName:
+          typeof raw.requesterName === 'string' ? raw.requesterName : null,
+        requesterPhone:
+          typeof raw.requesterPhone === 'string' ? raw.requesterPhone : null,
+        requesterEmail:
+          typeof raw.requesterEmail === 'string' ? raw.requesterEmail : null,
+        visibleDocumentTypes: Array.isArray(raw.visibleDocumentTypes)
+          ? (raw.visibleDocumentTypes as string[])
+          : [],
         formTemplateIds: Array.isArray(raw.formTemplateIds)
-          ? raw.formTemplateIds.filter((value): value is string => typeof value === 'string')
+          ? raw.formTemplateIds.filter(
+              (value): value is string => typeof value === 'string',
+            )
           : [],
         notes: typeof raw.notes === 'string' ? raw.notes : null,
         clientTimesheetNotes:
-          typeof raw.clientTimesheetNotes === 'string' ? raw.clientTimesheetNotes : '',
+          typeof raw.clientTimesheetNotes === 'string'
+            ? raw.clientTimesheetNotes
+            : '',
         internalTimesheetNotes:
-          typeof raw.internalTimesheetNotes === 'string' ? raw.internalTimesheetNotes : '',
-        plannedEquipment: Array.isArray(raw.plannedEquipment) ? raw.plannedEquipment : [],
-        plannedMaterials: Array.isArray(raw.plannedMaterials) ? raw.plannedMaterials : [],
-        workOrderTypes: Array.isArray(raw.workOrderTypes)
-          ? raw.workOrderTypes.filter((value): value is string => typeof value === 'string')
+          typeof raw.internalTimesheetNotes === 'string'
+            ? raw.internalTimesheetNotes
+            : '',
+        plannedEquipment: Array.isArray(raw.plannedEquipment)
+          ? raw.plannedEquipment
           : [],
-        workOrderAuthorizedWorkerIds: Array.isArray(raw.workOrderAuthorizedWorkerIds)
+        plannedMaterials: Array.isArray(raw.plannedMaterials)
+          ? raw.plannedMaterials
+          : [],
+        workOrderTypes: Array.isArray(raw.workOrderTypes)
+          ? raw.workOrderTypes.filter(
+              (value): value is string => typeof value === 'string',
+            )
+          : [],
+        workOrderAuthorizedWorkerIds: Array.isArray(
+          raw.workOrderAuthorizedWorkerIds,
+        )
           ? raw.workOrderAuthorizedWorkerIds.filter(
               (workerId): workerId is string => typeof workerId === 'string',
             )
           : [],
         defaultRoleStartTime:
-          typeof raw.defaultRoleStartTime === 'string' ? raw.defaultRoleStartTime : null,
+          typeof raw.defaultRoleStartTime === 'string'
+            ? raw.defaultRoleStartTime
+            : null,
         shiftTemplateId:
           typeof raw.shiftTemplateId === 'string' ? raw.shiftTemplateId : null,
         roles: roles.map((rawRole: Record<string, unknown>) => {
@@ -431,14 +518,21 @@ export class WorkOrderShiftsWriteService {
           const confirmations = Array.isArray(rawRole.workerConfirmations)
             ? (rawRole.workerConfirmations as Record<string, unknown>[])
             : [];
-          const byWorker = new Map(confirmations.map((c) => [String(c.workerId ?? ''), c]));
+          const byWorker = new Map(
+            confirmations.map((c) => [String(c.workerId ?? ''), c]),
+          );
           return {
             id: String(rawRole.id ?? '').trim(),
             roleName: String(rawRole.roleName ?? 'Worker'),
             requiredCount:
-              typeof rawRole.requiredCount === 'number' ? rawRole.requiredCount : 1,
-            startTime: typeof rawRole.startTime === 'string' ? rawRole.startTime : null,
-            requiredCertificationIds: Array.isArray(rawRole.requiredCertificationIds)
+              typeof rawRole.requiredCount === 'number'
+                ? rawRole.requiredCount
+                : 1,
+            startTime:
+              typeof rawRole.startTime === 'string' ? rawRole.startTime : null,
+            requiredCertificationIds: Array.isArray(
+              rawRole.requiredCertificationIds,
+            )
               ? (rawRole.requiredCertificationIds as string[])
               : [],
             requiredSkillIds: Array.isArray(rawRole.requiredSkillIds)
@@ -449,11 +543,16 @@ export class WorkOrderShiftsWriteService {
               return {
                 workerId,
                 status:
-                  (conf?.status as ShiftWorkerConfirmationStatus | undefined) ?? 'pending',
+                  (conf?.status as ShiftWorkerConfirmationStatus | undefined) ??
+                  'pending',
                 respondedAt:
-                  typeof conf?.respondedAt === 'string' ? conf.respondedAt : null,
+                  typeof conf?.respondedAt === 'string'
+                    ? conf.respondedAt
+                    : null,
                 requestedAt:
-                  typeof conf?.requestedAt === 'string' ? conf.requestedAt : null,
+                  typeof conf?.requestedAt === 'string'
+                    ? conf.requestedAt
+                    : null,
                 notificationChannel:
                   typeof conf?.notificationChannel === 'string'
                     ? conf.notificationChannel

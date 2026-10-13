@@ -42,35 +42,33 @@ export class NumberingService {
     if (settings.length === 0) return { ...DEFAULT_WORK_ORDER_NUMBERING };
     const s = settings[0];
     return {
-      prefix: s.workOrderNumberPrefix || DEFAULT_WORK_ORDER_NUMBERING.prefix,
-      padding:
-        s.workOrderNumberPadding || DEFAULT_WORK_ORDER_NUMBERING.padding,
-      reset: (s.workOrderNumberReset as WorkOrderResetMode) ||
+      prefix: s.workOrderNumberPrefix ?? DEFAULT_WORK_ORDER_NUMBERING.prefix,
+      padding: s.workOrderNumberPadding || DEFAULT_WORK_ORDER_NUMBERING.padding,
+      reset:
+        (s.workOrderNumberReset as WorkOrderResetMode) ||
         DEFAULT_WORK_ORDER_NUMBERING.reset,
       template:
         s.workOrderNumberTemplate || DEFAULT_WORK_ORDER_NUMBERING.template,
     };
   }
 
-  /**
-   * Computes the next work order number using the configured format and
-   * incrementing the persisted sequence for the current reset key. Safe
-   * against concurrent calls because the UPSERT runs inside a transaction
-   * with row-level locking via a unique index lookup.
-   */
-  async nextWorkOrderNumber(
-    referenceDate: Date = new Date(),
-  ): Promise<string> {
+     
+                                                                        
+                                                                        
+                                                                          
+                                                      
+     
+  async nextWorkOrderNumber(referenceDate: Date = new Date()): Promise<string> {
     const config = await this.loadConfig();
     const resetKey = this.computeResetKey(config.reset, referenceDate);
     const nextValue = await this.advanceSequence(resetKey);
     return this.format(config, nextValue, referenceDate);
   }
 
-  /**
-   * Returns the next number that WOULD be assigned, without consuming a
-   * sequence value. Useful for previews in the UI.
-   */
+     
+                                                                        
+                                                   
+     
   async previewNextWorkOrderNumber(
     referenceDate: Date = new Date(),
   ): Promise<{ number: string; config: WorkOrderNumberingConfig }> {
@@ -86,9 +84,9 @@ export class NumberingService {
     };
   }
 
-  /**
-   * Resets the sequence for a given reset key (admin tool).
-   */
+     
+                                                            
+     
   async resetSequence(
     resetKey: string = 'GLOBAL',
     value: number = 0,
@@ -102,10 +100,7 @@ export class NumberingService {
       .execute();
   }
 
-  private computeResetKey(
-    mode: WorkOrderResetMode,
-    date: Date,
-  ): string {
+  private computeResetKey(mode: WorkOrderResetMode, date: Date): string {
     if (mode === 'never') return 'GLOBAL';
     const y = date.getUTCFullYear();
     if (mode === 'yearly') return String(y);
@@ -117,13 +112,13 @@ export class NumberingService {
     return this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(WorkOrderSequence);
       const existing = await repo
-      .createQueryBuilder('seq')
-      .where('seq.scope = :scope AND seq.reset_key = :resetKey', {
-        scope: SCOPE,
-        resetKey,
-      })
-      .setLock('pessimistic_write')
-      .getOne();
+        .createQueryBuilder('seq')
+        .where('seq.scope = :scope AND seq.reset_key = :resetKey', {
+          scope: SCOPE,
+          resetKey,
+        })
+        .setLock('pessimistic_write')
+        .getOne();
       const next = (existing?.lastValue ?? 0) + 1;
       if (existing) {
         existing.lastValue = next;
@@ -140,20 +135,22 @@ export class NumberingService {
     value: number,
     date: Date,
   ): string {
-    const padded = String(value).padStart(Math.max(1, config.padding), '0');
     const yyyy = String(date.getUTCFullYear());
     const yy = yyyy.slice(-2);
     const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(date.getUTCDate()).padStart(2, '0');
     return (config.template || DEFAULT_WORK_ORDER_NUMBERING.template)
-      .replace(/\{PREFIX\}/gi, config.prefix || DEFAULT_WORK_ORDER_NUMBERING.prefix)
+      .replace(
+        /\{PREFIX\}/gi,
+        config.prefix ?? DEFAULT_WORK_ORDER_NUMBERING.prefix,
+      )
       .replace(/\{YYYY\}/g, yyyy)
       .replace(/\{YY\}/g, yy)
       .replace(/\{MM\}/g, mm)
       .replace(/\{DD\}/g, dd)
-      .replace(/\{NNNN+\}/g, (match) => {
-        const width = match.length - 3;
-        return String(value).padStart(Math.max(width, 1), '0');
+      .replace(/\{N+\}/g, (match) => {
+        const width = match.length - 2;
+        return String(value).padStart(Math.max(width, config.padding, 1), '0');
       });
   }
 }

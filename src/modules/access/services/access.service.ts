@@ -39,7 +39,7 @@ export class AccessService implements OnModuleInit {
       where: { key: normalized },
     });
     if (existing) {
-      throw new ConflictException('El permiso ya existe');
+      throw new ConflictException('The permission already exists');
     }
     const permission = this.permissionsRepo.create({
       key: normalized,
@@ -58,7 +58,7 @@ export class AccessService implements OnModuleInit {
       where: { key: normalized },
     });
     if (existing) {
-      throw new ConflictException('El rol ya existe');
+      throw new ConflictException('The role already exists');
     }
     const role = this.rolesRepo.create({
       key: normalized,
@@ -85,14 +85,14 @@ export class AccessService implements OnModuleInit {
       relations: { permissions: true },
     });
     if (!role) {
-      throw new NotFoundException('Rol no encontrado');
+      throw new NotFoundException('Role not found');
     }
 
     const permission = await this.permissionsRepo.findOne({
       where: { key: pk },
     });
     if (!permission) {
-      throw new NotFoundException('Permiso no encontrado');
+      throw new NotFoundException('Permission not found');
     }
 
     const already = (role.permissions ?? []).some((p) => p.key === pk);
@@ -112,7 +112,7 @@ export class AccessService implements OnModuleInit {
 
     const role = await this.rolesRepo.findOne({ where: { key: rk } });
     if (!role) {
-      throw new NotFoundException('Rol no encontrado');
+      throw new NotFoundException('Role not found');
     }
 
     const user = await this.usersRepo.findOne({
@@ -120,7 +120,7 @@ export class AccessService implements OnModuleInit {
       relations: { roles: true },
     });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException('User not found');
     }
 
     const already = (user.roles ?? []).some((r) => r.key === rk);
@@ -136,7 +136,7 @@ export class AccessService implements OnModuleInit {
     const rk = roleKey.trim().toLowerCase();
     const role = await this.rolesRepo.findOne({ where: { key: rk } });
     if (!role) {
-      throw new NotFoundException('Rol no encontrado');
+      throw new NotFoundException('Role not found');
     }
 
     const user = await this.usersRepo.findOne({
@@ -144,12 +144,14 @@ export class AccessService implements OnModuleInit {
       relations: { roles: true },
     });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException('User not found');
     }
 
     const preservedRoles = (user.roles ?? []).filter(
       (existingRole) =>
-        !APP_ROLE_KEYS.includes(existingRole.key as (typeof APP_ROLE_KEYS)[number]),
+        !APP_ROLE_KEYS.includes(
+          existingRole.key as (typeof APP_ROLE_KEYS)[number],
+        ),
     );
     user.roles = [...preservedRoles, role];
     await this.usersRepo.save(user);
@@ -188,7 +190,7 @@ export class AccessService implements OnModuleInit {
     });
 
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException('User not found');
     }
 
     return this.buildUserAccessContext(user);
@@ -241,7 +243,9 @@ export class AccessService implements OnModuleInit {
       }
     }
 
-    for (const [roleKey, permissionKeys] of Object.entries(DEFAULT_ROLE_GRANTS)) {
+    for (const [roleKey, permissionKeys] of Object.entries(
+      DEFAULT_ROLE_GRANTS,
+    )) {
       for (const permissionKey of permissionKeys) {
         await this.grantPermissionToRole(roleKey, permissionKey);
       }

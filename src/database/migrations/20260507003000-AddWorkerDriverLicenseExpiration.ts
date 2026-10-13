@@ -1,14 +1,14 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddWorkerDriverLicenseExpiration20260507003000
-  implements MigrationInterface
-{
+export class AddWorkerDriverLicenseExpiration20260507003000 implements MigrationInterface {
   name = 'AddWorkerDriverLicenseExpiration20260507003000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (!(await queryRunner.hasTable('workers'))) return;
 
-    if (!(await queryRunner.hasColumn('workers', 'driver_license_expiration'))) {
+    if (
+      !(await queryRunner.hasColumn('workers', 'driver_license_expiration'))
+    ) {
       await queryRunner.addColumn(
         'workers',
         new TableColumn({
@@ -22,9 +22,7 @@ export class AddWorkerDriverLicenseExpiration20260507003000
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     if (!(await queryRunner.hasTable('workers'))) return;
-    if (
-      await queryRunner.hasColumn('workers', 'driver_license_expiration')
-    ) {
+    if (await queryRunner.hasColumn('workers', 'driver_license_expiration')) {
       await queryRunner.dropColumn('workers', 'driver_license_expiration');
     }
   }

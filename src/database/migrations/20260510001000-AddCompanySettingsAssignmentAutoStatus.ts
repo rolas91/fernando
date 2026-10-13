@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddCompanySettingsAssignmentAutoStatus20260510001000
-  implements MigrationInterface
-{
+export class AddCompanySettingsAssignmentAutoStatus20260510001000 implements MigrationInterface {
   name = 'AddCompanySettingsAssignmentAutoStatus20260510001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

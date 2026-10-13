@@ -51,7 +51,9 @@ export class NotificationsService {
 
   async markMobileRead(id: string, actor: UserAccessContext | undefined) {
     const worker = await this.resolveWorkerForActor(actor);
-    const item = await this.repo.findOne({ where: { id, workerId: worker.id } });
+    const item = await this.repo.findOne({
+      where: { id, workerId: worker.id },
+    });
     if (!item) throw new NotFoundException(`Notification ${id} not found`);
     item.read = true;
     const saved = await this.repo.save(item);
@@ -61,7 +63,9 @@ export class NotificationsService {
 
   async removeMobile(id: string, actor: UserAccessContext | undefined) {
     const worker = await this.resolveWorkerForActor(actor);
-    const item = await this.repo.findOne({ where: { id, workerId: worker.id } });
+    const item = await this.repo.findOne({
+      where: { id, workerId: worker.id },
+    });
     if (!item) throw new NotFoundException(`Notification ${id} not found`);
     await this.repo.remove(item);
     this.realtime.emitTableUpdated('notifications');
@@ -105,7 +109,8 @@ export class NotificationsService {
     const email = actor?.email?.trim().toLowerCase();
     if (!email) throw new NotFoundException('Authenticated worker not found.');
     const worker = await this.workerRepo.findOne({ where: { email } });
-    if (!worker) throw new NotFoundException(`Worker profile for ${email} was not found.`);
+    if (!worker)
+      throw new NotFoundException(`Worker profile for ${email} was not found.`);
     return worker;
   }
 }

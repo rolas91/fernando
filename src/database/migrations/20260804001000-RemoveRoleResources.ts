@@ -4,8 +4,12 @@ export class RemoveRoleResources20260804001000 implements MigrationInterface {
   name = 'RemoveRoleResources20260804001000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TABLE IF EXISTS "work_order_shift_role_materials"`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "work_order_shift_role_equipment"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "work_order_shift_role_materials"`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "work_order_shift_role_equipment"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "work_order_shift_roles" DROP COLUMN IF EXISTS "material_types"`,
     );

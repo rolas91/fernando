@@ -66,7 +66,11 @@ export class ShiftChatController {
     @Param('shiftId') shiftId: string,
     @Param('messageId') messageId: string,
   ) {
-    const deleted = await this.shiftChat.deleteMessage(req.user, shiftId, messageId);
+    const deleted = await this.shiftChat.deleteMessage(
+      req.user,
+      shiftId,
+      messageId,
+    );
     this.shiftChatGateway.emitShiftMessageDeleted(shiftId, deleted);
     return deleted;
   }
@@ -79,7 +83,13 @@ export class ShiftChatController {
   async uploadFiles(
     @Req() req: ReqWithOpsUser,
     @Param('shiftId') shiftId: string,
-    @UploadedFiles() files: Array<{ originalname?: string; mimetype?: string; buffer?: Buffer; size?: number }>,
+    @UploadedFiles()
+    files: Array<{
+      originalname?: string;
+      mimetype?: string;
+      buffer?: Buffer;
+      size?: number;
+    }>,
   ) {
     await this.shiftChat.assertActorCanAccessShift(req.user, shiftId);
     return this.spacesStorage.uploadShiftChatFiles(files || [], shiftId);

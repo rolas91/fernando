@@ -22,12 +22,18 @@ export class UpdateUserDto {
   @IsString()
   phone?: string;
 
-  @ApiPropertyOptional({ example: 'archived', enum: ['active', 'inactive', 'archived'] })
+  @ApiPropertyOptional({
+    example: 'archived',
+    enum: ['active', 'inactive', 'archived'],
+  })
   @IsOptional()
   @IsIn(['active', 'inactive', 'archived'])
   status?: 'active' | 'inactive' | 'archived';
 
-  @ApiPropertyOptional({ example: 'manager', enum: ['admin', 'manager', 'scheduler', 'viewer'] })
+  @ApiPropertyOptional({
+    example: 'manager',
+    enum: ['admin', 'manager', 'scheduler', 'viewer'],
+  })
   @IsOptional()
   @IsIn(['admin', 'manager', 'scheduler', 'viewer'])
   role?: 'admin' | 'manager' | 'scheduler' | 'viewer';

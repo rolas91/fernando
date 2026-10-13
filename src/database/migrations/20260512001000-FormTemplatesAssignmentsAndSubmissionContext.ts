@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class FormTemplatesAssignmentsAndSubmissionContext20260512001000
-  implements MigrationInterface
-{
+export class FormTemplatesAssignmentsAndSubmissionContext20260512001000 implements MigrationInterface {
   name = 'FormTemplatesAssignmentsAndSubmissionContext20260512001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

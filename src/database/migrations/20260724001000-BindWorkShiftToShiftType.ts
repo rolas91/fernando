@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class BindWorkShiftToShiftType20260724001000
-  implements MigrationInterface
-{
+export class BindWorkShiftToShiftType20260724001000 implements MigrationInterface {
   name = 'BindWorkShiftToShiftType20260724001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -12,7 +12,12 @@ import {
 
 const STATUS_VALUES = ['active', 'inactive', 'archived'];
 
-type SimpleCatalog = 'skill' | 'workerRole' | 'projectType' | 'workOrderType' | 'certification';
+type SimpleCatalog =
+  | 'skill'
+  | 'workerRole'
+  | 'projectType'
+  | 'workOrderType'
+  | 'certification';
 
 type FieldSpec = {
   key: string;
@@ -34,7 +39,8 @@ function buildSimpleParser(
     const name = readString(raw, 'name', [], { required: true });
     if (name.error) pushError(errors, { ...name.error, row }, row);
     const description = readString(raw, 'description');
-    if (description.error) pushError(errors, { ...description.error, row }, row);
+    if (description.error)
+      pushError(errors, { ...description.error, row }, row);
     const status = readEnum(raw, 'status', STATUS_VALUES, [], {
       required: true,
       defaultValue: 'active',
@@ -45,8 +51,15 @@ function buildSimpleParser(
     for (const f of extraFields) {
       const r =
         f.type === 'csv'
-          ? readCsv(raw, f.key, f.aliases, { required: f.required, lower: false, trim: f.trim !== false })
-          : readString(raw, f.key, f.aliases, { required: f.required, trim: f.trim !== false });
+          ? readCsv(raw, f.key, f.aliases, {
+              required: f.required,
+              lower: false,
+              trim: f.trim !== false,
+            })
+          : readString(raw, f.key, f.aliases, {
+              required: f.required,
+              trim: f.trim !== false,
+            });
       if (r.error) pushError(errors, { ...r.error, row }, row);
       extras[f.key] = r.value;
     }
@@ -55,7 +68,9 @@ function buildSimpleParser(
       return { row, raw, data: null, errors, action: 'skip' };
     }
 
-    const id = (idIn.value && idIn.value.trim()) || idFromName(name.value || '', idPrefix);
+    const id =
+      (idIn.value && idIn.value.trim()) ||
+      idFromName(name.value || '', idPrefix);
     const data: Record<string, unknown> = {
       id,
       name: name.value,
@@ -72,9 +87,11 @@ export const parseSkillRow = buildSimpleParser('skill', 'skl');
 export const parseWorkerRoleRow = buildSimpleParser('workerRole', 'wrl');
 export const parseProjectTypeRow = buildSimpleParser('projectType', 'pt');
 export const parseWorkOrderTypeRow = buildSimpleParser('workOrderType', 'wot');
-export const parseCertificationRow = buildSimpleParser('certification', 'cert', [
-  { key: 'documentUrl', aliases: ['document_url'], required: false },
-]);
+export const parseCertificationRow = buildSimpleParser(
+  'certification',
+  'cert',
+  [{ key: 'documentUrl', aliases: ['document_url'], required: false }],
+);
 
 type AssetCatalog = 'equipment' | 'material';
 
@@ -99,10 +116,16 @@ function buildAssetParser(catalog: AssetCatalog) {
     if (brand.error) pushError(errors, { ...brand.error, row }, row);
     const status = readString(raw, 'status', [], { required: true });
     if (status.error) pushError(errors, { ...status.error, row }, row);
-    const lastMaintenance = readDate(raw, 'lastMaintenance', ['last_maintenance']);
-    if (lastMaintenance.error) pushError(errors, { ...lastMaintenance.error, row }, row);
-    const nextMaintenance = readDate(raw, 'nextMaintenance', ['next_maintenance']);
-    if (nextMaintenance.error) pushError(errors, { ...nextMaintenance.error, row }, row);
+    const lastMaintenance = readDate(raw, 'lastMaintenance', [
+      'last_maintenance',
+    ]);
+    if (lastMaintenance.error)
+      pushError(errors, { ...lastMaintenance.error, row }, row);
+    const nextMaintenance = readDate(raw, 'nextMaintenance', [
+      'next_maintenance',
+    ]);
+    if (nextMaintenance.error)
+      pushError(errors, { ...nextMaintenance.error, row }, row);
     const price = readNumber(raw, 'price', [], { allowEmpty: true, min: 0 });
     if (price.error) pushError(errors, { ...price.error, row }, row);
     const notes = readString(raw, 'notes');
@@ -148,7 +171,17 @@ export function parseStatusCatalogRow(
   const scope = readEnum(
     raw,
     'scope',
-    ['work_order', 'work_status', 'shift', 'timesheet', 'project', 'equipment', 'availability_request', 'incident', 'form_submission'],
+    [
+      'work_order',
+      'work_status',
+      'shift',
+      'timesheet',
+      'project',
+      'equipment',
+      'availability_request',
+      'incident',
+      'form_submission',
+    ],
     [],
     { required: true },
   );
@@ -158,14 +191,31 @@ export function parseStatusCatalogRow(
   const name = readString(raw, 'name', [], { required: true });
   if (name.error) pushError(errors, { ...name.error, row }, row);
   const color = readString(raw, 'color', [], { allowEmpty: true });
-  const sortOrder = readNumber(raw, 'sortOrder', ['sort_order'], { allowEmpty: true });
+  const sortOrder = readNumber(raw, 'sortOrder', ['sort_order'], {
+    allowEmpty: true,
+  });
   if (sortOrder.error) pushError(errors, { ...sortOrder.error, row }, row);
-  const blocksEditing = readBoolean(raw, 'blocksEditing', ['blocks_editing'], { default: false });
-  if (blocksEditing.error) pushError(errors, { ...blocksEditing.error, row }, row);
-  const triggersNotification = readBoolean(raw, 'triggersNotification', ['triggers_notification'], { default: false });
-  if (triggersNotification.error) pushError(errors, { ...triggersNotification.error, row }, row);
-  const requiresApproval = readBoolean(raw, 'requiresApproval', ['requires_approval'], { default: false });
-  if (requiresApproval.error) pushError(errors, { ...requiresApproval.error, row }, row);
+  const blocksEditing = readBoolean(raw, 'blocksEditing', ['blocks_editing'], {
+    default: false,
+  });
+  if (blocksEditing.error)
+    pushError(errors, { ...blocksEditing.error, row }, row);
+  const triggersNotification = readBoolean(
+    raw,
+    'triggersNotification',
+    ['triggers_notification'],
+    { default: false },
+  );
+  if (triggersNotification.error)
+    pushError(errors, { ...triggersNotification.error, row }, row);
+  const requiresApproval = readBoolean(
+    raw,
+    'requiresApproval',
+    ['requires_approval'],
+    { default: false },
+  );
+  if (requiresApproval.error)
+    pushError(errors, { ...requiresApproval.error, row }, row);
   const status = readEnum(raw, 'status', ['active', 'inactive'], [], {
     required: true,
     defaultValue: 'active',
@@ -176,7 +226,9 @@ export function parseStatusCatalogRow(
     return { row, raw, data: null, errors, action: 'skip' };
   }
 
-  const id = (idIn.value && idIn.value.trim()) || idFromName(`${scope.value}_${value.value}`, 'st');
+  const id =
+    (idIn.value && idIn.value.trim()) ||
+    idFromName(`${scope.value}_${value.value}`, 'st');
   const data: Record<string, unknown> = {
     id,
     scope: scope.value,
@@ -208,10 +260,16 @@ export function parseCommercialCatalogItemRow(
     min: 0,
   });
   if (dailyRate.error) pushError(errors, { ...dailyRate.error, row }, row);
-  const itemPrice = readNumber(raw, 'itemPrice', ['item_price'], { allowEmpty: true, min: 0 });
+  const itemPrice = readNumber(raw, 'itemPrice', ['item_price'], {
+    allowEmpty: true,
+    min: 0,
+  });
   if (itemPrice.error) pushError(errors, { ...itemPrice.error, row }, row);
   const unit = readString(raw, 'unit', [], { allowEmpty: true });
-  const status = readString(raw, 'status', [], { required: true, allowEmpty: true });
+  const status = readString(raw, 'status', [], {
+    required: true,
+    allowEmpty: true,
+  });
   if (status.error) pushError(errors, { ...status.error, row }, row);
   const notes = readString(raw, 'notes');
 
@@ -246,9 +304,13 @@ export function parseProjectRow(
   const clientId = readString(raw, 'clientId', ['client_id']);
   const clientName = readString(raw, 'clientName', ['client_name']);
   const projectTypeId = readString(raw, 'projectTypeId', ['project_type_id']);
-  const projectTypeName = readString(raw, 'projectTypeName', ['project_type_name']);
+  const projectTypeName = readString(raw, 'projectTypeName', [
+    'project_type_name',
+  ]);
   const projectManager = readString(raw, 'projectManager', ['project_manager']);
-  const projectManagerEmail = readString(raw, 'projectManagerEmail', ['project_manager_email']);
+  const projectManagerEmail = readString(raw, 'projectManagerEmail', [
+    'project_manager_email',
+  ]);
   const location = readString(raw, 'location');
   const city = readString(raw, 'city');
   const state = readString(raw, 'state');
@@ -260,7 +322,9 @@ export function parseProjectRow(
   if (longitude.error) pushError(errors, { ...longitude.error, row }, row);
   const status = readString(raw, 'status', [], { required: true });
   if (status.error) pushError(errors, { ...status.error, row }, row);
-  const workOrderNumber = readString(raw, 'workOrderNumber', ['work_order_number']);
+  const workOrderNumber = readString(raw, 'workOrderNumber', [
+    'work_order_number',
+  ]);
   const purchaseOrder = readString(raw, 'purchaseOrder', ['purchase_order']);
   const startDate = readDate(raw, 'startDate', ['start_date']);
   const endDate = readDate(raw, 'endDate', ['end_date']);
@@ -271,7 +335,8 @@ export function parseProjectRow(
     return { row, raw, data: null, errors, action: 'skip' };
   }
 
-  const id = (idIn.value && idIn.value.trim()) || idFromName(number.value || '', 'prj');
+  const id =
+    (idIn.value && idIn.value.trim()) || idFromName(number.value || '', 'prj');
   const data: Record<string, unknown> = {
     id,
     number: number.value,

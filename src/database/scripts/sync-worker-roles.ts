@@ -44,7 +44,9 @@ async function main() {
 
   for (const row of rows) {
     const roleNames: string[] = Array.isArray(row.role_names)
-      ? row.role_names.filter((n: string | null) => typeof n === 'string' && n.length > 0)
+      ? row.role_names.filter(
+          (n: string | null) => typeof n === 'string' && n.length > 0,
+        )
       : [];
     const legacy = (row.legacy_type ?? '').trim();
 
@@ -70,12 +72,16 @@ async function main() {
     console.log('');
     console.log('Sample mismatches (first 5):');
     for (const ex of examples) {
-      console.log(`  ${ex.id}: type="${ex.legacy}" but roles=[${ex.roles.join(', ')}]`);
+      console.log(
+        `  ${ex.id}: type="${ex.legacy}" but roles=[${ex.roles.join(', ')}]`,
+      );
     }
   }
 
   console.log('');
-  console.log('Syncing legacy `type` to first role name for workers with roles...');
+  console.log(
+    'Syncing legacy `type` to first role name for workers with roles...',
+  );
 
   const synced = await ds.query(`
     WITH first_role AS (
@@ -119,7 +125,9 @@ async function main() {
 
   console.log('');
   console.log('--- AFTER ---');
-  console.log(`Matched: ${after[0].matched}, Mismatched: ${after[0].mismatched}`);
+  console.log(
+    `Matched: ${after[0].matched}, Mismatched: ${after[0].mismatched}`,
+  );
   console.log(`Synced ${result.typeSynced} workers.`);
 
   if (AppDataSource.isInitialized) await AppDataSource.destroy();

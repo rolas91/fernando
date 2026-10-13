@@ -100,7 +100,7 @@ describe('PasswordRecoveryService', () => {
 
     await service.requestReset('worker@example.com');
 
-    // Jest replaces these SDK methods with functions that have no `this` binding.
+                                                                                  
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(sgMail.setApiKey).toHaveBeenCalledWith('SG.test-key');
     // eslint-disable-next-line @typescript-eslint/unbound-method

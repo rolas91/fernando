@@ -82,9 +82,7 @@ export class WorkersService {
       workerRoles: true,
     });
     if (!worker) {
-      throw new NotFoundException(
-        `Worker profile for ${email} was not found.`,
-      );
+      throw new NotFoundException(`Worker profile for ${email} was not found.`);
     }
 
     return {
@@ -106,14 +104,12 @@ export class WorkersService {
         name: role.name,
         description: role.description,
       })),
-      certifications: (worker.workerCertifications || []).map(
-        (assignment) => ({
-          id: assignment.certificationId,
-          name: assignment.certification?.name || assignment.certificationId,
-          description: assignment.certification?.description || '',
-          expirationDate: assignment.expirationDate || undefined,
-        }),
-      ),
+      certifications: (worker.workerCertifications || []).map((assignment) => ({
+        id: assignment.certificationId,
+        name: assignment.certification?.name || assignment.certificationId,
+        description: assignment.certification?.description || '',
+        expirationDate: assignment.expirationDate || undefined,
+      })),
       skills: (worker.skills || []).map((skill) => ({
         id: skill.id,
         name: skill.name,
@@ -123,10 +119,9 @@ export class WorkersService {
   }
 
   private serializeWorker(worker: Worker) {
-    const {
-      workerCertifications,
-      ...rest
-    } = worker as Worker & { workerCertifications?: WorkerCertification[] };
+    const { workerCertifications, ...rest } = worker as Worker & {
+      workerCertifications?: WorkerCertification[];
+    };
     const assignments = (workerCertifications || []).map(
       (workerCertification) => ({
         certificationId: workerCertification.certificationId,
@@ -136,10 +131,12 @@ export class WorkersService {
 
     return {
       ...rest,
-      certifications: (workerCertifications || []).map((workerCertification) => ({
-        ...workerCertification.certification,
-        expirationDate: workerCertification.expirationDate || undefined,
-      })),
+      certifications: (workerCertifications || []).map(
+        (workerCertification) => ({
+          ...workerCertification.certification,
+          expirationDate: workerCertification.expirationDate || undefined,
+        }),
+      ),
       certificationAssignments: assignments,
       skillIds: (worker.skills || []).map((skill) => skill.id),
       workerRoleIds: (worker.workerRoles || []).map((role) => role.id),
@@ -161,7 +158,11 @@ export class WorkersService {
       return dto.certificationAssignments
         .filter((assignment) => assignment?.certificationId)
         .reduce<WorkerCertificationAssignmentDto[]>((acc, assignment) => {
-          if (acc.some((item) => item.certificationId === assignment.certificationId)) {
+          if (
+            acc.some(
+              (item) => item.certificationId === assignment.certificationId,
+            )
+          ) {
             return acc;
           }
           acc.push({
@@ -175,7 +176,10 @@ export class WorkersService {
     if (dto.certificationIds !== undefined) {
       return dto.certificationIds.reduce<WorkerCertificationAssignmentDto[]>(
         (acc, certificationId) => {
-          if (!certificationId || acc.some((item) => item.certificationId === certificationId)) {
+          if (
+            !certificationId ||
+            acc.some((item) => item.certificationId === certificationId)
+          ) {
             return acc;
           }
           acc.push({ certificationId });
@@ -188,9 +192,7 @@ export class WorkersService {
     return undefined;
   }
 
-  private normalizeSkillIds(
-    dto: Pick<CreateWorkerDto, 'skillIds' | 'skills'>,
-  ) {
+  private normalizeSkillIds(dto: Pick<CreateWorkerDto, 'skillIds' | 'skills'>) {
     const rawIds = dto.skillIds || dto.skills;
     if (rawIds === undefined) return undefined;
     return rawIds.reduce<string[]>((acc, skillId) => {
@@ -229,7 +231,7 @@ export class WorkersService {
     );
   }
 
-  /** Create auth user matching worker contact fields; callers must rollback worker on thrown errors. */
+                                                                                                        
   private async provisionLinkedAppUser(payload: {
     email: string;
     firstName: string;
@@ -285,7 +287,9 @@ export class WorkersService {
     );
 
     const records = assignments
-      .filter((assignment) => knownCertificationIds.has(assignment.certificationId))
+      .filter((assignment) =>
+        knownCertificationIds.has(assignment.certificationId),
+      )
       .map((assignment) =>
         this.workerCertificationsRepo.create({
           workerId,
@@ -299,15 +303,13 @@ export class WorkersService {
     }
   }
 
-  async create(
-    dto: CreateWorkerDto,
-    actor: UserAccessContext | undefined,
-  ) {
+  async create(dto: CreateWorkerDto, actor: UserAccessContext | undefined) {
     if (dto.createAppUser === true) {
       this.ensureUsersWrite(actor);
     }
 
-    const certificationAssignments = this.normalizeCertificationAssignments(dto);
+    const certificationAssignments =
+      this.normalizeCertificationAssignments(dto);
     const skillIds = this.normalizeSkillIds(dto);
     const workerRoleIds = this.normalizeWorkerRoleIds(dto);
     const {
@@ -334,8 +336,7 @@ export class WorkersService {
       email: dto.email.trim().toLowerCase(),
       skills,
       workerRoles,
-      hourlyRate:
-        hourlyRate !== undefined ? String(hourlyRate) : undefined,
+      hourlyRate: hourlyRate !== undefined ? String(hourlyRate) : undefined,
     });
     this.finalizeWorkerPostalFields(entity);
     this.syncLegacyTypeField(entity, workerRoles);
@@ -344,14 +345,13 @@ export class WorkersService {
       await this.linkMatchingExistingAppUser(saved);
     }
     if (certificationAssignments !== undefined) {
-      await this.replaceWorkerCertifications(saved.id, certificationAssignments);
+      await this.replaceWorkerCertifications(
+        saved.id,
+        certificationAssignments,
+      );
     }
 
-    if (
-      createAppUser === true &&
-      appUserPassword &&
-      appUserRole
-    ) {
+    if (createAppUser === true && appUserPassword && appUserRole) {
       let linkedUser: User | null = null;
       try {
         linkedUser = await this.provisionLinkedAppUser({
@@ -392,7 +392,8 @@ export class WorkersService {
       this.ensureUsersWrite(actor);
     }
 
-    const certificationAssignments = this.normalizeCertificationAssignments(dto);
+    const certificationAssignments =
+      this.normalizeCertificationAssignments(dto);
     const skillIds = this.normalizeSkillIds(dto);
     const workerRoleIds = this.normalizeWorkerRoleIds(dto);
     const {
@@ -433,14 +434,13 @@ export class WorkersService {
       await this.linkMatchingExistingAppUser(saved);
     }
     if (certificationAssignments !== undefined) {
-      await this.replaceWorkerCertifications(saved.id, certificationAssignments);
+      await this.replaceWorkerCertifications(
+        saved.id,
+        certificationAssignments,
+      );
     }
 
-    if (
-      createAppUser === true &&
-      appUserPassword &&
-      appUserRole
-    ) {
+    if (createAppUser === true && appUserPassword && appUserRole) {
       const linkedUser = await this.provisionLinkedAppUser({
         email: saved.email || '',
         firstName: saved.firstName || '',
@@ -489,14 +489,24 @@ export class WorkersService {
     }
 
     const existing = worker.fcmTokens || [];
-    worker.fcmTokens = [token, ...existing.filter((item) => item !== token)].slice(0, 5);
+    worker.fcmTokens = [
+      token,
+      ...existing.filter((item) => item !== token),
+    ].slice(0, 5);
     await this.workersRepo.save(worker);
     this.realtime.emitTableUpdated('workers');
-    return { success: true, workerId: worker.id, tokenCount: worker.fcmTokens.length };
+    return {
+      success: true,
+      workerId: worker.id,
+      tokenCount: worker.fcmTokens.length,
+    };
   }
 }
 
-export function applyLegacyTypeField(worker: Worker, workerRoles: WorkerRole[]): void {
+export function applyLegacyTypeField(
+  worker: Worker,
+  workerRoles: WorkerRole[],
+): void {
   void workerRoles;
   worker.type = (worker.type || '').trim();
 }

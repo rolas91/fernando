@@ -27,7 +27,15 @@ import { WorkOrderShiftRoleWorker } from '../../entities/work-order-shift-role-w
     ]),
   ],
   controllers: [IntegrationsController],
-  providers: [IntegrationsService, ShiftsQueryService, WorkOrderShiftsWriteService],
-  exports: [IntegrationsService, ShiftsQueryService, WorkOrderShiftsWriteService],
+  providers: [
+    IntegrationsService,
+    ShiftsQueryService,
+    WorkOrderShiftsWriteService,
+  ],
+  exports: [
+    IntegrationsService,
+    ShiftsQueryService,
+    WorkOrderShiftsWriteService,
+  ],
 })
 export class IntegrationsModule {}

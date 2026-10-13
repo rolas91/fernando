@@ -70,7 +70,8 @@ export class OperationsAuthGuard implements CanActivate {
 
     if (permission && !user.permissions.includes(permission)) {
       if (
-        permission === OPERATIONS_RESOURCE_PERMISSIONS['form-submissions'].write &&
+        permission ===
+          OPERATIONS_RESOURCE_PERMISSIONS['form-submissions'].write &&
         (await this.canWriteFormSubmissionWithMobilePermission(user, req))
       ) {
         req.user = user;
@@ -112,7 +113,8 @@ export class OperationsAuthGuard implements CanActivate {
     }
 
     if (
-      (normalized === 'form-submissions' && ['POST', 'PATCH'].includes(method)) ||
+      (normalized === 'form-submissions' &&
+        ['POST', 'PATCH'].includes(method)) ||
       (normalized.startsWith('form-submissions/') && method === 'PATCH')
     ) {
       return OPERATIONS_RESOURCE_PERMISSIONS['form-submissions'].write;
@@ -126,7 +128,9 @@ export class OperationsAuthGuard implements CanActivate {
     req: { body?: Record<string, unknown> },
   ): Promise<boolean> {
     const templateId =
-      typeof req.body?.templateId === 'string' ? req.body.templateId.trim() : '';
+      typeof req.body?.templateId === 'string'
+        ? req.body.templateId.trim()
+        : '';
     if (!templateId || !this.formTemplatesRepo) return false;
 
     const template = await this.formTemplatesRepo.findOne({
@@ -153,7 +157,9 @@ export class OperationsAuthGuard implements CanActivate {
             typeof req.body?.workOrderId === 'string'
               ? req.body.workOrderId
               : undefined,
-            typeof req.body?.shiftId === 'string' ? req.body.shiftId : undefined,
+            typeof req.body?.shiftId === 'string'
+              ? req.body.shiftId
+              : undefined,
           ),
         )
       );

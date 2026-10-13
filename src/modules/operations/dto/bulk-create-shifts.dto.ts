@@ -32,18 +32,17 @@ export class BulkShiftRoleDto {
   @IsOptional()
   @IsArray()
   assignedWorkers?: string[];
-
 }
 
 export class BulkCreateShiftsDto {
   @IsString()
   shiftName: string;
 
-  /** Base shift template. The backend will clone this for each date. */
+                                                                        
   @IsString()
   baseDate: string;
 
-  /** Dates (YYYY-MM-DD) where the shift should be created. */
+                                                              
   @IsArray()
   @IsString({ each: true })
   dates: string[];
@@ -68,11 +67,22 @@ export class BulkCreateShiftsDto {
   @IsOptional() @IsString() requesterName?: string;
   @IsOptional() @IsString() requesterPhone?: string;
   @IsOptional() @IsEmail() requesterEmail?: string;
-  @IsOptional() @IsArray() @IsString({ each: true }) visibleDocumentTypes?: string[];
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visibleDocumentTypes?: string[];
   @IsOptional() @IsArray() @IsString({ each: true }) formTemplateIds?: string[];
   @IsOptional() @IsString() notes?: string;
-  @IsOptional() @IsArray() plannedEquipment?: Array<{ type: string; estimatedQuantity: number }>;
-  @IsOptional() @IsArray() plannedMaterials?: Array<{ type: string; estimatedQuantity: number; materialIds?: string[]; materialQuantities?: Record<string, number> }>;
+  @IsOptional() @IsArray() plannedEquipment?: Array<{
+    type: string;
+    estimatedQuantity: number;
+  }>;
+  @IsOptional() @IsArray() plannedMaterials?: Array<{
+    type: string;
+    estimatedQuantity: number;
+    materialIds?: string[];
+    materialQuantities?: Record<string, number>;
+  }>;
   @IsOptional() @IsArray() @IsString({ each: true }) workOrderTypes?: string[];
   @IsOptional()
   @IsArray()
@@ -92,7 +102,7 @@ export class BulkCreateShiftsDto {
   @Type(() => BulkShiftRoleDto)
   roles: BulkShiftRoleDto[];
 
-  /** Legacy client option; matching dates and start times no longer skip shifts. */
+                                                                                    
   @IsOptional()
   @IsBoolean()
   skipDuplicates?: boolean = false;

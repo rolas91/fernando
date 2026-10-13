@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { OperationsAuthGuard } from '../operations-auth.guard';
@@ -35,7 +44,10 @@ export class CommercialWorkOrdersController {
   }
 
   @Get('invoices/:invoiceId/pdf')
-  async invoicePdf(@Param('invoiceId') invoiceId: string, @Res() res: Response) {
+  async invoicePdf(
+    @Param('invoiceId') invoiceId: string,
+    @Res() res: Response,
+  ) {
     const invoice = await this.service.findInvoice(invoiceId);
     const pdf = this.service.buildInvoicePdf(invoice);
     res.setHeader('Content-Type', 'application/pdf');

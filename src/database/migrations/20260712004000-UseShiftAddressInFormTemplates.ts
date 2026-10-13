@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/** Existing form templates must bind job-site fields to the selected shift. */
+                                                                               
 export class UseShiftAddressInFormTemplates20260712004000 implements MigrationInterface {
   name = 'UseShiftAddressInFormTemplates20260712004000';
 

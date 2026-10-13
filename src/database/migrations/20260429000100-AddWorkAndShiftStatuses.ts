@@ -1,21 +1,118 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddWorkAndShiftStatuses20260429000100
-  implements MigrationInterface
-{
+export class AddWorkAndShiftStatuses20260429000100 implements MigrationInterface {
   name = 'AddWorkAndShiftStatuses20260429000100';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const rows = [
-      ['ws_pending', 'work_status', 'pending', 'Pending', '#F59E0B', 10, false, false, false, 'active'],
-      ['ws_confirmed', 'work_status', 'confirmed', 'Confirmed', '#22C55E', 20, false, false, false, 'active'],
-      ['ws_declined', 'work_status', 'declined', 'Declined', '#EF4444', 30, false, true, false, 'active'],
-      ['ws_not_available', 'work_status', 'not_available', 'Not Available', '#6B7280', 40, false, false, false, 'active'],
-      ['shift_pending', 'shift', 'pending', 'Pending', '#F59E0B', 10, false, false, false, 'active'],
-      ['shift_partially_confirmed', 'shift', 'partially_confirmed', 'Partially Confirmed', '#3B82F6', 20, false, true, false, 'active'],
-      ['shift_confirmed', 'shift', 'confirmed', 'Confirmed', '#22C55E', 30, false, true, false, 'active'],
-      ['shift_in_progress', 'shift', 'in_progress', 'In Progress', '#0EA5E9', 40, false, false, false, 'active'],
-      ['shift_completed', 'shift', 'completed', 'Completed', '#334155', 50, false, false, false, 'active'],
+      [
+        'ws_pending',
+        'work_status',
+        'pending',
+        'Pending',
+        '#F59E0B',
+        10,
+        false,
+        false,
+        false,
+        'active',
+      ],
+      [
+        'ws_confirmed',
+        'work_status',
+        'confirmed',
+        'Confirmed',
+        '#22C55E',
+        20,
+        false,
+        false,
+        false,
+        'active',
+      ],
+      [
+        'ws_declined',
+        'work_status',
+        'declined',
+        'Declined',
+        '#EF4444',
+        30,
+        false,
+        true,
+        false,
+        'active',
+      ],
+      [
+        'ws_not_available',
+        'work_status',
+        'not_available',
+        'Not Available',
+        '#6B7280',
+        40,
+        false,
+        false,
+        false,
+        'active',
+      ],
+      [
+        'shift_pending',
+        'shift',
+        'pending',
+        'Pending',
+        '#F59E0B',
+        10,
+        false,
+        false,
+        false,
+        'active',
+      ],
+      [
+        'shift_partially_confirmed',
+        'shift',
+        'partially_confirmed',
+        'Partially Confirmed',
+        '#3B82F6',
+        20,
+        false,
+        true,
+        false,
+        'active',
+      ],
+      [
+        'shift_confirmed',
+        'shift',
+        'confirmed',
+        'Confirmed',
+        '#22C55E',
+        30,
+        false,
+        true,
+        false,
+        'active',
+      ],
+      [
+        'shift_in_progress',
+        'shift',
+        'in_progress',
+        'In Progress',
+        '#0EA5E9',
+        40,
+        false,
+        false,
+        false,
+        'active',
+      ],
+      [
+        'shift_completed',
+        'shift',
+        'completed',
+        'Completed',
+        '#334155',
+        50,
+        false,
+        false,
+        false,
+        'active',
+      ],
     ];
 
     for (const [
@@ -81,17 +178,19 @@ export class AddWorkAndShiftStatuses20260429000100
         DELETE FROM status_catalog
         WHERE id = ANY($1)
       `,
-      [[
-        'ws_pending',
-        'ws_confirmed',
-        'ws_declined',
-        'ws_not_available',
-        'shift_pending',
-        'shift_partially_confirmed',
-        'shift_confirmed',
-        'shift_in_progress',
-        'shift_completed',
-      ]],
+      [
+        [
+          'ws_pending',
+          'ws_confirmed',
+          'ws_declined',
+          'ws_not_available',
+          'shift_pending',
+          'shift_partially_confirmed',
+          'shift_confirmed',
+          'shift_in_progress',
+          'shift_completed',
+        ],
+      ],
     );
   }
 }

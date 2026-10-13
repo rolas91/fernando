@@ -1,25 +1,25 @@
-/**
- * Shift status computation.
- *
- * A shift has one of seven statuses drawn from `status_catalog`:
- *
- *   Manual (the user picks them in the shift form):
- *     - customer_pending  (orange)
- *     - dispatch_pending  (yellow)
- *     - ready_to_notify   (blue)
- *
- *   Automatic (computed here from confirmation_status + form submissions):
- *     - awaiting_response  (violet)
- *     - workers_confirmed  (green)
- *     - shift_cancelled    (red)
- *     - shift_completed    (slate)
- *
- * The precedence of automatic states is:
- *   shift_cancelled   > shift_completed > workers_confirmed > awaiting_response
- *
- * If none of the automatic states apply, the user-picked `status` (from
- * `work_order_shifts.status`) is returned.
- */
+   
+                            
+  
+                                                                 
+  
+                                                    
+                                   
+                                   
+                                 
+  
+                                                                           
+                                    
+                                   
+                                 
+                                   
+  
+                                         
+                                                                                
+  
+                                                                        
+                                           
+   
 
 export type ManualShiftStatus =
   | 'customer_pending'
@@ -60,7 +60,10 @@ export const AUTOMATIC_SHIFT_STATUSES: AutomaticShiftStatus[] = [
   'pm_approved',
 ];
 
-export type ShiftWorkerConfirmationStatus = 'pending' | 'confirmed' | 'declined';
+export type ShiftWorkerConfirmationStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'declined';
 
 export interface ShiftWorkerConfirmationLike {
   workerId?: unknown;
@@ -88,12 +91,12 @@ export interface ShiftLike {
 }
 
 export interface ShiftCompletionLookup {
-  /**
-   * Returns true if the (workOrderId, shiftId) tuple has every required
-   * form submission marked as `submitted`.  Mirrors the
-   * `buildCompletedWorkOrderShiftKeys` set that the frontend used to build
-   * locally.
-   */
+     
+                                                                        
+                                                        
+                                                                           
+             
+     
   isShiftCompleted(workOrderId: string, shiftId: string): boolean;
 }
 
@@ -153,19 +156,17 @@ function confirmationStatusOf(
   for (const entry of list) {
     const parsed = normalizeConfirmation(entry);
     if (!parsed || parsed.workerId !== workerId) continue;
-    const raw = typeof parsed.status === 'string'
-      ? parsed.status.trim().toLowerCase()
-      : 'pending';
+    const raw =
+      typeof parsed.status === 'string'
+        ? parsed.status.trim().toLowerCase()
+        : 'pending';
     if (raw === 'confirmed' || raw === 'declined') return raw;
     return 'pending';
   }
   return 'pending';
 }
 
-function isAwaitingResponse(
-  role: ShiftRoleLike,
-  workerId: string,
-): boolean {
+function isAwaitingResponse(role: ShiftRoleLike, workerId: string): boolean {
   if (confirmationStatusOf(role, workerId) !== 'pending') return false;
   const list = Array.isArray(role.workerConfirmations)
     ? (role.workerConfirmations as unknown[])
@@ -175,19 +176,19 @@ function isAwaitingResponse(
     if (!parsed || parsed.workerId !== workerId) continue;
     return Boolean(
       (typeof parsed.requestedAt === 'string' && parsed.requestedAt.trim()) ||
-        (typeof parsed.notificationChannel === 'string' &&
-          parsed.notificationChannel.trim()),
+      (typeof parsed.notificationChannel === 'string' &&
+        parsed.notificationChannel.trim()),
     );
   }
   return false;
 }
 
 export interface ShiftComputedStatus {
-  /** The final status value, either manual or automatic. */
+                                                            
   status: ShiftStatusValue | null;
-  /** True if the status is automatic (derived). */
+                                                   
   automatic: boolean;
-  /** Reason / explanation, useful for debugging or UI tooltips. */
+                                                                   
   reason?: string;
 }
 
@@ -195,33 +196,31 @@ export interface ComputeShiftStatusInput {
   workOrderId: string;
   shift: ShiftLike;
   completion: ShiftCompletionLookup;
-  /** When the work order itself is cancelled, every shift is cancelled. */
+                                                                           
   workOrderCancelled?: boolean;
 }
 
-/**
- * Compute the final status of a single shift.
- *
- * Precedence (highest wins):
- *   1. workOrderCancelled    → shift_cancelled
- *   2. shift.cancelled flag  → shift_cancelled
- *   3. completion.isCompleted → shift_completed
- *   4. all assigned workers confirmed → workers_confirmed
- *   5. at least one worker awaiting response (notified but not answered) → awaiting_response
- *   6. otherwise fall back to the user-picked manual `status`.
- */
+   
+                                              
+  
+                             
+                                               
+                                               
+                                                
+                                                          
+                                                                                             
+                                                               
+   
 export function computeShiftStatus(
   input: ComputeShiftStatusInput,
 ): ShiftComputedStatus {
   const { workOrderId, shift, completion, workOrderCancelled } = input;
-  const shiftId =
-    typeof shift.id === 'string' ? shift.id.trim() : '';
-  const manualStatus = typeof shift.status === 'string'
-    ? shift.status.trim().toLowerCase()
-    : '';
+  const shiftId = typeof shift.id === 'string' ? shift.id.trim() : '';
+  const manualStatus =
+    typeof shift.status === 'string' ? shift.status.trim().toLowerCase() : '';
   const automaticLifecycleEnabled = manualStatus === 'ready_to_notify';
 
-  // 1. Work-order cancellation wins over everything.
+                                                     
   if (workOrderCancelled) {
     return {
       status: 'shift_cancelled',
@@ -230,7 +229,7 @@ export function computeShiftStatus(
     };
   }
 
-  // 2. Explicit cancel flag on the shift.
+                                          
   if (shift.cancelled === true) {
     return {
       status: 'shift_cancelled',
@@ -250,7 +249,7 @@ export function computeShiftStatus(
     };
   }
 
-  // 3. Completion (form submissions).
+                                      
   if (
     automaticLifecycleEnabled &&
     shiftId &&
@@ -263,7 +262,7 @@ export function computeShiftStatus(
     };
   }
 
-  // 4 + 5. Walk the roles to gather confirmation roll-up.
+                                                          
   const roles = Array.isArray(shift.roles) ? shift.roles : [];
   let totalAssigned = 0;
   let totalConfirmed = 0;
@@ -281,7 +280,11 @@ export function computeShiftStatus(
     }
   }
 
-  if (automaticLifecycleEnabled && totalAssigned > 0 && totalConfirmed === totalAssigned) {
+  if (
+    automaticLifecycleEnabled &&
+    totalAssigned > 0 &&
+    totalConfirmed === totalAssigned
+  ) {
     return {
       status: 'workers_confirmed',
       automatic: true,
@@ -297,8 +300,10 @@ export function computeShiftStatus(
     };
   }
 
-  // 6. Fall back to manual status.
-  const fallback = MANUAL_SHIFT_STATUSES.includes(manualStatus as ManualShiftStatus)
+                                   
+  const fallback = MANUAL_SHIFT_STATUSES.includes(
+    manualStatus as ManualShiftStatus,
+  )
     ? (manualStatus as ManualShiftStatus)
     : null;
   return { status: fallback, automatic: false };
@@ -314,9 +319,9 @@ export interface ShiftAggregateCounters {
   shiftCancelled: number;
   shiftCompleted: number;
   pmApproved: number;
-  /** Convenience: sum of the three manual statuses. */
+                                                       
   pending: number;
-  /** Convenience: shifts with at least one missing required worker. */
+                                                                       
   workersMissing: number;
 }
 
@@ -402,10 +407,10 @@ function computeMissingSlots(shift: ShiftLike): number {
   return total;
 }
 
-/**
- * Convenience in-memory completion lookup.  Pass the same shape that the
- * frontend builds with `buildCompletedWorkOrderShiftKeys`.
- */
+   
+                                                                         
+                                                           
+   
 export class InMemoryShiftCompletionLookup implements ShiftCompletionLookup {
   private readonly completed = new Set<string>();
 

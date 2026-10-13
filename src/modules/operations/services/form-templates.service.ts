@@ -42,7 +42,7 @@ export class FormTemplatesService {
         shift?.formTemplateIds?.map((id) => id.trim()).filter(Boolean) ?? [],
       );
     } else if (workOrderId) {
-      // Forms now belong to a concrete shift. A work order by itself has no form allowlist.
+                                                                                            
       pickupIds = new Set();
     }
 
@@ -83,7 +83,9 @@ export class FormTemplatesService {
     Object.assign(item, {
       ...dto,
       fields:
-        dto.fields !== undefined ? normalizeFormFields(dto.fields) : item.fields,
+        dto.fields !== undefined
+          ? normalizeFormFields(dto.fields)
+          : item.fields,
     });
     return this.repo.save(item);
   }

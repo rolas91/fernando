@@ -20,17 +20,25 @@ describe('shift-authorized mobile signatures', () => {
 
   it('requires the signature when the user has shift WO access', () => {
     expect(() =>
-      validateSubmissionAgainstFields([normalizeFormFields([signatureField])[0]], {}, {
-        canManageShiftWorkOrder: true,
-      }),
+      validateSubmissionAgainstFields(
+        [normalizeFormFields([signatureField])[0]],
+        {},
+        {
+          canManageShiftWorkOrder: true,
+        },
+      ),
     ).toThrow('Field "Employee / Foreman Signature" is required');
   });
 
   it('does not require a hidden signature without shift WO access', () => {
     expect(() =>
-      validateSubmissionAgainstFields([normalizeFormFields([signatureField])[0]], {}, {
-        canManageShiftWorkOrder: false,
-      }),
+      validateSubmissionAgainstFields(
+        [normalizeFormFields([signatureField])[0]],
+        {},
+        {
+          canManageShiftWorkOrder: false,
+        },
+      ),
     ).not.toThrow();
   });
 
@@ -43,10 +51,14 @@ describe('shift-authorized mobile signatures', () => {
     ])[0];
 
     expect(() =>
-      validateSubmissionAgainstFields([legacyField], {}, {
-        mobileRole: 'viewer',
-        canManageShiftWorkOrder: true,
-      }),
+      validateSubmissionAgainstFields(
+        [legacyField],
+        {},
+        {
+          mobileRole: 'viewer',
+          canManageShiftWorkOrder: true,
+        },
+      ),
     ).toThrow('Field "Employee / Foreman Signature" is required');
   });
 });
@@ -65,19 +77,17 @@ describe('Work Order Types field contract', () => {
 
   it('accepts a list of selected and custom labels', () => {
     expect(() =>
-      validateSubmissionAgainstFields(
-        [normalizeFormFields([field])[0]],
-        { work_order_types: ['Field Service', 'Emergency Setup'] },
-      ),
+      validateSubmissionAgainstFields([normalizeFormFields([field])[0]], {
+        work_order_types: ['Field Service', 'Emergency Setup'],
+      }),
     ).not.toThrow();
   });
 
   it('rejects non-list values', () => {
     expect(() =>
-      validateSubmissionAgainstFields(
-        [normalizeFormFields([field])[0]],
-        { work_order_types: 'Field Service' },
-      ),
+      validateSubmissionAgainstFields([normalizeFormFields([field])[0]], {
+        work_order_types: 'Field Service',
+      }),
     ).toThrow('must be a list of Work Order Types');
   });
 });

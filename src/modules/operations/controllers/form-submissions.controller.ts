@@ -29,13 +29,13 @@ export class FormSubmissionsController {
   constructor(private readonly service: FormSubmissionsService) {}
 
   @Post('pdf-builder/preview')
-  previewPdfBuilder(
-    @Body() body: { config?: unknown },
-    @Res() res: Response,
-  ) {
+  previewPdfBuilder(@Body() body: { config?: unknown }, @Res() res: Response) {
     const pdf = this.service.buildPdfBuilderPreview(body?.config);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline; filename="work-order-pdf-builder-preview.pdf"');
+    res.setHeader(
+      'Content-Disposition',
+      'inline; filename="work-order-pdf-builder-preview.pdf"',
+    );
     return res.send(pdf);
   }
 
@@ -54,15 +54,25 @@ export class FormSubmissionsController {
     @Req() req?: ReqWithOpsUser,
   ) {
     const normalizedTimesheetScope =
-      timesheetScope === 'own' || timesheetScope === 'all' ? timesheetScope : undefined;
+      timesheetScope === 'own' || timesheetScope === 'all'
+        ? timesheetScope
+        : undefined;
     if (projectId || workOrderId || templateId || shiftId) {
       return this.service.findAll(
-        { projectId, workOrderId, templateId, shiftId, timesheetScope: normalizedTimesheetScope },
+        {
+          projectId,
+          workOrderId,
+          templateId,
+          shiftId,
+          timesheetScope: normalizedTimesheetScope,
+        },
         req?.user,
       );
     }
     return this.service.findAll(
-      normalizedTimesheetScope ? { timesheetScope: normalizedTimesheetScope } : undefined,
+      normalizedTimesheetScope
+        ? { timesheetScope: normalizedTimesheetScope }
+        : undefined,
       req?.user,
     );
   }

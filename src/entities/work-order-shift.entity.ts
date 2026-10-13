@@ -48,10 +48,10 @@ export class WorkOrderShift {
   })
   confirmationResetReason: string | null;
 
-  /**
-   * Manual cancellation flag. When true, the shift computes to the automatic
-   * `shift_cancelled` status regardless of `status` or confirmations.
-   */
+     
+                                                                             
+                                                                      
+     
   @Column({ type: 'boolean', default: false })
   cancelled: boolean;
 
@@ -82,35 +82,91 @@ export class WorkOrderShift {
   @Column({ type: 'text', nullable: true })
   address: string | null;
 
-  @Column({ name: 'cross_street_location_detail', type: 'text', nullable: true })
+  @Column({
+    name: 'cross_street_location_detail',
+    type: 'text',
+    nullable: true,
+  })
   crossStreetLocationDetail: string | null;
 
-  @Column({ name: 'address_latitude', type: 'double precision', nullable: true })
+  @Column({
+    name: 'address_latitude',
+    type: 'double precision',
+    nullable: true,
+  })
   addressLatitude: number | null;
-  @Column({ name: 'address_longitude', type: 'double precision', nullable: true })
+  @Column({
+    name: 'address_longitude',
+    type: 'double precision',
+    nullable: true,
+  })
   addressLongitude: number | null;
-  @Column({ name: 'address_city', type: 'varchar', length: 120, nullable: true })
+  @Column({
+    name: 'address_city',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
   addressCity: string | null;
-  @Column({ name: 'address_state', type: 'varchar', length: 120, nullable: true })
+  @Column({
+    name: 'address_state',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
   addressState: string | null;
-  @Column({ name: 'address_zip_code', type: 'varchar', length: 32, nullable: true })
+  @Column({
+    name: 'address_zip_code',
+    type: 'varchar',
+    length: 32,
+    nullable: true,
+  })
   addressZipCode: string | null;
-  @Column({ name: 'address_country', type: 'varchar', length: 120, nullable: true })
+  @Column({
+    name: 'address_country',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
   addressCountry: string | null;
 
-  @Column({ name: 'requester_name', type: 'varchar', length: 200, nullable: true })
+  @Column({
+    name: 'requester_name',
+    type: 'varchar',
+    length: 200,
+    nullable: true,
+  })
   requesterName: string | null;
 
-  @Column({ name: 'requester_phone', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'requester_phone',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   requesterPhone: string | null;
 
-  @Column({ name: 'requester_email', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'requester_email',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   requesterEmail: string | null;
 
-  @Column({ name: 'visible_document_types', type: 'jsonb', default: () => "'[]'::jsonb" })
+  @Column({
+    name: 'visible_document_types',
+    type: 'jsonb',
+    default: () => "'[]'::jsonb",
+  })
   visibleDocumentTypes: string[];
 
-  @Column({ name: 'form_template_ids', type: 'text', array: true, default: '{}' })
+  @Column({
+    name: 'form_template_ids',
+    type: 'text',
+    array: true,
+    default: '{}',
+  })
   formTemplateIds: string[];
 
   @Column({ type: 'text', nullable: true })
@@ -122,13 +178,30 @@ export class WorkOrderShift {
   @Column({ name: 'internal_timesheet_notes', type: 'text', default: '' })
   internalTimesheetNotes: string;
 
-  @Column({ name: 'planned_equipment', type: 'jsonb', default: () => "'[]'::jsonb" })
+  @Column({
+    name: 'planned_equipment',
+    type: 'jsonb',
+    default: () => "'[]'::jsonb",
+  })
   plannedEquipment: Array<{ type: string; estimatedQuantity: number }>;
 
-  @Column({ name: 'planned_materials', type: 'jsonb', default: () => "'[]'::jsonb" })
-  plannedMaterials: Array<{ type: string; estimatedQuantity: number; materialIds?: string[]; materialQuantities?: Record<string, number> }>;
+  @Column({
+    name: 'planned_materials',
+    type: 'jsonb',
+    default: () => "'[]'::jsonb",
+  })
+  plannedMaterials: Array<{
+    type: string;
+    estimatedQuantity: number;
+    materialIds?: string[];
+    materialQuantities?: Record<string, number>;
+  }>;
 
-  @Column({ name: 'work_order_types', type: 'jsonb', default: () => "'[]'::jsonb" })
+  @Column({
+    name: 'work_order_types',
+    type: 'jsonb',
+    default: () => "'[]'::jsonb",
+  })
   workOrderTypes: string[];
 
   @Column({

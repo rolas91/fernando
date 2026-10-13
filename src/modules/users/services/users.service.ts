@@ -27,7 +27,7 @@ export class UsersService {
     const normalizedEmail = input.email.trim().toLowerCase();
     const existing = await this.findByEmail(normalizedEmail);
     if (existing) {
-      throw new ConflictException('El correo ya está registrado');
+      throw new ConflictException('The email address is already registered');
     }
 
     const user = this.usersRepo.create({
@@ -63,7 +63,7 @@ export class UsersService {
   ) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException('User not found');
     }
 
     if (updates.email !== undefined) {
@@ -71,7 +71,7 @@ export class UsersService {
       if (normalizedEmail !== user.email) {
         const existing = await this.findByEmail(normalizedEmail);
         if (existing && existing.id !== user.id) {
-          throw new ConflictException('El correo ya está registrado');
+          throw new ConflictException('The email address is already registered');
         }
         user.email = normalizedEmail;
       }
@@ -99,7 +99,7 @@ export class UsersService {
   async updatePassword(userId: string, passwordHash: string) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException('User not found');
     }
     user.passwordHash = passwordHash;
     return this.usersRepo.save(user);
@@ -108,7 +108,7 @@ export class UsersService {
   async delete(userId: string) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado');
+      throw new NotFoundException('User not found');
     }
     await this.usersRepo.remove(user);
   }

@@ -12,7 +12,7 @@ export function ensureRuntimeEnv() {
       );
     }
 
-    // Dev fallback: stable for the current process only.
+                                                         
     process.env.JWT_SECRET = randomBytes(32).toString('hex');
 
     console.warn(

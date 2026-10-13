@@ -13,8 +13,8 @@ export class AddTimesheetVariants20260803001000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "timesheets" ADD COLUMN IF NOT EXISTS "manually_edited" boolean NOT NULL DEFAULT false`,
     );
-    // Existing payroll rows may already contain reviewed adjustments. Protect
-    // them from the legacy submission reconciliation during the migration.
+                                                                              
+                                                                           
     await queryRunner.query(
       `UPDATE "timesheets" SET "manually_edited" = true WHERE "variant" = 'internal'`,
     );

@@ -9,9 +9,7 @@ const DEFAULT_WORKER_ROLES = [
   ['worker_role_pole_depole', 'Pole/Depole'],
 ] as const;
 
-export class CreateWorkerRolesAndRelations20260519000100
-  implements MigrationInterface
-{
+export class CreateWorkerRolesAndRelations20260519000100 implements MigrationInterface {
   name = 'CreateWorkerRolesAndRelations20260519000100';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

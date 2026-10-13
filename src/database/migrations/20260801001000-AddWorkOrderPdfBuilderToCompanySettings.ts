@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddWorkOrderPdfBuilderToCompanySettings20260801001000
-  implements MigrationInterface
-{
+export class AddWorkOrderPdfBuilderToCompanySettings20260801001000 implements MigrationInterface {
   name = 'AddWorkOrderPdfBuilderToCompanySettings20260801001000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

@@ -39,7 +39,9 @@ export class AddPmApprovalToShifts20260805001000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DELETE FROM status_catalog WHERE id = 'shift_pm_approved'`);
+    await queryRunner.query(
+      `DELETE FROM status_catalog WHERE id = 'shift_pm_approved'`,
+    );
     await queryRunner.query(`
       ALTER TABLE work_order_shifts
         DROP CONSTRAINT IF EXISTS fk_work_order_shifts_pm_approved_by,

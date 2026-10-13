@@ -56,7 +56,10 @@ export class UsersController {
   @Patch(':userId')
   @Permissions('users.write')
   @ApiBody({ type: UpdateUserDto })
-  async updateUser(@Param('userId') userId: string, @Body() dto: UpdateUserDto) {
+  async updateUser(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateUserDto,
+  ) {
     await this.usersService.update(userId, {
       email: dto.email,
       firstName: dto.firstName,

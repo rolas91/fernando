@@ -2,7 +2,10 @@ import { applyLegacyTypeField } from './workers.service';
 import type { Worker } from '../../../entities/worker.entity';
 import type { WorkerRole } from '../../../entities/worker-role.entity';
 
-function makeRole(name: string, status: 'active' | 'inactive' = 'active'): WorkerRole {
+function makeRole(
+  name: string,
+  status: 'active' | 'inactive' = 'active',
+): WorkerRole {
   return { id: `r-${name}`, name, status };
 }
 

@@ -1,19 +1,19 @@
-/**
- * Bindable paths catalog for dynamic forms (mobile / web).
- * Prefixes:
- * - `workOrder` - work_orders row (assignment / work order)
- * - `assignment` - alias for `workOrder` (same resolution)
- * - `project`, `client`, `workOrderType`, `projectType` - related catalogs
- * - `shift` - requires `shiftId` in context; embedded shift data on the assignment
- * - `assignmentAll` - aggregates across all assignment shifts (no shiftId)
- */
+   
+                                                           
+            
+                                                            
+                                                           
+                                                                           
+                                                                                   
+                                                                           
+   
 
 export type FormBindingPathDefinition = {
   path: string;
   description: string;
-  /** Requires `shiftId` query when requesting context-preview */
+                                                                 
   requiresShift: boolean;
-  /** Editor guidance example */
+                                
   example?: string;
 };
 
@@ -198,7 +198,8 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
   },
   {
     path: 'shift.workerNames',
-    description: 'Worker names assigned to the shift across all roles, comma-separated',
+    description:
+      'Worker names assigned to the shift across all roles, comma-separated',
     requiresShift: true,
   },
   {
@@ -218,12 +219,12 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
   },
 ];
 
-/** Domain data binding (assignment, project, shift, etc.); portable JSON for React Native */
+                                                                                             
 export type FormFieldDataBinding = {
   path: string;
-  /** When true, missing server data is not an error (manual fill). Defaults to true. */
+                                                                                        
   optional?: boolean;
-  /** When false, a resolved prefilled value is read-only in clients. Defaults to true. */
+                                                                                          
   editable?: boolean;
 };
 

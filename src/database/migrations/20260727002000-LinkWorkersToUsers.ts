@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class LinkWorkersToUsers20260727002000
-  implements MigrationInterface
-{
+export class LinkWorkersToUsers20260727002000 implements MigrationInterface {
   name = 'LinkWorkersToUsers20260727002000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

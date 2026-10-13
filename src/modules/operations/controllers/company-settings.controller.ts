@@ -61,7 +61,13 @@ export class CompanySettingsController {
     FileInterceptor('file', createSpacesUploadMulterOptions('logo')),
   )
   async uploadLogo(
-    @UploadedFile() file: { originalname?: string; mimetype?: string; buffer?: Buffer; size?: number },
+    @UploadedFile()
+    file: {
+      originalname?: string;
+      mimetype?: string;
+      buffer?: Buffer;
+      size?: number;
+    },
   ) {
     if (!file) throw new BadRequestException('No file provided.');
     const result = await this.spaces.uploadLogo(file);
@@ -73,7 +79,13 @@ export class CompanySettingsController {
     FileInterceptor('file', createSpacesUploadMulterOptions('logo')),
   )
   async uploadLogoIcon(
-    @UploadedFile() file: { originalname?: string; mimetype?: string; buffer?: Buffer; size?: number },
+    @UploadedFile()
+    file: {
+      originalname?: string;
+      mimetype?: string;
+      buffer?: Buffer;
+      size?: number;
+    },
   ) {
     if (!file) throw new BadRequestException('No file provided.');
     const result = await this.spaces.uploadLogo(file);

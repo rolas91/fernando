@@ -23,7 +23,10 @@ export class NumberingController {
     @Body() body: { resetKey?: string; value?: number },
     @Req() _req: ReqWithOpsUser,
   ) {
-    await this.numbering.resetSequence(body?.resetKey || 'GLOBAL', body?.value || 0);
+    await this.numbering.resetSequence(
+      body?.resetKey || 'GLOBAL',
+      body?.value || 0,
+    );
     return { success: true };
   }
 }

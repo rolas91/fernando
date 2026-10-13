@@ -145,16 +145,16 @@ const mobileSupervisorPermissions: string[] = [
 ];
 
 export const DEFAULT_PERMISSION_DESCRIPTIONS: Record<string, string> = {
-  'access.manage': 'Administrar roles y permisos',
-  'access.read': 'Consultar roles y permisos',
+  'access.manage': 'Manage roles and permissions',
+  'access.read': 'View roles and permissions',
   'mobile.assignments.read': 'Mobile: ver assignments asignados',
   'mobile.shifts.read': 'Mobile: ver shifts asignados',
   'mobile.shifts.confirm': 'Mobile: confirmar o declinar shifts',
   'mobile.timesheets.submit': 'Mobile: enviar timesheets',
   'mobile.incidents.submit': 'Mobile: enviar incident reports',
   'mobile.work-orders.submit': 'Mobile: enviar work orders',
-  'users.read': 'Consultar usuarios',
-  'users.write': 'Crear, editar y eliminar usuarios',
+  'users.read': 'View users',
+  'users.write': 'Create, edit and delete users',
 };
 
 for (const [resource, permissions] of Object.entries(
@@ -172,16 +172,13 @@ DEFAULT_PERMISSION_DESCRIPTIONS[
 ] = 'Editar asignaciones';
 DEFAULT_PERMISSION_DESCRIPTIONS[
   OPERATIONS_RESOURCE_PERMISSIONS['work-order-types'].read
-] = 'Leer tipos de asignación';
+] = 'View assignment types';
 DEFAULT_PERMISSION_DESCRIPTIONS[
   OPERATIONS_RESOURCE_PERMISSIONS['work-order-types'].write
-] = 'Editar tipos de asignación';
+] = 'Edit assignment types';
 
 export const DEFAULT_ROLE_GRANTS: Record<AppRoleKey, string[]> = {
-  viewer: [
-    ...allOperationsReadPermissions,
-    ...mobileFieldPermissions,
-  ],
+  viewer: [...allOperationsReadPermissions, ...mobileFieldPermissions],
   scheduler: [
     ...allOperationsReadPermissions,
     ...schedulerWritePermissions,

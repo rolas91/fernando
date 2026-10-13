@@ -3,7 +3,10 @@ import { Worker } from '../../../entities/worker.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { findWorkerForActor } from './worker-actor-lookup.util';
 
-function actor(id = 'user-1', email = ' Worker@Example.com '): UserAccessContext {
+function actor(
+  id = 'user-1',
+  email = ' Worker@Example.com ',
+): UserAccessContext {
   return { id, email } as UserAccessContext;
 }
 
@@ -49,13 +52,11 @@ describe('findWorkerForActor', () => {
 
   it('does not expose a worker already linked to another user', async () => {
     const repo = repository();
-    repo.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: 'worker-2',
-        email: 'worker@example.com',
-        userId: 'user-2',
-      } as Worker);
+    repo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 'worker-2',
+      email: 'worker@example.com',
+      userId: 'user-2',
+    } as Worker);
 
     await expect(findWorkerForActor(repo, actor())).resolves.toBeNull();
     expect(repo.update).not.toHaveBeenCalled();

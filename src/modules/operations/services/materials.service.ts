@@ -25,10 +25,12 @@ export class MaterialsService {
   }
 
   create(dto: CreateMaterialDto) {
-    return this.materialsRepo.save(this.materialsRepo.create(dto)).then((saved) => {
-      this.realtime.emitTableUpdated('materials');
-      return saved;
-    });
+    return this.materialsRepo
+      .save(this.materialsRepo.create(dto))
+      .then((saved) => {
+        this.realtime.emitTableUpdated('materials');
+        return saved;
+      });
   }
 
   async update(id: string, dto: UpdateMaterialDto) {

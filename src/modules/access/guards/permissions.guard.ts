@@ -31,7 +31,7 @@ export class PermissionsGuard implements CanActivate {
     const ok = required.every((p) => userPermissions.includes(p));
 
     if (!ok) {
-      throw new ForbiddenException('No tienes permisos para esta acción');
+      throw new ForbiddenException('You do not have permission to perform this action');
     }
 
     return true;

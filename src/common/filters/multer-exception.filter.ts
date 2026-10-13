@@ -13,23 +13,22 @@ export class MulterExceptionFilter implements ExceptionFilter {
     const res = host.switchToHttp().getResponse<Response>();
 
     let message =
-      exception.message ||
-      'Error while processing multipart upload.';
+      exception.message || 'Error while processing multipart upload.';
     switch (exception.code) {
       case 'LIMIT_FILE_SIZE':
-        message = 'El archivo supera el tamaño máximo permitido.';
+        message = 'The file exceeds the maximum allowed size.';
         break;
       case 'LIMIT_FILE_COUNT':
-        message = 'Demasiados archivos en la solicitud.';
+        message = 'Too many files in the request.';
         break;
       case 'LIMIT_PART_COUNT':
         message = 'Demasiadas partes en la solicitud multipart.';
         break;
       case 'LIMIT_UNEXPECTED_FILE':
-        message = 'Campo de archivo inesperado en la solicitud.';
+        message = 'Unexpected file field in the request.';
         break;
       case 'LIMIT_FIELD_KEY':
-        message = 'Nombre de campo demasiado largo.';
+        message = 'The field name is too long.';
         break;
       case 'LIMIT_FIELD_VALUE':
         message = 'Valor de campo demasiado largo.';

@@ -19,10 +19,9 @@ export async function findWorkerForActor(
   if (!email) return null;
 
   const emailWhere: FindOptionsWhere<Worker> = {
-    email: Raw(
-      (alias) => `LOWER(BTRIM(${alias})) = :normalizedWorkerEmail`,
-      { normalizedWorkerEmail: email },
-    ),
+    email: Raw((alias) => `LOWER(BTRIM(${alias})) = :normalizedWorkerEmail`, {
+      normalizedWorkerEmail: email,
+    }),
   };
   const worker = await workersRepo.findOne({
     where: emailWhere,
@@ -30,8 +29,8 @@ export async function findWorkerForActor(
   });
   if (!worker) return null;
 
-  // Existing installations only had an email-based association. Persist the
-  // durable link the first time that account resolves its worker profile.
+                                                                            
+                                                                          
   if (actor?.id && !worker.userId) {
     await workersRepo.update(worker.id, { userId: actor.id });
     worker.userId = actor.id;

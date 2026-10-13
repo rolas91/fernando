@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class MoveFormTemplatesFromAssignmentsToShifts20260909001000
-  implements MigrationInterface
-{
+export class MoveFormTemplatesFromAssignmentsToShifts20260909001000 implements MigrationInterface {
   name = 'MoveFormTemplatesFromAssignmentsToShifts20260909001000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

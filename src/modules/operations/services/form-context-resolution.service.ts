@@ -50,10 +50,7 @@ function findShiftById(
   return null;
 }
 
-function collectRoleIds(
-  shift: ShiftLike,
-  key: 'assignedWorkers',
-): string[] {
+function collectRoleIds(shift: ShiftLike, key: 'assignedWorkers'): string[] {
   const roles = shift.roles;
   if (!Array.isArray(roles)) return [];
   const out = new Set<string>();
@@ -114,7 +111,9 @@ function rolesSummary(shift: ShiftLike): string {
     const roleName =
       typeof r.roleName === 'string' ? r.roleName.trim() : 'Role';
     const req = typeof r.requiredCount === 'number' ? r.requiredCount : 0;
-    const assigned = Array.isArray(r.assignedWorkers) ? r.assignedWorkers.length : 0;
+    const assigned = Array.isArray(r.assignedWorkers)
+      ? r.assignedWorkers.length
+      : 0;
     const count = req > 0 ? req : assigned;
     if (roleName) parts.push(`${roleName} ×${count || assigned || 1}`);
   }
@@ -127,7 +126,9 @@ function workerRoleNames(shift: ShiftLike, workerId: string): string[] {
   const names = new Set<string>();
   for (const r of roles) {
     if (!isRecord(r)) continue;
-    const assignedWorkers = Array.isArray(r.assignedWorkers) ? r.assignedWorkers : [];
+    const assignedWorkers = Array.isArray(r.assignedWorkers)
+      ? r.assignedWorkers
+      : [];
     if (!assignedWorkers.includes(workerId)) continue;
     const roleName = typeof r.roleName === 'string' ? r.roleName.trim() : '';
     if (roleName) names.add(roleName);
@@ -148,7 +149,10 @@ function workerRoleStartTime(shift: ShiftLike, workerId: string): string {
       return role.startTime;
     }
   }
-  return shiftString(shift, 'defaultRoleStartTime') || shiftString(shift, 'startTime');
+  return (
+    shiftString(shift, 'defaultRoleStartTime') ||
+    shiftString(shift, 'startTime')
+  );
 }
 
 function clockMinutes(value: string) {
@@ -180,7 +184,11 @@ function validExistingClockIn(
   const scheduledStart = clockMinutes(scheduledStartTime);
   const scheduledEnd = clockMinutes(scheduledEndTime);
   if (start === null || scheduledStart === null) return false;
-  if (scheduledEnd !== null && scheduledEnd <= scheduledStart && start <= scheduledEnd) {
+  if (
+    scheduledEnd !== null &&
+    scheduledEnd <= scheduledStart &&
+    start <= scheduledEnd
+  ) {
     return true;
   }
   return start >= scheduledStart;
@@ -223,7 +231,10 @@ function hasTimesheetSupervisorRole(roleNames: string[]) {
 }
 
 function normalizedTemplateText(value: string | undefined) {
-  return (value || '').trim().toLowerCase().replace(/[_\s-]+/g, ' ');
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s-]+/g, ' ');
 }
 
 function isTimesheetTemplate(template: FormTemplate) {
@@ -267,7 +278,8 @@ function parseJsonValue(value: string): unknown {
 function formatTimesheetClockLabel(value: string) {
   const normalized = value.trim();
   if (!normalized) return '';
-  if (/^\d{1,2}:\d{2}\s*[AP]\.?M\.?$/i.test(normalized)) return normalized.toUpperCase().replace(/\s+/, ' ');
+  if (/^\d{1,2}:\d{2}\s*[AP]\.?M\.?$/i.test(normalized))
+    return normalized.toUpperCase().replace(/\s+/, ' ');
   const match = normalized.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return normalized;
   let hours = Number(match[1]);
@@ -300,10 +312,10 @@ export class FormContextResolutionService {
     private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
   ) {}
 
-  /**
-   * Resuelve valores sugeridos para cada campo del template según assignment (work order)
-   * y opcionalmente un shift concreto embebido en la assignment.
-   */
+     
+                                                                                          
+                                                                 
+     
   async previewTemplateForWorkOrder(
     templateId: string,
     workOrderId: string,
@@ -317,9 +329,7 @@ export class FormContextResolutionService {
 
     const project =
       workOrder.projectId.trim() !== ''
-        ? await this.projects
-            .findOne(workOrder.projectId)
-            .catch(() => null)
+        ? await this.projects.findOne(workOrder.projectId).catch(() => null)
         : null;
 
     let client: Client | null = null;
@@ -346,7 +356,9 @@ export class FormContextResolutionService {
     let projectTypeName = '';
     if (project?.projectTypeId?.trim()) {
       try {
-        const pt = await this.projectTypes.findOne(project.projectTypeId.trim());
+        const pt = await this.projectTypes.findOne(
+          project.projectTypeId.trim(),
+        );
         projectTypeName = pt.name ?? '';
       } catch {
         projectTypeName = '';
@@ -370,7 +382,9 @@ export class FormContextResolutionService {
       : null;
     const shiftTypeName = shiftTemplate?.name?.trim() || '';
 
-    const workerIds = new Set(collectAllIdsAcrossShifts(workOrder, 'assignedWorkers'));
+    const workerIds = new Set(
+      collectAllIdsAcrossShifts(workOrder, 'assignedWorkers'),
+    );
     if (shift) {
       for (const id of collectRoleIds(shift, 'assignedWorkers')) {
         workerIds.add(id);
@@ -378,10 +392,22 @@ export class FormContextResolutionService {
     }
 
     const workerLabelById = await this.loadWorkerLabels([...workerIds]);
-    const resourcePlans = shift ? await this.loadPlannedResourceOptions(shift) : { equipment: [], materials: [], additionalEquipment: [], additionalMaterials: [], additionalMaterialTypes: [] };
-    const shiftWorkOrderTypes = shift && Array.isArray(shift.workOrderTypes)
-      ? shift.workOrderTypes.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      : [];
+    const resourcePlans = shift
+      ? await this.loadPlannedResourceOptions(shift)
+      : {
+          equipment: [],
+          materials: [],
+          additionalEquipment: [],
+          additionalMaterials: [],
+          additionalMaterialTypes: [],
+        };
+    const shiftWorkOrderTypes =
+      shift && Array.isArray(shift.workOrderTypes)
+        ? shift.workOrderTypes.filter(
+            (value): value is string =>
+              typeof value === 'string' && value.trim().length > 0,
+          )
+        : [];
 
     const ctx = {
       workOrder,
@@ -393,7 +419,13 @@ export class FormContextResolutionService {
       shiftTypeName,
       workerLabelById,
       workerTimesheetByShiftId: shift
-        ? await this.loadWorkerTimesheetRows(workOrder, shift, template, actor, options?.timesheetScope)
+        ? await this.loadWorkerTimesheetRows(
+            workOrder,
+            shift,
+            template,
+            actor,
+            options?.timesheetScope,
+          )
         : [],
     };
 
@@ -411,7 +443,8 @@ export class FormContextResolutionService {
 
       try {
         const value = this.resolvePath(ctx, binding);
-        const resolved = value !== null && value !== undefined && String(value).trim() !== '';
+        const resolved =
+          value !== null && value !== undefined && String(value).trim() !== '';
         return {
           fieldId: field.id,
           bindingPath: binding,
@@ -432,7 +465,12 @@ export class FormContextResolutionService {
 
     const suggestedData: Record<string, unknown> = {};
     for (const preview of fieldPreviews) {
-      if ('value' in preview && preview.resolved && preview.value !== null && preview.value !== undefined) {
+      if (
+        'value' in preview &&
+        preview.resolved &&
+        preview.value !== null &&
+        preview.value !== undefined
+      ) {
         suggestedData[preview.fieldId] = preview.value;
       }
     }
@@ -442,7 +480,10 @@ export class FormContextResolutionService {
       templateName: template.name,
       contractVersion: FORM_CONTRACT_VERSION,
       workOrderId: workOrder.id,
-      shiftId: shift?.id && typeof shift.id === 'string' ? shift.id : shiftId?.trim() ?? null,
+      shiftId:
+        shift?.id && typeof shift.id === 'string'
+          ? shift.id
+          : (shiftId?.trim() ?? null),
       catalogRevision: '2026-05-12',
       availablePaths: FORM_DATA_BINDING_PATHS,
       fieldPreviews,
@@ -453,49 +494,120 @@ export class FormContextResolutionService {
   }
 
   private async loadPlannedResourceOptions(shift: ShiftLike) {
-    const plannedEquipment = Array.isArray(shift.plannedEquipment) ? shift.plannedEquipment.filter(isRecord) : [];
-    const plannedMaterials = Array.isArray(shift.plannedMaterials) ? shift.plannedMaterials.filter(isRecord) : [];
-    const requestedEquipmentTypes = new Set(plannedEquipment.map((row) => String(row.type ?? '').trim()).filter(Boolean));
-    const requestedMaterialTypes = new Set(plannedMaterials.map((row) => String(row.type ?? '').trim()).filter(Boolean));
+    const plannedEquipment = Array.isArray(shift.plannedEquipment)
+      ? shift.plannedEquipment.filter(isRecord)
+      : [];
+    const plannedMaterials = Array.isArray(shift.plannedMaterials)
+      ? shift.plannedMaterials.filter(isRecord)
+      : [];
+    const requestedEquipmentTypes = new Set(
+      plannedEquipment
+        .map((row) => String(row.type ?? '').trim())
+        .filter(Boolean),
+    );
+    const requestedMaterialTypes = new Set(
+      plannedMaterials
+        .map((row) => String(row.type ?? '').trim())
+        .filter(Boolean),
+    );
     const [equipment, materials] = await Promise.all([
       this.equipmentRepo.find(),
       this.materialRepo.find(),
     ]);
-    const quantity = (row: Record<string, unknown>) => Math.max(1, Number(row.estimatedQuantity) || 1);
-    const normalizedType = (value: unknown) => String(value ?? '').trim().toLocaleLowerCase();
+    const quantity = (row: Record<string, unknown>) =>
+      Math.max(1, Number(row.estimatedQuantity) || 1);
+    const normalizedType = (value: unknown) =>
+      String(value ?? '')
+        .trim()
+        .toLocaleLowerCase();
     return {
       equipment: plannedEquipment.map((row) => ({
-        type: String(row.type).trim(), estimatedQuantity: quantity(row),
-        items: equipment.filter((item) => normalizedType(item.type) === normalizedType(row.type) && item.status !== 'retired').map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
+        type: String(row.type).trim(),
+        estimatedQuantity: quantity(row),
+        items: equipment
+          .filter(
+            (item) =>
+              normalizedType(item.type) === normalizedType(row.type) &&
+              item.status !== 'retired',
+          )
+          .map((item) => ({
+            id: item.id,
+            type: item.type,
+            label: formatEquipment(item),
+          })),
       })),
       materials: plannedMaterials.map((row) => {
         const configuredIds = Array.isArray(row.materialIds)
-          ? new Set(row.materialIds.map((id) => String(id).trim()).filter(Boolean))
+          ? new Set(
+              row.materialIds.map((id) => String(id).trim()).filter(Boolean),
+            )
           : null;
         const configuredQuantities = isRecord(row.materialQuantities)
           ? row.materialQuantities
           : {};
         const items = materials
-          .filter((item) =>
-            normalizedType(item.type) === normalizedType(row.type) &&
-            item.status !== 'retired' &&
-            (configuredIds === null || configuredIds.has(item.id)))
+          .filter(
+            (item) =>
+              normalizedType(item.type) === normalizedType(row.type) &&
+              item.status !== 'retired' &&
+              (configuredIds === null || configuredIds.has(item.id)),
+          )
           .map((item) => ({
             id: item.id,
             type: item.type,
             label: formatMaterial(item),
-            estimatedQuantity: Math.max(0, Number(configuredQuantities[item.id]) || 0),
+            estimatedQuantity: Math.max(
+              0,
+              Number(configuredQuantities[item.id]) || 0,
+            ),
           }));
         return {
           type: String(row.type).trim(),
           estimatedQuantity: quantity(row),
           items,
-          materialIds: configuredIds === null ? undefined : items.map((item) => item.id),
+          materialIds:
+            configuredIds === null ? undefined : items.map((item) => item.id),
         };
       }),
-      additionalEquipment: equipment.filter((item) => item.status !== 'retired' && ![...requestedEquipmentTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => ({ id: item.id, type: item.type, label: formatEquipment(item) })),
-      additionalMaterials: materials.filter((item) => item.status !== 'retired' && ![...requestedMaterialTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => ({ id: item.id, type: item.type, label: formatMaterial(item) })),
-      additionalMaterialTypes: [...new Set(materials.filter((item) => item.status !== 'retired' && ![...requestedMaterialTypes].some((type) => normalizedType(type) === normalizedType(item.type))).map((item) => item.type))].sort(),
+      additionalEquipment: equipment
+        .filter(
+          (item) =>
+            item.status !== 'retired' &&
+            ![...requestedEquipmentTypes].some(
+              (type) => normalizedType(type) === normalizedType(item.type),
+            ),
+        )
+        .map((item) => ({
+          id: item.id,
+          type: item.type,
+          label: formatEquipment(item),
+        })),
+      additionalMaterials: materials
+        .filter(
+          (item) =>
+            item.status !== 'retired' &&
+            ![...requestedMaterialTypes].some(
+              (type) => normalizedType(type) === normalizedType(item.type),
+            ),
+        )
+        .map((item) => ({
+          id: item.id,
+          type: item.type,
+          label: formatMaterial(item),
+        })),
+      additionalMaterialTypes: [
+        ...new Set(
+          materials
+            .filter(
+              (item) =>
+                item.status !== 'retired' &&
+                ![...requestedMaterialTypes].some(
+                  (type) => normalizedType(type) === normalizedType(item.type),
+                ),
+            )
+            .map((item) => item.type),
+        ),
+      ].sort(),
     };
   }
 
@@ -642,14 +754,18 @@ export class FormContextResolutionService {
     const configuredLunchDefault = timesheetField?.ui?.lunchTakenDefault;
     let workerIds = collectRoleIds(shift, 'assignedWorkers');
     const workerIdForActor = await this.resolveWorkerIdForActor(actor);
-    const actorRoleNames = workerIdForActor ? workerRoleNames(shift, workerIdForActor) : [];
+    const actorRoleNames = workerIdForActor
+      ? workerRoleNames(shift, workerIdForActor)
+      : [];
     const forcedSelfTimesheet = timesheetScope === 'own';
     const forcedAllTimesheets = timesheetScope === 'all';
-    const actorHasTimesheetSupervisorRole = hasTimesheetSupervisorRole(actorRoleNames);
+    const actorHasTimesheetSupervisorRole =
+      hasTimesheetSupervisorRole(actorRoleNames);
     const isMobileSelfTimesheet =
       !forcedAllTimesheets &&
       isTimesheetTemplate(template) &&
-      (forcedSelfTimesheet || (isViewerRole(actor) && !actorHasTimesheetSupervisorRole)) &&
+      (forcedSelfTimesheet ||
+        (isViewerRole(actor) && !actorHasTimesheetSupervisorRole)) &&
       !canSubmitFinalMobileTimesheets(actor) &&
       actor?.permissions.includes('mobile.timesheets.submit') &&
       !actor?.permissions.includes('form-submissions.write');
@@ -670,18 +786,21 @@ export class FormContextResolutionService {
     );
     const shiftTemplateId = shiftString(shift, 'shiftTemplateId');
     const shiftStartTime =
-      shiftString(shift, 'defaultRoleStartTime') || shiftString(shift, 'startTime');
+      shiftString(shift, 'defaultRoleStartTime') ||
+      shiftString(shift, 'startTime');
     let shiftTemplate = shiftTemplateId
       ? await this.shiftCatalogRepo.findOne({ where: { id: shiftTemplateId } })
       : null;
     if (!shiftTemplate) {
       const targetStart = clockMinutes(catalogClock(shiftStartTime));
-      const activeTemplates = targetStart === null
-        ? []
-        : await this.shiftCatalogRepo.find({ where: { status: 'active' } });
+      const activeTemplates =
+        targetStart === null
+          ? []
+          : await this.shiftCatalogRepo.find({ where: { status: 'active' } });
       shiftTemplate =
         activeTemplates.find(
-          (candidate) => clockMinutes(candidate.startTime || '') === targetStart,
+          (candidate) =>
+            clockMinutes(candidate.startTime || '') === targetStart,
         ) ?? null;
     }
     const durationMinutes = shiftDurationMinutes(shiftTemplate);
@@ -689,14 +808,19 @@ export class FormContextResolutionService {
       const worker = workerById.get(workerId);
       const timesheet = timesheetByWorkerId.get(workerId);
       const workerName = worker
-        ? `${worker.firstName} ${worker.lastName}`.trim() || worker.email || worker.id
+        ? `${worker.firstName} ${worker.lastName}`.trim() ||
+          worker.email ||
+          worker.id
         : workerId;
       const scheduledStartTime = formatTimesheetClockLabel(
         workerRoleStartTime(shift, workerId),
       );
       const scheduledEndTime = formatTimesheetClockLabel(
         durationMinutes !== null
-          ? addMinutesToClock(workerRoleStartTime(shift, workerId), durationMinutes)
+          ? addMinutesToClock(
+              workerRoleStartTime(shift, workerId),
+              durationMinutes,
+            )
           : shiftString(shift, 'endTime'),
       );
       const existingClockIn = validExistingClockIn(
@@ -736,10 +860,12 @@ export class FormContextResolutionService {
             ? timesheet.lunchTaken
             : typeof configuredLunchDefault === 'boolean'
               ? configuredLunchDefault
-              : timesheet?.lunchTaken ?? false,
+              : (timesheet?.lunchTaken ?? false),
         hasExistingTimesheet: Boolean(timesheet),
         employeeNote: timesheet?.employeeNote ?? '',
-        signature: timesheet?.signature ? parseJsonValue(timesheet.signature) : '',
+        signature: timesheet?.signature
+          ? parseJsonValue(timesheet.signature)
+          : '',
         status: timesheet?.status || 'pending',
       };
     });

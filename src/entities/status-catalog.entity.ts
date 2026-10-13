@@ -1,4 +1,10 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 export type StatusCatalogScope =
   | 'work_order'
@@ -40,10 +46,10 @@ export class StatusCatalog {
   @Column({ name: 'requires_approval', type: 'boolean', default: false })
   requiresApproval: boolean;
 
-  /**
-   * True when the status is derived from data (confirmations, form
-   * submissions, cancellation flow) and cannot be set manually by the user.
-   */
+     
+                                                                   
+                                                                            
+     
   @Column({ type: 'boolean', default: false })
   automatic: boolean;
 

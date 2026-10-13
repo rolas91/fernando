@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddWorkerExpirationDate20260504000100
-  implements MigrationInterface
-{
+export class AddWorkerExpirationDate20260504000100 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const hasWorkerCertifications = await queryRunner.hasTable(
       'worker_certifications',
@@ -28,7 +26,10 @@ export class AddWorkerExpirationDate20260504000100
     const hasWorkers = await queryRunner.hasTable('workers');
     if (!hasWorkers) return;
 
-    const hasWorkerColumn = await queryRunner.hasColumn('workers', 'expiration_date');
+    const hasWorkerColumn = await queryRunner.hasColumn(
+      'workers',
+      'expiration_date',
+    );
     if (!hasWorkerColumn) return;
 
     if (hasWorkerCertifications) {

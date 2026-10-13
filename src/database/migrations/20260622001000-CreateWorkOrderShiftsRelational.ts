@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateWorkOrderShiftsRelational20260622001000
-  implements MigrationInterface
-{
+export class CreateWorkOrderShiftsRelational20260622001000 implements MigrationInterface {
   name = 'CreateWorkOrderShiftsRelational20260622001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -93,9 +91,15 @@ export class CreateWorkOrderShiftsRelational20260622001000
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TABLE IF EXISTS work_order_shift_role_materials`);
-    await queryRunner.query(`DROP TABLE IF EXISTS work_order_shift_role_equipment`);
-    await queryRunner.query(`DROP TABLE IF EXISTS work_order_shift_role_workers`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS work_order_shift_role_materials`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS work_order_shift_role_equipment`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS work_order_shift_role_workers`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS work_order_shift_roles`);
     await queryRunner.query(`DROP TABLE IF EXISTS work_order_shifts`);
   }

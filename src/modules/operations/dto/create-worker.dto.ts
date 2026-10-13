@@ -54,9 +54,7 @@ export class CreateWorkerDto {
   email: string;
 
   @Transform(({ value }) =>
-    typeof value === 'string'
-      ? normalizeUsPhoneDisplay(value.trim())
-      : value,
+    typeof value === 'string' ? normalizeUsPhoneDisplay(value.trim()) : value,
   )
   @IsString()
   @IsNotEmpty()
@@ -75,12 +73,12 @@ export class CreateWorkerDto {
   @ValidateIf((_, v) => typeof v === 'string' && v.trim() !== '')
   @IsString()
   @MinLength(3, {
-    message: 'Licencia debe tener al menos 3 caracteres cuando se proporciona.',
+    message: 'The license must contain at least 3 characters when provided.',
   })
   @MaxLength(24)
   @Matches(/^[A-Z0-9*\-]+$/, {
     message:
-      'Licencia debe contener solo letras mayúsculas, números, * y guión.',
+      'The license must contain only uppercase letters, numbers, * and hyphens.',
   })
   driverLicense?: string;
 
@@ -88,7 +86,7 @@ export class CreateWorkerDto {
   @ValidateIf((_, v) => v !== null && v !== undefined && v !== '')
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'Fecha inválida (use YYYY-MM-DD).',
+    message: 'Invalid date (use YYYY-MM-DD).',
   })
   @IsDateOnlyTodayOrFuture()
   driverLicenseExpiration?: string | null;
@@ -174,7 +172,7 @@ export class CreateWorkerDto {
   @ValidateIf((_, v) => v !== undefined && v !== null && v !== '')
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'Fecha de contratación inválida.',
+    message: 'Invalid hire date.',
   })
   @IsDateOnlyPastOrPresent()
   hireDate?: string;
@@ -184,9 +182,9 @@ export class CreateWorkerDto {
     const n = Number(value);
     return Number.isFinite(n) ? n : NaN;
   })
-  @IsNumber({}, { message: 'La tarifa horaria debe ser un número válido.' })
-  @Min(0, { message: 'La tarifa horaria no puede ser negativa.' })
-  @Max(750, { message: 'La tarifa horaria no debe superar 750.' })
+  @IsNumber({}, { message: 'The hourly rate must be a valid number.' })
+  @Min(0, { message: 'The hourly rate cannot be negative.' })
+  @Max(750, { message: 'The hourly rate must not exceed 750.' })
   hourlyRate: number;
 
   @IsOptional()

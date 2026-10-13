@@ -28,7 +28,12 @@ export class Timesheet {
   @Column({ type: 'varchar', length: 16, default: 'internal' })
   variant: TimesheetVariant;
 
-  @Column({ name: 'source_submission_id', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'source_submission_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   sourceSubmissionId: string | null;
 
   @Column({ name: 'manually_edited', type: 'boolean', default: false })

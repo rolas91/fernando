@@ -12,9 +12,7 @@ function slugify(raw: string) {
     .slice(0, 48);
 }
 
-export class CreateSkillsAndWorkerRelations20260504000200
-  implements MigrationInterface
-{
+export class CreateSkillsAndWorkerRelations20260504000200 implements MigrationInterface {
   name = 'CreateSkillsAndWorkerRelations20260504000200';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -50,7 +50,9 @@ function pdfFillRect(
 }
 
 function fitText(value: unknown, max = 32): string {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (text.length <= max) return text;
   return `${text.slice(0, Math.max(0, max - 3))}...`;
 }
@@ -132,7 +134,9 @@ function decodePngForPdf(path: string, name: string): EmbeddedPdfImage | null {
   for (let y = 0; y < height; y += 1) {
     const filter = source[sourceOffset];
     sourceOffset += 1;
-    const scanline = Buffer.from(source.subarray(sourceOffset, sourceOffset + scanlineLength));
+    const scanline = Buffer.from(
+      source.subarray(sourceOffset, sourceOffset + scanlineLength),
+    );
     sourceOffset += scanlineLength;
 
     for (let x = 0; x < scanlineLength; x += 1) {
@@ -211,7 +215,8 @@ function buildPdf(content: string, images: EmbeddedPdfImage[] = []): Buffer {
   objects.forEach((object, index) => {
     offsets.push(length);
     const header = Buffer.from(`${index + 1} 0 obj\n`, 'utf8');
-    const body = typeof object === 'string' ? Buffer.from(object, 'utf8') : object;
+    const body =
+      typeof object === 'string' ? Buffer.from(object, 'utf8') : object;
     const footer = Buffer.from('\nendobj\n', 'utf8');
     const block = Buffer.concat([header, body, footer]);
     parts.push(block);
@@ -245,7 +250,12 @@ function sectionTitle(ops: string[], title: string, y: number) {
   ops.push(pdfLine(40, y - 6, 572, y - 6));
 }
 
-function renderBrandHeader(ops: string[], title: string, number: string, date: string) {
+function renderBrandHeader(
+  ops: string[],
+  title: string,
+  number: string,
+  date: string,
+) {
   ops.push('q 130 0 0 41 40 714 cm /Logo Do Q');
   ops.push(pdfText('DR Traffic Control', 245, 742, 11, 'F2'));
   ops.push(pdfText('456 Traffic Way', 245, 727, 8));
@@ -256,9 +266,14 @@ function renderBrandHeader(ops: string[], title: string, number: string, date: s
   ops.push(pdfLine(40, 680, 572, 680));
 }
 
-export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buffer {
+export function buildCommercialWorkOrderPdf(
+  workOrder: CommercialWorkOrder,
+): Buffer {
   const ops: string[] = [];
-  const logo = loadCommercialPdfLogoImage('Logo', 'drtraffic-work-order-logo.png');
+  const logo = loadCommercialPdfLogoImage(
+    'Logo',
+    'drtraffic-work-order-logo.png',
+  );
   const isSale = workOrder.type === 'sale';
   renderBrandHeader(
     ops,
@@ -274,8 +289,17 @@ export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buf
   ops.push(pdfText('JOB NAME / LOCATION:', 245, 650, 8, 'F2'));
   ops.push(pdfText(fitText(workOrder.jobName, 34), 245, 636, 9));
   ops.push(pdfText(fitText(workOrder.jobNumber, 34), 245, 622, 8));
-  ops.push(pdfText(isSale ? 'CUSTOMER ORDER #:' : 'ON RENT DATE:', 438, 650, 8, 'F2'));
-  ops.push(pdfText(isSale ? workOrder.customerOrderNumber : formatDate(workOrder.onRentDate), 438, 636, 9));
+  ops.push(
+    pdfText(isSale ? 'CUSTOMER ORDER #:' : 'ON RENT DATE:', 438, 650, 8, 'F2'),
+  );
+  ops.push(
+    pdfText(
+      isSale ? workOrder.customerOrderNumber : formatDate(workOrder.onRentDate),
+      438,
+      636,
+      9,
+    ),
+  );
 
   const columns = isSale
     ? [
@@ -297,7 +321,9 @@ export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buf
       ];
   tableHeader(ops, 570, columns);
   let y = 548;
-  const items = Array.isArray(workOrder.items) ? (workOrder.items as PdfItem[]) : [];
+  const items = Array.isArray(workOrder.items)
+    ? (workOrder.items as PdfItem[])
+    : [];
   let total = 0;
   items.slice(0, 14).forEach((item) => {
     const qty = isSale ? numberValue(item.qty) : numberValue(item.onRentQty);
@@ -308,7 +334,9 @@ export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buf
     total += amount;
     ops.push(pdfRect(40, y - 9, 532, 20));
     ops.push(pdfText(fitText(item.sku, 12), 46, y - 2, 7));
-    ops.push(pdfText(fitText(item.description, isSale ? 38 : 30), 118, y - 2, 7));
+    ops.push(
+      pdfText(fitText(item.description, isSale ? 38 : 30), 118, y - 2, 7),
+    );
     ops.push(pdfText(qty, isSale ? 342 : 306, y - 2, 7));
     ops.push(pdfText(fitText(unit, 8), isSale ? 392 : 352, y - 2, 7));
     ops.push(pdfText(money(rate), isSale ? 448 : 410, y - 2, 7));
@@ -319,7 +347,14 @@ export function buildCommercialWorkOrderPdf(workOrder: CommercialWorkOrder): Buf
 
   sectionTitle(ops, 'Notes', 230);
   ops.push(pdfRect(40, 146, 345, 68));
-  ops.push(pdfText(fitText(workOrder.notes || workOrder.descriptionOfWork, 72), 48, 196, 8));
+  ops.push(
+    pdfText(
+      fitText(workOrder.notes || workOrder.descriptionOfWork, 72),
+      48,
+      196,
+      8,
+    ),
+  );
   ops.push(pdfRect(408, 166, 164, 48));
   ops.push(pdfText('SUBTOTAL', 420, 196, 8, 'F2'));
   ops.push(pdfText(money(total), 510, 196, 8, 'F2'));
@@ -358,7 +393,9 @@ export function buildCommercialInvoicePdf(invoice: CommercialInvoice): Buffer {
   ];
   tableHeader(ops, 570, columns);
   let y = 548;
-  const items = Array.isArray(invoice.items) ? (invoice.items as PdfItem[]) : [];
+  const items = Array.isArray(invoice.items)
+    ? (invoice.items as PdfItem[])
+    : [];
   items.slice(0, 14).forEach((item) => {
     ops.push(pdfRect(40, y - 9, 532, 20));
     ops.push(pdfText(fitText(item.sku, 12), 46, y - 2, 7));

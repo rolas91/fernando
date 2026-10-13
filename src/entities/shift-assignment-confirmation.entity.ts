@@ -36,7 +36,12 @@ export class ShiftAssignmentConfirmation {
   @Column({ type: 'varchar', length: 32, default: 'pending' })
   status: string;
 
-  @Column({ name: 'delivery_channel', type: 'varchar', length: 32, nullable: true })
+  @Column({
+    name: 'delivery_channel',
+    type: 'varchar',
+    length: 32,
+    nullable: true,
+  })
   deliveryChannel: string | null;
 
   @Column({ name: 'requested_at', type: 'timestamp', nullable: true })
@@ -48,7 +53,12 @@ export class ShiftAssignmentConfirmation {
   @Column({ name: 'last_message', type: 'text', default: '' })
   lastMessage: string;
 
-  @Column({ name: 'last_sent_to', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'last_sent_to',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   lastSentTo: string | null;
 
   @Column({

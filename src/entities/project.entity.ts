@@ -23,7 +23,12 @@ export class Project {
   @Column({ name: 'project_type_id', type: 'varchar', length: 64, default: '' })
   projectTypeId: string;
 
-  @Column({ name: 'project_manager', type: 'varchar', length: 180, default: '' })
+  @Column({
+    name: 'project_manager',
+    type: 'varchar',
+    length: 180,
+    default: '',
+  })
   projectManager: string;
 
   @Column({

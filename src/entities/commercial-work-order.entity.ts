@@ -18,7 +18,12 @@ export class CommercialWorkOrder {
   @PrimaryColumn({ type: 'varchar', length: 64 })
   id: string;
 
-  @Column({ name: 'work_order_number', type: 'varchar', length: 80, unique: true })
+  @Column({
+    name: 'work_order_number',
+    type: 'varchar',
+    length: 80,
+    unique: true,
+  })
   workOrderNumber: string;
 
   @Column({ type: 'varchar', length: 24 })
@@ -27,7 +32,12 @@ export class CommercialWorkOrder {
   @Column({ type: 'varchar', length: 32 })
   status: CommercialWorkOrderStatus;
 
-  @Column({ name: 'parent_work_order_id', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'parent_work_order_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   parentWorkOrderId: string | null;
 
   @Column({ name: 'rollover_index', type: 'integer', default: 0 })
@@ -57,7 +67,12 @@ export class CommercialWorkOrder {
   @Column({ type: 'varchar', length: 255, default: '' })
   email: string;
 
-  @Column({ name: 'customer_order_number', type: 'varchar', length: 120, default: '' })
+  @Column({
+    name: 'customer_order_number',
+    type: 'varchar',
+    length: 120,
+    default: '',
+  })
   customerOrderNumber: string;
 
   @Column({ name: 'description_of_work', type: 'text', default: '' })

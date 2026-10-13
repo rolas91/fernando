@@ -183,12 +183,12 @@ export const CURRENT_FORM_TEMPLATES_BACKUP = DEFAULT_FORM_TEMPLATES.map(
   }),
 );
 
-/**
- * Recovery-only seed for the production form contracts.
- *
- * It is intentionally insert-only: an existing template is never updated or
- * overwritten, even when its current design differs from this backup.
- */
+   
+                                                        
+  
+                                                                            
+                                                                      
+   
 export async function restoreMissingFormTemplates(dataSource: DataSource) {
   const repo = dataSource.getRepository(FormTemplate);
   const restored: string[] = [];

@@ -1,12 +1,12 @@
 import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 
-export class CreateShiftAssignmentConfirmations20260428000100
-  implements MigrationInterface
-{
+export class CreateShiftAssignmentConfirmations20260428000100 implements MigrationInterface {
   name = 'CreateShiftAssignmentConfirmations20260428000100';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    const hasTable = await queryRunner.hasTable('shift_assignment_confirmations');
+    const hasTable = await queryRunner.hasTable(
+      'shift_assignment_confirmations',
+    );
     if (hasTable) return;
 
     await queryRunner.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
@@ -124,7 +124,9 @@ export class CreateShiftAssignmentConfirmations20260428000100
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    const hasTable = await queryRunner.hasTable('shift_assignment_confirmations');
+    const hasTable = await queryRunner.hasTable(
+      'shift_assignment_confirmations',
+    );
     if (!hasTable) return;
     await queryRunner.dropTable('shift_assignment_confirmations', true);
   }

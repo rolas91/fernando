@@ -11,7 +11,10 @@ import {
 import { WorkOrderShiftRole } from './work-order-shift-role.entity';
 import { Worker } from './worker.entity';
 
-export type ShiftWorkerConfirmationStatus = 'pending' | 'confirmed' | 'declined';
+export type ShiftWorkerConfirmationStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'declined';
 
 @Entity('work_order_shift_role_workers')
 @Index('idx_wosrw_role', ['roleId'])

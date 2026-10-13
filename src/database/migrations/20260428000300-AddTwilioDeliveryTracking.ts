@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddTwilioDeliveryTracking20260428000300
-  implements MigrationInterface
-{
+export class AddTwilioDeliveryTracking20260428000300 implements MigrationInterface {
   name = 'AddTwilioDeliveryTracking20260428000300';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -52,7 +50,10 @@ export class AddTwilioDeliveryTracking20260428000300
       'provider_message_sid',
     ]) {
       if (table.findColumnByName(columnName)) {
-        await queryRunner.dropColumn('shift_assignment_confirmations', columnName);
+        await queryRunner.dropColumn(
+          'shift_assignment_confirmations',
+          columnName,
+        );
       }
     }
   }

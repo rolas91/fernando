@@ -3,7 +3,13 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { existsSync } from 'fs';
-import { json, urlencoded, type NextFunction, type Request, type Response } from 'express';
+import {
+  json,
+  urlencoded,
+  type NextFunction,
+  type Request,
+  type Response,
+} from 'express';
 import { join, resolve } from 'path';
 import { AppModule } from './app.module';
 import { MulterExceptionFilter } from './common/filters/multer-exception.filter';
@@ -123,7 +129,7 @@ async function bootstrap() {
       swaggerOptions: { persistAuthorization: true },
     });
 
-    // Raw OpenAPI JSON (útil para debug)
+                                         
     SwaggerModule.setup('docs-json', app, document);
   }
 

@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { basename, resolve } from 'path';
@@ -85,7 +90,10 @@ function buildPdfContentPdf(content: string, images: PdfImage[] = []): Buffer {
   return buildPdfContentPages([content], images);
 }
 
-function buildPdfContentPages(contents: string[], images: PdfImage[] = []): Buffer {
+function buildPdfContentPages(
+  contents: string[],
+  images: PdfImage[] = [],
+): Buffer {
   const pageContents = contents.length > 0 ? contents : [''];
   const objects: Array<string | Buffer> = [];
   const pageHeight = 792;
@@ -202,7 +210,10 @@ function fitText(value: unknown, max = 34): string {
   return `${text.slice(0, Math.max(0, max - 3))}...`;
 }
 
-function approximateHelveticaTextWidth(value: string, fontSize: number): number {
+function approximateHelveticaTextWidth(
+  value: string,
+  fontSize: number,
+): number {
   const widthInEm = [...value].reduce((width, character) => {
     if (character === ' ') return width + 0.278;
     if (/[.,:;!'|ijlI]/.test(character)) return width + 0.25;
@@ -304,10 +315,13 @@ function findPlannedMaterialUsageRows(data: Record<string, unknown>) {
     return Array.isArray(materials) ? materials : [];
   });
   const rows = [...(Array.isArray(direct) ? direct : []), ...nested];
-  return rows.filter((entry): entry is Record<string, unknown> =>
-    typeof entry === 'object' && entry !== null &&
-    typeof (entry as Record<string, unknown>).type === 'string' &&
-    (entry as Record<string, unknown>).actualQuantity !== undefined);
+  return rows.filter(
+    (entry): entry is Record<string, unknown> =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as Record<string, unknown>).type === 'string' &&
+      (entry as Record<string, unknown>).actualQuantity !== undefined,
+  );
 }
 
 function timesheetRowHasSupervisorRole(row: Record<string, unknown>) {
@@ -553,20 +567,19 @@ function pdfImageFromPng(data: Buffer, name: string): PdfImage | null {
   const cropPadding = 4;
   const cropLeft = maxX >= 0 ? Math.max(0, minX - cropPadding) : 0;
   const cropTop = maxY >= 0 ? Math.max(0, minY - cropPadding) : 0;
-  const cropRight = maxX >= 0 ? Math.min(width - 1, maxX + cropPadding) : width - 1;
-  const cropBottom = maxY >= 0 ? Math.min(height - 1, maxY + cropPadding) : height - 1;
+  const cropRight =
+    maxX >= 0 ? Math.min(width - 1, maxX + cropPadding) : width - 1;
+  const cropBottom =
+    maxY >= 0 ? Math.min(height - 1, maxY + cropPadding) : height - 1;
   const croppedWidth = cropRight - cropLeft + 1;
   const croppedHeight = cropBottom - cropTop + 1;
   const rgb = Buffer.alloc(croppedWidth * croppedHeight * 3);
   for (let y = 0; y < croppedHeight; y += 1) {
     for (let x = 0; x < croppedWidth; x += 1) {
-      const source =
-        ((cropTop + y) * width + cropLeft + x) * channelCount;
+      const source = ((cropTop + y) * width + cropLeft + x) * channelCount;
       const target = (y * croppedWidth + x) * 3;
       const alpha = channelCount === 4 ? scanlines[source + 3] / 255 : 1;
-      rgb[target] = Math.round(
-        scanlines[source] * alpha + 255 * (1 - alpha),
-      );
+      rgb[target] = Math.round(scanlines[source] * alpha + 255 * (1 - alpha));
       rgb[target + 1] = Math.round(
         scanlines[source + 1] * alpha + 255 * (1 - alpha),
       );
@@ -625,9 +638,9 @@ function pdfSignature(
   contentScale = 1,
 ) {
   if (!isSignaturePath(value)) return '';
-  const allPoints = value.strokes.flat().filter(
-    (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
-  );
+  const allPoints = value.strokes
+    .flat()
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
   if (allPoints.length < 2) return '';
   const minX = Math.min(...allPoints.map((point) => point.x));
   const maxX = Math.max(...allPoints.map((point) => point.x));
@@ -812,29 +825,39 @@ type WorkOrderPdfBuilderConfig = {
 };
 
 function normalizedPdfBuilderConfig(value: unknown): WorkOrderPdfBuilderConfig {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return {};
   const input = value as Record<string, unknown>;
   const rawFields =
-    typeof input.fields === 'object' && input.fields !== null && !Array.isArray(input.fields)
+    typeof input.fields === 'object' &&
+    input.fields !== null &&
+    !Array.isArray(input.fields)
       ? (input.fields as Record<string, unknown>)
       : {};
   const rawLayout =
-    typeof input.layout === 'object' && input.layout !== null && !Array.isArray(input.layout)
+    typeof input.layout === 'object' &&
+    input.layout !== null &&
+    !Array.isArray(input.layout)
       ? (input.layout as Record<string, unknown>)
       : {};
   const rawLabels =
-    typeof rawLayout.labels === 'object' && rawLayout.labels !== null && !Array.isArray(rawLayout.labels)
+    typeof rawLayout.labels === 'object' &&
+    rawLayout.labels !== null &&
+    !Array.isArray(rawLayout.labels)
       ? (rawLayout.labels as Record<string, unknown>)
       : {};
   const rawSections =
-    typeof rawLayout.sections === 'object' && rawLayout.sections !== null && !Array.isArray(rawLayout.sections)
+    typeof rawLayout.sections === 'object' &&
+    rawLayout.sections !== null &&
+    !Array.isArray(rawLayout.sections)
       ? (rawLayout.sections as Record<string, unknown>)
       : {};
   const workerRows = Number(rawLayout.workerRows);
   const materialRows = Number(rawLayout.materialRows);
   return {
     version: Number.isFinite(Number(input.version)) ? Number(input.version) : 1,
-    templateId: typeof input.templateId === 'string' ? input.templateId.trim() : '',
+    templateId:
+      typeof input.templateId === 'string' ? input.templateId.trim() : '',
     fields: Object.fromEntries(
       Object.entries(rawFields)
         .filter(([, fieldId]) => typeof fieldId === 'string' && fieldId.trim())
@@ -842,13 +865,19 @@ function normalizedPdfBuilderConfig(value: unknown): WorkOrderPdfBuilderConfig {
     ),
     layout: {
       accentColor:
-        typeof rawLayout.accentColor === 'string' && /^#[0-9a-f]{6}$/i.test(rawLayout.accentColor)
+        typeof rawLayout.accentColor === 'string' &&
+        /^#[0-9a-f]{6}$/i.test(rawLayout.accentColor)
           ? rawLayout.accentColor
           : '#ed7376',
-      workerRows: Number.isInteger(workerRows) ? Math.min(12, Math.max(4, workerRows)) : 7,
-      materialRows: Number.isInteger(materialRows) ? Math.min(18, Math.max(5, materialRows)) : 13,
+      workerRows: Number.isInteger(workerRows)
+        ? Math.min(12, Math.max(4, workerRows))
+        : 7,
+      materialRows: Number.isInteger(materialRows)
+        ? Math.min(18, Math.max(5, materialRows))
+        : 13,
       filenameTemplate:
-        typeof rawLayout.filenameTemplate === 'string' && rawLayout.filenameTemplate.trim()
+        typeof rawLayout.filenameTemplate === 'string' &&
+        rawLayout.filenameTemplate.trim()
           ? rawLayout.filenameTemplate.trim().slice(0, 240)
           : '{projectNumber} - {projectName} - {materialTypes}',
       labels: Object.fromEntries(
@@ -857,8 +886,9 @@ function normalizedPdfBuilderConfig(value: unknown): WorkOrderPdfBuilderConfig {
           .map(([key, label]) => [key, String(label).trim().slice(0, 80)]),
       ),
       sections: Object.fromEntries(
-        Object.entries(rawSections)
-          .filter(([, visible]) => typeof visible === 'boolean'),
+        Object.entries(rawSections).filter(
+          ([, visible]) => typeof visible === 'boolean',
+        ),
       ) as Record<string, boolean>,
     },
   };
@@ -882,7 +912,11 @@ function pdfBuilderSectionVisible(
 function pdfColorFromHex(value: string | undefined): [number, number, number] {
   const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value || '');
   return match
-    ? [Number.parseInt(match[1], 16) / 255, Number.parseInt(match[2], 16) / 255, Number.parseInt(match[3], 16) / 255]
+    ? [
+        Number.parseInt(match[1], 16) / 255,
+        Number.parseInt(match[2], 16) / 255,
+        Number.parseInt(match[3], 16) / 255,
+      ]
     : [0.929, 0.451, 0.463];
 }
 
@@ -892,7 +926,9 @@ function mappedPdfField(
   slot: string,
 ) {
   const fieldId = config?.fields?.[slot]?.trim();
-  return fieldId ? { configured: true, value: data[fieldId] } : { configured: false, value: undefined };
+  return fieldId
+    ? { configured: true, value: data[fieldId] }
+    : { configured: false, value: undefined };
 }
 
 function mappedPdfValue(
@@ -902,7 +938,7 @@ function mappedPdfValue(
   fallback: unknown,
 ) {
   const mapped = mappedPdfField(data, config, slot);
-  return mapped.configured ? mapped.value ?? '' : fallback;
+  return mapped.configured ? (mapped.value ?? '') : fallback;
 }
 
 function generatedPdfFileName(
@@ -919,7 +955,9 @@ function generatedPdfFileName(
   const plannedMaterials = Array.isArray(context.shift?.plannedMaterials)
     ? context.shift.plannedMaterials
         .map(recordValue)
-        .filter((resource): resource is Record<string, unknown> => resource !== null)
+        .filter(
+          (resource): resource is Record<string, unknown> => resource !== null,
+        )
     : [];
   const materialTypes = [
     ...context.materials.map((material) => material.type || ''),
@@ -943,7 +981,10 @@ function generatedPdfFileName(
     shiftDate: String(context.shift?.date || ''),
   };
   const requestedName = filenameTemplate
-    .replace(/\{(projectNumber|projectName|materialTypes|workOrderNumber|shiftDate)\}/g, (_match, token) => filenameTokens[token] || '')
+    .replace(
+      /\{(projectNumber|projectName|materialTypes|workOrderNumber|shiftDate)\}/g,
+      (_match, token) => filenameTokens[token] || '',
+    )
     .replace(/\s+-\s+(?=-|$)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -966,23 +1007,27 @@ export function findWorkOrderFooterSignatures(
   builderConfig?: WorkOrderPdfBuilderConfig,
 ) {
   const mappedLead = mappedPdfField(data, builderConfig, 'leadSignature');
-  const mappedCustomer = mappedPdfField(data, builderConfig, 'customerSignature');
+  const mappedCustomer = mappedPdfField(
+    data,
+    builderConfig,
+    'customerSignature',
+  );
   const foremanSignature = mappedLead.configured
     ? mappedLead.value
     : findSignatureValue(data, template, [
-      /foreman/,
-      /lead/,
-      /worker/,
-      /employee/,
-      /dr.?traffic.*rep/,
-      /rep.*dr.?traffic/,
-    ]) ||
-    workers.find(
-      (worker) =>
-        /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(
-          worker.roleName,
-        ) && worker.signature,
-    )?.signature;
+        /foreman/,
+        /lead/,
+        /worker/,
+        /employee/,
+        /dr.?traffic.*rep/,
+        /rep.*dr.?traffic/,
+      ]) ||
+      workers.find(
+        (worker) =>
+          /\b(lead|foreman|supervisor|manager|superintendent)\b/i.test(
+            worker.roleName,
+          ) && worker.signature,
+      )?.signature;
   const customerCandidate = mappedCustomer.configured
     ? mappedCustomer.value
     : findSignatureValue(data, template, [
@@ -1035,7 +1080,9 @@ export function workOrderPdfTypeChecks(
 }
 
 function normalizeResourceIdentifier(value: unknown): string {
-  return String(value ?? '').trim().toLowerCase();
+  return String(value ?? '')
+    .trim()
+    .toLowerCase();
 }
 
 function splitResourceSummary(value: unknown): WorkOrderPdfResource[] {
@@ -1179,7 +1226,7 @@ function buildTimesheetPdf(
   let y = 728;
   cell('Date:', dateValue, left, y, 92, 24, 18, yellow);
 
-  // Circle One - day of week with checkbox
+                                           
   ops.push(pdfFillRect(left + 92, y - 24, 116, 24, yellow));
   ops.push(pdfRect(left + 92, y - 24, 116, 24));
   ops.push(pdfText('Circle One:', left + 95, y - 7, 5.8, 'F2'));
@@ -1195,7 +1242,7 @@ function buildTimesheetPdf(
     ops.push(pdfText(d, dx + 6, dy, 5.5));
   });
 
-  // Shift with AM/PM checkbox
+                              
   ops.push(pdfFillRect(left + 208, y - 24, 105, 24, yellow));
   ops.push(pdfRect(left + 208, y - 24, 105, 24));
   ops.push(pdfText('Shift:', left + 211, y - 7, 5.8, 'F2'));
@@ -1225,7 +1272,7 @@ function buildTimesheetPdf(
     ),
   );
 
-  // Lunch? with Yes/No checkbox
+                                
   ops.push(pdfFillRect(left + 313, y - 24, 60, 24, yellow));
   ops.push(pdfRect(left + 313, y - 24, 60, 24));
   ops.push(pdfText('Lunch?', left + 316, y - 7, 5.8, 'F2'));
@@ -1351,14 +1398,14 @@ function buildTimesheetPdf(
       4,
     );
 
-    // Alternating background for employee column
+                                                 
     if (index % 2 === 1) {
       ops.push(
         pdfFillRect(tableX, rowY - rowH, colEnds[1], rowH, [0.98, 0.96, 0.78]),
       );
     }
 
-    // Col 0: Employee (spans 3 sub-rows)
+                                         
     ops.push(pdfRect(tableX, rowY - rowH, colEnds[1], rowH));
     if (row.workerId) {
       ops.push(pdfText(nameText, tableX + 3, rowY - 18, 8));
@@ -1372,7 +1419,7 @@ function buildTimesheetPdf(
       );
     }
 
-    // Col 1: Signature (spans 3 sub-rows)
+                                          
     ops.push(
       pdfRect(tableX + colEnds[1], rowY - rowH, colEnds[2] - colEnds[1], rowH),
     );
@@ -1389,7 +1436,7 @@ function buildTimesheetPdf(
       );
     }
 
-    // Col 6: D/N (spans 3 sub-rows)
+                                    
     ops.push(
       pdfRect(tableX + colEnds[6], rowY - rowH, colEnds[7] - colEnds[6], rowH),
     );
@@ -1403,7 +1450,7 @@ function buildTimesheetPdf(
       ),
     );
 
-    // Col 7: Notes (spans 3 sub-rows)
+                                      
     ops.push(
       pdfRect(tableX + colEnds[7], rowY - rowH, colEnds[8] - colEnds[7], rowH),
     );
@@ -1411,14 +1458,14 @@ function buildTimesheetPdf(
       pdfText(fitText(rowNotes, 28), tableX + colEnds[7] + 3, rowY - 18, 7),
     );
 
-    // Per-sub-row columns: 1st Job#, 2nd Job#, 3rd Job#, Total
+                                                               
     const subValues = [st, ot, dt];
     for (let si = 0; si < 3; si++) {
       const subY = rowY - si * subH;
       const val = subValues[si];
       const label = subLabels[si];
 
-      // Col 2: 1st Job #
+                         
       ops.push(
         pdfRect(
           tableX + colEnds[2],
@@ -1433,7 +1480,7 @@ function buildTimesheetPdf(
         );
       }
 
-      // Col 3: 2nd Job #
+                         
       ops.push(
         pdfRect(
           tableX + colEnds[3],
@@ -1453,7 +1500,7 @@ function buildTimesheetPdf(
         );
       }
 
-      // Col 4: 3rd Job #
+                         
       ops.push(
         pdfRect(
           tableX + colEnds[4],
@@ -1473,7 +1520,7 @@ function buildTimesheetPdf(
         );
       }
 
-      // Col 5: Total
+                     
       ops.push(
         pdfRect(
           tableX + colEnds[5],
@@ -1587,7 +1634,10 @@ export function buildWorkOrderPdf(
 ): Buffer {
   const data = submission.data ?? {};
   const images: PdfImage[] = [];
-  const logo = loadCommercialPdfLogoImage('Logo', 'drtraffic-logo-horizontal.png');
+  const logo = loadCommercialPdfLogoImage(
+    'Logo',
+    'drtraffic-logo-horizontal.png',
+  );
   if (logo) images.push(logo);
   const submittedAt = submission.submittedAt
     ? new Date(submission.submittedAt)
@@ -1597,44 +1647,77 @@ export function buildWorkOrderPdf(
   const clientRecord = context.client;
   const shiftRecord = context.shift ?? {};
   const companyName = context.company?.name || 'DR Traffic Control, LLC';
-  const companyAddress = context.company?.address || '2285 Revere Ave, San Francisco, CA 94124, USA';
+  const companyAddress =
+    context.company?.address || '2285 Revere Ave, San Francisco, CA 94124, USA';
   const companyPhone = context.company?.phone || '415-441-4410';
   const companyEmail = context.company?.email || 'info@drtrafficcontrol.com';
-  const dateValue = mappedPdfValue(data, builderConfig, 'workDate',
+  const dateValue = mappedPdfValue(
+    data,
+    builderConfig,
+    'workDate',
     fieldValue(data, ['work_date', 'workDate', 'date']) ||
-    shiftRecord.date ||
-    submittedAt.toISOString().slice(0, 10));
-  const jobNumber = mappedPdfValue(data, builderConfig, 'jobNumber',
+      shiftRecord.date ||
+      submittedAt.toISOString().slice(0, 10),
+  );
+  const jobNumber = mappedPdfValue(
+    data,
+    builderConfig,
+    'jobNumber',
     fieldValue(data, ['dr_traffic_job_number', 'drTrafficJobNumber']) ||
-    project?.number ||
-    workOrder?.orderNumber ||
-    submission.projectId);
-  const jobName = mappedPdfValue(data, builderConfig, 'jobName',
+      project?.number ||
+      workOrder?.orderNumber ||
+      submission.projectId,
+  );
+  const jobName = mappedPdfValue(
+    data,
+    builderConfig,
+    'jobName',
     fieldValue(data, ['job_name', 'jobName']) ||
-    project?.name ||
-    workOrder?.title ||
-    submission.workOrderId);
-  const description = mappedPdfValue(data, builderConfig, 'description',
+      project?.name ||
+      workOrder?.title ||
+      submission.workOrderId,
+  );
+  const description = mappedPdfValue(
+    data,
+    builderConfig,
+    'description',
     fieldValue(data, ['description_of_work', 'descriptionOfWork']) ||
-    project?.description ||
-    workOrder?.dispatchNote ||
-    workOrder?.notes);
-  const client = mappedPdfValue(data, builderConfig, 'client',
-    fieldValue(data, ['client']) || clientRecord?.name || '');
-  const contact = mappedPdfValue(data, builderConfig, 'contact',
+      project?.description ||
+      workOrder?.dispatchNote ||
+      workOrder?.notes,
+  );
+  const client = mappedPdfValue(
+    data,
+    builderConfig,
+    'client',
+    fieldValue(data, ['client']) || clientRecord?.name || '',
+  );
+  const contact = mappedPdfValue(
+    data,
+    builderConfig,
+    'contact',
     fieldValue(data, ['contact']) ||
-    clientRecord?.contactName ||
-    workOrder?.requesterName ||
-    '');
-  const customerOrder = mappedPdfValue(data, builderConfig, 'customerOrderNumber',
+      clientRecord?.contactName ||
+      workOrder?.requesterName ||
+      '',
+  );
+  const customerOrder = mappedPdfValue(
+    data,
+    builderConfig,
+    'customerOrderNumber',
     fieldValue(data, ['customer_order_number', 'customerOrderNumber']) ||
-    project?.purchaseOrder ||
-    '');
-  const shift = mappedPdfValue(data, builderConfig, 'workShift',
+      project?.purchaseOrder ||
+      '',
+  );
+  const shift = mappedPdfValue(
+    data,
+    builderConfig,
+    'workShift',
     fieldValue(data, ['work_shift', 'workShift']) ||
-    shiftRecord.shiftTypeName ||
-    shiftRecord.shiftName ||
-    '');
+      shiftRecord.shiftTypeName ||
+      shiftRecord.shiftName ||
+      '',
+  );
   const defaultNotes = [
     fieldValue(data, ['extra_work_details', 'extraWorkDetails']),
     fieldValue(data, ['notes']),
@@ -1643,11 +1726,15 @@ export function buildWorkOrderPdf(
     .filter((value) => String(value ?? '').trim())
     .join(' | ');
   const notes = mappedPdfValue(data, builderConfig, 'notes', defaultNotes);
-  const displayNumber = mappedPdfValue(data, builderConfig, 'workOrderNumber',
+  const displayNumber = mappedPdfValue(
+    data,
+    builderConfig,
+    'workOrderNumber',
     workOrder?.orderNumber ||
-    fieldValue(data, ['work_order_number', 'workOrderNumber']) ||
-    submission.workOrderId ||
-    compactId(submission.id, 16));
+      fieldValue(data, ['work_order_number', 'workOrderNumber']) ||
+      submission.workOrderId ||
+      compactId(submission.id, 16),
+  );
   const left = 17.64;
   const width = 576.72;
   const accent = pdfColorFromHex(builderConfig?.layout?.accentColor);
@@ -1658,10 +1745,15 @@ export function buildWorkOrderPdf(
   const showMaterials = pdfBuilderSectionVisible(builderConfig, 'materials');
   const showNotes = pdfBuilderSectionVisible(builderConfig, 'notes');
   const showSignatures = pdfBuilderSectionVisible(builderConfig, 'signatures');
-  const ops: string[] = ['0.75 w', '0 0 0 RG', pdfRect(0.75, 0.75, 610.5, 790.5)];
+  const ops: string[] = [
+    '0.75 w',
+    '0 0 0 RG',
+    pdfRect(0.75, 0.75, 610.5, 790.5),
+  ];
 
-  // Exact geometry from the supplied HTML/CSS Letter template.
-  if (showHeader && logo) ops.push('q 160.56 0 0 53.52 39.24 679.48 cm /Logo Do Q');
+                                                               
+  if (showHeader && logo)
+    ops.push('q 160.56 0 0 53.52 39.24 679.48 cm /Logo Do Q');
   const documentTitle = fitText(
     pdfBuilderLabel(builderConfig, 'documentTitle', 'WORK ORDER'),
     24,
@@ -1672,17 +1764,46 @@ export function buildWorkOrderPdf(
   );
   const documentTitleX =
     365 - (documentTitle.length * documentTitleSize * 0.52) / 2;
-  if (showHeader) ops.push(pdfText(documentTitle, documentTitleX, 711.8, documentTitleSize, 'F2'));
+  if (showHeader)
+    ops.push(
+      pdfText(documentTitle, documentTitleX, 711.8, documentTitleSize, 'F2'),
+    );
   ops.push('0.835 0 0 rg');
-  if (showHeader) ops.push(pdfText(`${pdfBuilderLabel(builderConfig, 'number', 'No.')}  ${compactId(displayNumber, 18)}`, 470, 711.8, 11, 'F2'));
+  if (showHeader)
+    ops.push(
+      pdfText(
+        `${pdfBuilderLabel(builderConfig, 'number', 'No.')}  ${compactId(displayNumber, 18)}`,
+        470,
+        711.8,
+        11,
+        'F2',
+      ),
+    );
   ops.push('0 0 0 rg');
   ops.push('0.835 0 0 rg');
-  if (showHeader) ops.push(pdfText(fitText(companyName, 42), 226, 666.5, 12, 'F2'));
+  if (showHeader)
+    ops.push(pdfText(fitText(companyName, 42), 226, 666.5, 12, 'F2'));
   ops.push('0 0 0 rg');
   if (showHeader) {
     ops.push(pdfText(fitText(companyAddress, 70), 218, 655, 6, 'F2'));
-    ops.push(pdfText('CSLB #1099211            www.drtrafficcontrol.com', 222, 646.5, 6, 'F2'));
-    ops.push(pdfText(`Phone: ${fitText(companyPhone, 22)}        ${fitText(companyEmail, 38)}`, 219, 638, 6, 'F2'));
+    ops.push(
+      pdfText(
+        'CSLB #1099211            www.drtrafficcontrol.com',
+        222,
+        646.5,
+        6,
+        'F2',
+      ),
+    );
+    ops.push(
+      pdfText(
+        `Phone: ${fitText(companyPhone, 22)}        ${fitText(companyEmail, 38)}`,
+        219,
+        638,
+        6,
+        'F2',
+      ),
+    );
   }
 
   let top = 614.2;
@@ -1702,13 +1823,53 @@ export function buildWorkOrderPdf(
     if (text) ops.push(pdfText(text, x + 2, y - h + 3.5, 6));
   };
 
-  drawTopCell(pdfBuilderLabel(builderConfig, 'jobNumber', 'DR TRAFFIC JOB#'), jobNumber, left, top, topWidths[0], 15.75, 34);
-  drawTopCell(pdfBuilderLabel(builderConfig, 'jobName', 'JOB NAME:'), jobName, left + topWidths[0], top, topWidths[1], 15.75, 31);
-  drawTopCell(pdfBuilderLabel(builderConfig, 'workDate', 'DATE:'), dateValue, left + topWidths[0] + topWidths[1], top, topWidths[2], 15.75, 24);
+  drawTopCell(
+    pdfBuilderLabel(builderConfig, 'jobNumber', 'DR TRAFFIC JOB#'),
+    jobNumber,
+    left,
+    top,
+    topWidths[0],
+    15.75,
+    34,
+  );
+  drawTopCell(
+    pdfBuilderLabel(builderConfig, 'jobName', 'JOB NAME:'),
+    jobName,
+    left + topWidths[0],
+    top,
+    topWidths[1],
+    15.75,
+    31,
+  );
+  drawTopCell(
+    pdfBuilderLabel(builderConfig, 'workDate', 'DATE:'),
+    dateValue,
+    left + topWidths[0] + topWidths[1],
+    top,
+    topWidths[2],
+    15.75,
+    24,
+  );
   top -= 15.75;
-  drawTopCell(pdfBuilderLabel(builderConfig, 'description', 'DESCRIPTION OF WORK:'), description, left, top, width, 16.5, 116);
+  drawTopCell(
+    pdfBuilderLabel(builderConfig, 'description', 'DESCRIPTION OF WORK:'),
+    description,
+    left,
+    top,
+    width,
+    16.5,
+    116,
+  );
   top -= 16.5;
-  drawTopCell(pdfBuilderLabel(builderConfig, 'client', 'CLIENT:'), client, left, top, topWidths[0] + topWidths[1], 15.75, 72);
+  drawTopCell(
+    pdfBuilderLabel(builderConfig, 'client', 'CLIENT:'),
+    client,
+    left,
+    top,
+    topWidths[0] + topWidths[1],
+    15.75,
+    72,
+  );
   drawTopCell(
     pdfBuilderLabel(builderConfig, 'customerOrderNumber', 'CUSTOMER ORDER #'),
     customerOrder,
@@ -1719,10 +1880,26 @@ export function buildWorkOrderPdf(
     31,
   );
   top -= 15.75;
-  drawTopCell(pdfBuilderLabel(builderConfig, 'contact', 'CONTACT:'), contact, left, top, topWidths[0] + topWidths[1], 15.75, 72);
+  drawTopCell(
+    pdfBuilderLabel(builderConfig, 'contact', 'CONTACT:'),
+    contact,
+    left,
+    top,
+    topWidths[0] + topWidths[1],
+    15.75,
+    72,
+  );
   const shiftX = left + topWidths[0] + topWidths[1];
   ops.push(pdfRect(shiftX, top - 15.75, topWidths[2], 15.75));
-  ops.push(pdfText(pdfBuilderLabel(builderConfig, 'workShift', 'WORK SHIFT'), shiftX + 2, top - 5.5, 5.25, 'F2'));
+  ops.push(
+    pdfText(
+      pdfBuilderLabel(builderConfig, 'workShift', 'WORK SHIFT'),
+      shiftX + 2,
+      top - 5.5,
+      5.25,
+      'F2',
+    ),
+  );
   ops.push(pdfText(fitText(shift, 30) || '-', shiftX + 2, top - 12, 6));
   top -= 15.75;
 
@@ -1730,7 +1907,9 @@ export function buildWorkOrderPdf(
   const typeChecks = mappedTypes.configured
     ? workOrderPdfTypeChecks(
         Array.isArray(mappedTypes.value)
-          ? mappedTypes.value.filter((value): value is string => typeof value === 'string')
+          ? mappedTypes.value.filter(
+              (value): value is string => typeof value === 'string',
+            )
           : [],
       )
     : workOrderPdfTypeChecks(
@@ -1741,35 +1920,39 @@ export function buildWorkOrderPdf(
       );
   let checkX = left;
   const checkWidth = width / typeChecks.length;
-  if (showTypes) typeChecks.forEach(({ label, checked }) => {
-    ops.push(pdfRect(checkX, top - 16.5, checkWidth, 16.5));
-    const fontSize = Math.max(4.4, Math.min(6.75, 42 / Math.max(6, label.length)));
-    const labelAreaWidth = Math.max(10, checkWidth - 15);
-    const visibleLabel = fitText(
-      label.toUpperCase(),
-      Math.max(5, Math.floor(labelAreaWidth / (fontSize * 0.52))),
-    );
-    const labelWidth = visibleLabel.length * fontSize * 0.52;
-    const boxSize = 5;
-    const contentX = checkX + Math.max(2, (labelAreaWidth - labelWidth) / 2);
-    const boxX = checkX + checkWidth - boxSize - 4;
-    const baselineY = top - 10.5;
-    ops.push(
-      pdfText(visibleLabel, contentX, baselineY, fontSize, 'F2'),
-    );
-    ops.push(pdfRect(boxX, baselineY - 1, boxSize, boxSize));
-    if (checked) {
-      ops.push(pdfLine(boxX + 1, baselineY + 1, boxX + 2.2, baselineY - 0.2));
-      ops.push(
-        pdfLine(boxX + 2.2, baselineY - 0.2, boxX + 4.4, baselineY + 3.4),
+  if (showTypes)
+    typeChecks.forEach(({ label, checked }) => {
+      ops.push(pdfRect(checkX, top - 16.5, checkWidth, 16.5));
+      const fontSize = Math.max(
+        4.4,
+        Math.min(6.75, 42 / Math.max(6, label.length)),
       );
-    }
-    checkX += checkWidth;
-  });
+      const labelAreaWidth = Math.max(10, checkWidth - 15);
+      const visibleLabel = fitText(
+        label.toUpperCase(),
+        Math.max(5, Math.floor(labelAreaWidth / (fontSize * 0.52))),
+      );
+      const labelWidth = visibleLabel.length * fontSize * 0.52;
+      const boxSize = 5;
+      const contentX = checkX + Math.max(2, (labelAreaWidth - labelWidth) / 2);
+      const boxX = checkX + checkWidth - boxSize - 4;
+      const baselineY = top - 10.5;
+      ops.push(pdfText(visibleLabel, contentX, baselineY, fontSize, 'F2'));
+      ops.push(pdfRect(boxX, baselineY - 1, boxSize, boxSize));
+      if (checked) {
+        ops.push(pdfLine(boxX + 1, baselineY + 1, boxX + 2.2, baselineY - 0.2));
+        ops.push(
+          pdfLine(boxX + 2.2, baselineY - 0.2, boxX + 4.4, baselineY + 3.4),
+        );
+      }
+      checkX += checkWidth;
+    });
   top -= 16.5;
 
   const workPercentages = [32.1, 5.8, 6.8, 5.5, 5.3, 5.3, 7.6, 25.7, 5.9];
-  const workCols = workPercentages.map((percentage) => (width * percentage) / 100);
+  const workCols = workPercentages.map(
+    (percentage) => (width * percentage) / 100,
+  );
   const workXs: number[] = [];
   let workX = left;
   workCols.forEach((columnWidth) => {
@@ -1778,40 +1961,113 @@ export function buildWorkOrderPdf(
   });
 
   const sectionHeight = 14.25;
-  const laborWidth = workCols.slice(0, 3).reduce((sum, value) => sum + value, 0);
-  const hoursWidth = workCols.slice(3, 6).reduce((sum, value) => sum + value, 0);
-  const equipmentWidth = workCols.slice(6).reduce((sum, value) => sum + value, 0);
-  ops.push(pdfFillRect(left, top - sectionHeight, laborWidth, sectionHeight, accent));
-  ops.push(pdfFillRect(left + laborWidth, top - sectionHeight, hoursWidth, sectionHeight, accent));
-  ops.push(pdfFillRect(left + laborWidth + hoursWidth, top - sectionHeight, equipmentWidth, sectionHeight, accent));
+  const laborWidth = workCols
+    .slice(0, 3)
+    .reduce((sum, value) => sum + value, 0);
+  const hoursWidth = workCols
+    .slice(3, 6)
+    .reduce((sum, value) => sum + value, 0);
+  const equipmentWidth = workCols
+    .slice(6)
+    .reduce((sum, value) => sum + value, 0);
+  ops.push(
+    pdfFillRect(left, top - sectionHeight, laborWidth, sectionHeight, accent),
+  );
+  ops.push(
+    pdfFillRect(
+      left + laborWidth,
+      top - sectionHeight,
+      hoursWidth,
+      sectionHeight,
+      accent,
+    ),
+  );
+  ops.push(
+    pdfFillRect(
+      left + laborWidth + hoursWidth,
+      top - sectionHeight,
+      equipmentWidth,
+      sectionHeight,
+      accent,
+    ),
+  );
   ops.push(pdfRect(left, top - sectionHeight, laborWidth, sectionHeight));
-  ops.push(pdfRect(left + laborWidth, top - sectionHeight, hoursWidth, sectionHeight));
-  ops.push(pdfRect(left + laborWidth + hoursWidth, top - sectionHeight, equipmentWidth, sectionHeight));
+  ops.push(
+    pdfRect(left + laborWidth, top - sectionHeight, hoursWidth, sectionHeight),
+  );
+  ops.push(
+    pdfRect(
+      left + laborWidth + hoursWidth,
+      top - sectionHeight,
+      equipmentWidth,
+      sectionHeight,
+    ),
+  );
   if (showLabor) {
-    ops.push(pdfText(pdfBuilderLabel(builderConfig, 'labor', 'LABOR'), left + laborWidth / 2 - 13, top - 10, 6.75, 'F2'));
-    ops.push(pdfText(pdfBuilderLabel(builderConfig, 'hours', 'HOURS'), left + laborWidth + hoursWidth / 2 - 14, top - 10, 6.75, 'F2'));
+    ops.push(
+      pdfText(
+        pdfBuilderLabel(builderConfig, 'labor', 'LABOR'),
+        left + laborWidth / 2 - 13,
+        top - 10,
+        6.75,
+        'F2',
+      ),
+    );
+    ops.push(
+      pdfText(
+        pdfBuilderLabel(builderConfig, 'hours', 'HOURS'),
+        left + laborWidth + hoursWidth / 2 - 14,
+        top - 10,
+        6.75,
+        'F2',
+      ),
+    );
   }
-  if (showEquipment) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'equipment', 'EQUIPMENT'), left + laborWidth + hoursWidth + equipmentWidth / 2 - 20, top - 10, 6.75, 'F2'));
+  if (showEquipment)
+    ops.push(
+      pdfText(
+        pdfBuilderLabel(builderConfig, 'equipment', 'EQUIPMENT'),
+        left + laborWidth + hoursWidth + equipmentWidth / 2 - 20,
+        top - 10,
+        6.75,
+        'F2',
+      ),
+    );
   top -= sectionHeight;
 
   const workHeaders = [
-    showLabor ? pdfBuilderLabel(builderConfig, 'employeeName', 'EMPLOYEE NAME') : '',
+    showLabor
+      ? pdfBuilderLabel(builderConfig, 'employeeName', 'EMPLOYEE NAME')
+      : '',
     showLabor ? pdfBuilderLabel(builderConfig, 'start', 'START') : '',
     showLabor ? pdfBuilderLabel(builderConfig, 'end', 'END') : '',
     showLabor ? pdfBuilderLabel(builderConfig, 'regularHours', 'REG') : '',
     showLabor ? pdfBuilderLabel(builderConfig, 'overtimeHours', 'OT') : '',
     showLabor ? pdfBuilderLabel(builderConfig, 'doubleTimeHours', 'DT') : '',
-    showEquipment ? pdfBuilderLabel(builderConfig, 'equipmentId', 'EQUIP ID') : '',
-    showEquipment ? pdfBuilderLabel(builderConfig, 'equipmentDescription', 'EQUIP DESCRIPTION') : '',
-    showEquipment ? pdfBuilderLabel(builderConfig, 'equipmentHours', 'HRS') : '',
+    showEquipment
+      ? pdfBuilderLabel(builderConfig, 'equipmentId', 'EQUIP ID')
+      : '',
+    showEquipment
+      ? pdfBuilderLabel(
+          builderConfig,
+          'equipmentDescription',
+          'EQUIP DESCRIPTION',
+        )
+      : '',
+    showEquipment
+      ? pdfBuilderLabel(builderConfig, 'equipmentHours', 'HRS')
+      : '',
   ];
   const columnHeight = 12.75;
   workCols.forEach((columnWidth, index) => {
-    ops.push(pdfRect(workXs[index], top - columnHeight, columnWidth, columnHeight));
+    ops.push(
+      pdfRect(workXs[index], top - columnHeight, columnWidth, columnHeight),
+    );
     ops.push(
       pdfText(
         workHeaders[index],
-        workXs[index] + Math.max(2, columnWidth / 2 - workHeaders[index].length * 1.5),
+        workXs[index] +
+          Math.max(2, columnWidth / 2 - workHeaders[index].length * 1.5),
         top - 8.7,
         5.25,
       ),
@@ -1848,9 +2104,9 @@ export function buildWorkOrderPdf(
           );
         });
       } else {
-        // The lower labor subrow is a Lunch / Breaks layout, not START / END.
-        // Draw START + END as one merged area so their divider cannot cross
-        // the "Breaks:" label; its own checkbox dividers are added below.
+                                                                              
+                                                                            
+                                                                          
         ops.push(
           pdfRect(
             workXs[0],
@@ -1910,20 +2166,53 @@ export function buildWorkOrderPdf(
       ),
     );
 
-    if (showLabor) ops.push(pdfText('Name', left + 2, personBaseline, 5.25, 'F2'));
-    if (showLabor) ops.push(pdfText('SHIFT', left + firstColumnSplit + 2, personBaseline, 5.25, 'F2'));
-    if (showLabor) ops.push(pdfText('Sign', left + 2, signBaseline, 5.25, 'F2'));
-    if (showLabor) ops.push(pdfText('Lunch:', left + firstColumnSplit + 2, signBaseline, 5.25, 'F2'));
-    if (showLabor) ops.push(pdfRect(breakAreaX + breakParts[0] / 2 - 2.5, signBaseline - 1, 5, 5));
-    if (showLabor) ops.push(pdfText('Breaks:', breakAreaX + breakParts[0] + 3, signBaseline, 5.25, 'F2'));
-    if (showLabor) ops.push(
-      pdfRect(
-        breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2 - 2.5,
-        signBaseline - 1,
-        5,
-        5,
-      ),
-    );
+    if (showLabor)
+      ops.push(pdfText('Name', left + 2, personBaseline, 5.25, 'F2'));
+    if (showLabor)
+      ops.push(
+        pdfText(
+          'SHIFT',
+          left + firstColumnSplit + 2,
+          personBaseline,
+          5.25,
+          'F2',
+        ),
+      );
+    if (showLabor)
+      ops.push(pdfText('Sign', left + 2, signBaseline, 5.25, 'F2'));
+    if (showLabor)
+      ops.push(
+        pdfText(
+          'Lunch:',
+          left + firstColumnSplit + 2,
+          signBaseline,
+          5.25,
+          'F2',
+        ),
+      );
+    if (showLabor)
+      ops.push(
+        pdfRect(breakAreaX + breakParts[0] / 2 - 2.5, signBaseline - 1, 5, 5),
+      );
+    if (showLabor)
+      ops.push(
+        pdfText(
+          'Breaks:',
+          breakAreaX + breakParts[0] + 3,
+          signBaseline,
+          5.25,
+          'F2',
+        ),
+      );
+    if (showLabor)
+      ops.push(
+        pdfRect(
+          breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2 - 2.5,
+          signBaseline - 1,
+          5,
+          5,
+        ),
+      );
 
     if (showLabor && worker) {
       ops.push(
@@ -1935,17 +2224,67 @@ export function buildWorkOrderPdf(
           'F2',
         ),
       );
-      ops.push(pdfText(formatPdfClock(worker.startTime), workXs[1] + 2, personBaseline, 5.2));
-      ops.push(pdfText(formatPdfClock(worker.endTime), workXs[2] + 2, personBaseline, 5.2));
-      ops.push(pdfText(String(worker.regularHours), workXs[3] + 8, personBaseline, 5.5));
-      ops.push(pdfText(String(worker.overtimeHours), workXs[4] + 8, personBaseline, 5.5));
-      ops.push(pdfText(String(worker.doubleTimeHours), workXs[5] + 8, personBaseline, 5.5));
+      ops.push(
+        pdfText(
+          formatPdfClock(worker.startTime),
+          workXs[1] + 2,
+          personBaseline,
+          5.2,
+        ),
+      );
+      ops.push(
+        pdfText(
+          formatPdfClock(worker.endTime),
+          workXs[2] + 2,
+          personBaseline,
+          5.2,
+        ),
+      );
+      ops.push(
+        pdfText(
+          String(worker.regularHours),
+          workXs[3] + 8,
+          personBaseline,
+          5.5,
+        ),
+      );
+      ops.push(
+        pdfText(
+          String(worker.overtimeHours),
+          workXs[4] + 8,
+          personBaseline,
+          5.5,
+        ),
+      );
+      ops.push(
+        pdfText(
+          String(worker.doubleTimeHours),
+          workXs[5] + 8,
+          personBaseline,
+          5.5,
+        ),
+      );
       if (worker.lunchTaken) {
-        ops.push(pdfLine(breakAreaX + breakParts[0] / 2 - 1.5, signBaseline + 1, breakAreaX + breakParts[0] / 2 - 0.2, signBaseline));
-        ops.push(pdfLine(breakAreaX + breakParts[0] / 2 - 0.2, signBaseline, breakAreaX + breakParts[0] / 2 + 2, signBaseline + 3.5));
+        ops.push(
+          pdfLine(
+            breakAreaX + breakParts[0] / 2 - 1.5,
+            signBaseline + 1,
+            breakAreaX + breakParts[0] / 2 - 0.2,
+            signBaseline,
+          ),
+        );
+        ops.push(
+          pdfLine(
+            breakAreaX + breakParts[0] / 2 - 0.2,
+            signBaseline,
+            breakAreaX + breakParts[0] / 2 + 2,
+            signBaseline + 3.5,
+          ),
+        );
       }
       if (worker.lunchTaken || worker.breakMinutes > 0) {
-        const bx = breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2;
+        const bx =
+          breakAreaX + breakParts[0] + breakParts[1] + breakParts[2] / 2;
         ops.push(pdfLine(bx - 1.5, signBaseline + 1, bx - 0.2, signBaseline));
         ops.push(pdfLine(bx - 0.2, signBaseline, bx + 2, signBaseline + 3.5));
       }
@@ -1973,8 +2312,22 @@ export function buildWorkOrderPdf(
       baseline: number,
     ) => {
       if (!equipment) return;
-      ops.push(pdfText(fitText(equipment.identifier, 11), workXs[6] + 2, baseline, 5.2));
-      ops.push(pdfText(stringifyFieldValue(equipment.description), workXs[7] + 2, baseline, 5.2));
+      ops.push(
+        pdfText(
+          fitText(equipment.identifier, 11),
+          workXs[6] + 2,
+          baseline,
+          5.2,
+        ),
+      );
+      ops.push(
+        pdfText(
+          stringifyFieldValue(equipment.description),
+          workXs[7] + 2,
+          baseline,
+          5.2,
+        ),
+      );
     };
     if (showEquipment) {
       drawEquipment(equipmentTop, personBaseline);
@@ -1989,7 +2342,9 @@ export function buildWorkOrderPdf(
       if (totalHours > 0) {
         ops.push(
           pdfText(
-            Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2),
+            Number.isInteger(totalHours)
+              ? String(totalHours)
+              : totalHours.toFixed(2),
             workXs[8] + 4,
             personBaseline,
             5.5,
@@ -2000,35 +2355,87 @@ export function buildWorkOrderPdf(
   }
 
   const materialPercentages = [30, 13.7, 6.9, 49.4];
-  const materialCols = materialPercentages.map((percentage) => (width * percentage) / 100);
+  const materialCols = materialPercentages.map(
+    (percentage) => (width * percentage) / 100,
+  );
   const materialXs: number[] = [];
   let materialX = left;
   materialCols.forEach((columnWidth) => {
     materialXs.push(materialX);
     materialX += columnWidth;
   });
-  const materialWidth = materialCols.slice(0, 3).reduce((sum, value) => sum + value, 0);
-  ops.push(pdfFillRect(left, top - sectionHeight, materialWidth, sectionHeight, accent));
-  ops.push(pdfFillRect(left + materialWidth, top - sectionHeight, materialCols[3], sectionHeight, accent));
+  const materialWidth = materialCols
+    .slice(0, 3)
+    .reduce((sum, value) => sum + value, 0);
+  ops.push(
+    pdfFillRect(
+      left,
+      top - sectionHeight,
+      materialWidth,
+      sectionHeight,
+      accent,
+    ),
+  );
+  ops.push(
+    pdfFillRect(
+      left + materialWidth,
+      top - sectionHeight,
+      materialCols[3],
+      sectionHeight,
+      accent,
+    ),
+  );
   ops.push(pdfRect(left, top - sectionHeight, materialWidth, sectionHeight));
-  ops.push(pdfRect(left + materialWidth, top - sectionHeight, materialCols[3], sectionHeight));
-  if (showMaterials) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'materials', 'MATERIAL'), left + materialWidth / 2 - 16, top - 10, 6.75, 'F2'));
-  if (showNotes) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'notes', 'NOTES'), left + materialWidth + materialCols[3] / 2 - 11, top - 10, 6.75, 'F2'));
+  ops.push(
+    pdfRect(
+      left + materialWidth,
+      top - sectionHeight,
+      materialCols[3],
+      sectionHeight,
+    ),
+  );
+  if (showMaterials)
+    ops.push(
+      pdfText(
+        pdfBuilderLabel(builderConfig, 'materials', 'MATERIAL'),
+        left + materialWidth / 2 - 16,
+        top - 10,
+        6.75,
+        'F2',
+      ),
+    );
+  if (showNotes)
+    ops.push(
+      pdfText(
+        pdfBuilderLabel(builderConfig, 'notes', 'NOTES'),
+        left + materialWidth + materialCols[3] / 2 - 11,
+        top - 10,
+        6.75,
+        'F2',
+      ),
+    );
   top -= sectionHeight;
 
   const materialHeaders = [
-    showMaterials ? pdfBuilderLabel(builderConfig, 'materialDescription', 'DESCRIPTION') : '',
+    showMaterials
+      ? pdfBuilderLabel(builderConfig, 'materialDescription', 'DESCRIPTION')
+      : '',
     showMaterials ? pdfBuilderLabel(builderConfig, 'materialType', 'TYPE') : '',
-    showMaterials ? pdfBuilderLabel(builderConfig, 'materialQuantity', 'QTY') : '',
+    showMaterials
+      ? pdfBuilderLabel(builderConfig, 'materialQuantity', 'QTY')
+      : '',
     '',
   ];
   materialCols.forEach((columnWidth, index) => {
-    ops.push(pdfRect(materialXs[index], top - columnHeight, columnWidth, columnHeight));
+    ops.push(
+      pdfRect(materialXs[index], top - columnHeight, columnWidth, columnHeight),
+    );
     if (materialHeaders[index]) {
       ops.push(
         pdfText(
           materialHeaders[index],
-          materialXs[index] + Math.max(2, columnWidth / 2 - materialHeaders[index].length * 1.4),
+          materialXs[index] +
+            Math.max(2, columnWidth / 2 - materialHeaders[index].length * 1.4),
           top - 8.7,
           5.25,
         ),
@@ -2044,36 +2451,99 @@ export function buildWorkOrderPdf(
   for (let index = 0; index < materialRowCount; index += 1) {
     const material = context.materials[index];
     materialCols.forEach((columnWidth, columnIndex) => {
-      ops.push(pdfRect(materialXs[columnIndex], top - materialRowHeight, columnWidth, materialRowHeight));
+      ops.push(
+        pdfRect(
+          materialXs[columnIndex],
+          top - materialRowHeight,
+          columnWidth,
+          materialRowHeight,
+        ),
+      );
     });
     if (showMaterials && material) {
-      const materialType = fitPdfTextToWidth(material.type || '', materialCols[1] - 4, 5.2);
-      ops.push(pdfText(stringifyFieldValue(material.description), materialXs[0] + 2, top - 8.7, 5.2));
-      ops.push(pdfText(materialType.text, materialXs[1] + 2, top - 8.7, materialType.size));
-      ops.push(pdfText(fitText(material.quantity || '', 8), materialXs[2] + 2, top - 8.7, 5.2));
+      const materialType = fitPdfTextToWidth(
+        material.type || '',
+        materialCols[1] - 4,
+        5.2,
+      );
+      ops.push(
+        pdfText(
+          stringifyFieldValue(material.description),
+          materialXs[0] + 2,
+          top - 8.7,
+          5.2,
+        ),
+      );
+      ops.push(
+        pdfText(
+          materialType.text,
+          materialXs[1] + 2,
+          top - 8.7,
+          materialType.size,
+        ),
+      );
+      ops.push(
+        pdfText(
+          fitText(material.quantity || '', 8),
+          materialXs[2] + 2,
+          top - 8.7,
+          5.2,
+        ),
+      );
     }
     if (showNotes && noteLines[index]) {
-      ops.push(pdfText(fitText(noteLines[index], 58), materialXs[3] + 2, top - 8.7, 5.2));
+      ops.push(
+        pdfText(
+          fitText(noteLines[index], 58),
+          materialXs[3] + 2,
+          top - 8.7,
+          5.2,
+        ),
+      );
     }
     top -= materialRowHeight;
   }
 
-  const { foremanSignature, customerSignature } =
-    findWorkOrderFooterSignatures(data, template, context.workers, builderConfig);
+  const { foremanSignature, customerSignature } = findWorkOrderFooterSignatures(
+    data,
+    template,
+    context.workers,
+    builderConfig,
+  );
 
   const footerY = 88;
-  if (showSignatures) ops.push(pdfText(pdfBuilderLabel(builderConfig, 'leadSignature', 'DR TRAFFIC REP. (NAME)'), left + 2, footerY, 5.6, 'F2'));
-  if (showSignatures) ops.push(pdfLine(left + 101, footerY - 1, left + 247, footerY - 1));
-  if (showSignatures) ops.push(
-    pdfText(
-      pdfBuilderLabel(builderConfig, 'customerSignature', 'OWNER / GENERAL CONTRACTOR REP. (NAME)'),
-      left + 288,
-      footerY,
-      5.6,
-      'F2',
-    ),
-  );
-  if (showSignatures) ops.push(pdfLine(left + 464, footerY - 1, left + 574, footerY - 1));
+  if (showSignatures)
+    ops.push(
+      pdfText(
+        pdfBuilderLabel(
+          builderConfig,
+          'leadSignature',
+          'DR TRAFFIC REP. (NAME)',
+        ),
+        left + 2,
+        footerY,
+        5.6,
+        'F2',
+      ),
+    );
+  if (showSignatures)
+    ops.push(pdfLine(left + 101, footerY - 1, left + 247, footerY - 1));
+  if (showSignatures)
+    ops.push(
+      pdfText(
+        pdfBuilderLabel(
+          builderConfig,
+          'customerSignature',
+          'OWNER / GENERAL CONTRACTOR REP. (NAME)',
+        ),
+        left + 288,
+        footerY,
+        5.6,
+        'F2',
+      ),
+    );
+  if (showSignatures)
+    ops.push(pdfLine(left + 464, footerY - 1, left + 574, footerY - 1));
   if (showSignatures && foremanSignature) {
     drawSignature(
       ops,
@@ -2098,23 +2568,36 @@ export function buildWorkOrderPdf(
       0.88,
     );
   }
-  if (showSignatures) ops.push(
-    pdfText(
-      'I hereby acknowledge the satisfactory completion of the above described work and accept the Terms &',
-      left + 288,
-      footerY - 10,
-      4.6,
-    ),
-  );
-  if (showSignatures) ops.push(pdfText('Conditions on the reverse side.', left + 288, footerY - 16, 4.6));
+  if (showSignatures)
+    ops.push(
+      pdfText(
+        'I hereby acknowledge the satisfactory completion of the above described work and accept the Terms &',
+        left + 288,
+        footerY - 10,
+        4.6,
+      ),
+    );
+  if (showSignatures)
+    ops.push(
+      pdfText('Conditions on the reverse side.', left + 288, footerY - 16, 4.6),
+    );
 
   const continuationPages: string[] = [];
   const addContinuationHeader = (pageOps: string[], title: string) => {
     pageOps.push('0.65 w', '0 0 0 RG', pdfRect(17.64, 22, width, 748));
     if (logo) pageOps.push('q 105 0 0 35 30 724 cm /Logo Do Q');
     pageOps.push(pdfText(title, 220, 744, 11, 'F2'));
-    pageOps.push(pdfText(`WORK ORDER ${compactId(displayNumber, 20)}`, 220, 729, 8, 'F2'));
-    pageOps.push(pdfText(`${fitText(jobNumber, 28)} - ${fitText(jobName, 48)}`, 220, 716, 7));
+    pageOps.push(
+      pdfText(`WORK ORDER ${compactId(displayNumber, 20)}`, 220, 729, 8, 'F2'),
+    );
+    pageOps.push(
+      pdfText(
+        `${fitText(jobNumber, 28)} - ${fitText(jobName, 48)}`,
+        220,
+        716,
+        7,
+      ),
+    );
   };
 
   if (showLabor || showEquipment) {
@@ -2125,7 +2608,11 @@ export function buildWorkOrderPdf(
       Math.ceil(remainingEquipment.length / 2),
     );
     const rowsPerPage = 13;
-    for (let offset = 0; offset < totalContinuationRows; offset += rowsPerPage) {
+    for (
+      let offset = 0;
+      offset < totalContinuationRows;
+      offset += rowsPerPage
+    ) {
       const pageOps: string[] = [];
       addContinuationHeader(pageOps, 'LABOR & EQUIPMENT - CONTINUED');
       const tableTop = 690;
@@ -2147,9 +2634,13 @@ export function buildWorkOrderPdf(
         currentX += columnWidth;
       });
       widths.forEach((columnWidth, index) => {
-        pageOps.push(pdfFillRect(xs[index], tableTop - 20, columnWidth, 20, accent));
+        pageOps.push(
+          pdfFillRect(xs[index], tableTop - 20, columnWidth, 20, accent),
+        );
         pageOps.push(pdfRect(xs[index], tableTop - 20, columnWidth, 20));
-        pageOps.push(pdfText(headers[index], xs[index] + 3, tableTop - 13, 5.8, 'F2'));
+        pageOps.push(
+          pdfText(headers[index], xs[index] + 3, tableTop - 13, 5.8, 'F2'),
+        );
       });
       let rowTop = tableTop - 20;
       for (let rowIndex = 0; rowIndex < rowsPerPage; rowIndex += 1) {
@@ -2160,27 +2651,93 @@ export function buildWorkOrderPdf(
         if (!worker && !equipmentA && !equipmentB) break;
         const rowHeight = 46;
         widths.forEach((columnWidth, index) => {
-          pageOps.push(pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight));
+          pageOps.push(
+            pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight),
+          );
         });
         if (showLabor && worker) {
-          pageOps.push(pdfText(fitText(worker.workerName, 28), xs[0] + 3, rowTop - 15, 7, 'F2'));
-          pageOps.push(pdfText(fitText(worker.roleName, 28), xs[0] + 3, rowTop - 29, 5.5));
-          pageOps.push(pdfText(formatPdfClock(worker.startTime), xs[2] + 3, rowTop - 20, 6));
-          pageOps.push(pdfText(formatPdfClock(worker.endTime), xs[3] + 3, rowTop - 20, 6));
-          pageOps.push(pdfText(String(worker.regularHours || 0), xs[4] + 10, rowTop - 20, 6));
-          pageOps.push(pdfText(String(worker.overtimeHours || 0), xs[5] + 10, rowTop - 20, 6));
-          pageOps.push(pdfText(String(worker.doubleTimeHours || 0), xs[6] + 10, rowTop - 20, 6));
+          pageOps.push(
+            pdfText(
+              fitText(worker.workerName, 28),
+              xs[0] + 3,
+              rowTop - 15,
+              7,
+              'F2',
+            ),
+          );
+          pageOps.push(
+            pdfText(fitText(worker.roleName, 28), xs[0] + 3, rowTop - 29, 5.5),
+          );
+          pageOps.push(
+            pdfText(
+              formatPdfClock(worker.startTime),
+              xs[2] + 3,
+              rowTop - 20,
+              6,
+            ),
+          );
+          pageOps.push(
+            pdfText(formatPdfClock(worker.endTime), xs[3] + 3, rowTop - 20, 6),
+          );
+          pageOps.push(
+            pdfText(
+              String(worker.regularHours || 0),
+              xs[4] + 10,
+              rowTop - 20,
+              6,
+            ),
+          );
+          pageOps.push(
+            pdfText(
+              String(worker.overtimeHours || 0),
+              xs[5] + 10,
+              rowTop - 20,
+              6,
+            ),
+          );
+          pageOps.push(
+            pdfText(
+              String(worker.doubleTimeHours || 0),
+              xs[6] + 10,
+              rowTop - 20,
+              6,
+            ),
+          );
           if (worker.signature) {
-            drawSignature(pageOps, images, worker.signature, xs[1] + 3, rowTop - rowHeight + 3, widths[1] - 6, rowHeight - 6);
+            drawSignature(
+              pageOps,
+              images,
+              worker.signature,
+              xs[1] + 3,
+              rowTop - rowHeight + 3,
+              widths[1] - 6,
+              rowHeight - 6,
+            );
           }
         }
         if (showEquipment) {
-          const equipmentLines = [equipmentA, equipmentB]
-            .filter((item): item is WorkOrderPdfResource => Boolean(item));
+          const equipmentLines = [equipmentA, equipmentB].filter(
+            (item): item is WorkOrderPdfResource => Boolean(item),
+          );
           equipmentLines.forEach((item, lineIndex) => {
             const lineY = rowTop - 11 - lineIndex * 22;
-            pageOps.push(pdfText(stringifyFieldValue(item.identifier), xs[7] + 3, lineY, 5.2, 'F2'));
-            pageOps.push(pdfText(stringifyFieldValue(item.description), xs[7] + 3, lineY - 8, 5));
+            pageOps.push(
+              pdfText(
+                stringifyFieldValue(item.identifier),
+                xs[7] + 3,
+                lineY,
+                5.2,
+                'F2',
+              ),
+            );
+            pageOps.push(
+              pdfText(
+                stringifyFieldValue(item.description),
+                xs[7] + 3,
+                lineY - 8,
+                5,
+              ),
+            );
           });
         }
         rowTop -= rowHeight;
@@ -2192,7 +2749,11 @@ export function buildWorkOrderPdf(
   if (showMaterials) {
     const remainingMaterials = context.materials.slice(materialRowCount);
     const rowsPerPage = 32;
-    for (let offset = 0; offset < remainingMaterials.length; offset += rowsPerPage) {
+    for (
+      let offset = 0;
+      offset < remainingMaterials.length;
+      offset += rowsPerPage
+    ) {
       const pageOps: string[] = [];
       addContinuationHeader(pageOps, 'MATERIALS - CONTINUED');
       const tableTop = 690;
@@ -2203,20 +2764,53 @@ export function buildWorkOrderPdf(
         pdfBuilderLabel(builderConfig, 'materialType', 'TYPE'),
         pdfBuilderLabel(builderConfig, 'materialQuantity', 'QTY'),
       ].forEach((header, index) => {
-        pageOps.push(pdfFillRect(xs[index], tableTop - 20, widths[index], 20, accent));
+        pageOps.push(
+          pdfFillRect(xs[index], tableTop - 20, widths[index], 20, accent),
+        );
         pageOps.push(pdfRect(xs[index], tableTop - 20, widths[index], 20));
         pageOps.push(pdfText(header, xs[index] + 4, tableTop - 13, 6, 'F2'));
       });
       let rowTop = tableTop - 20;
-      remainingMaterials.slice(offset, offset + rowsPerPage).forEach((material) => {
-        const rowHeight = 18;
-        const materialType = fitPdfTextToWidth(material.type || '', widths[1] - 8, 6);
-        widths.forEach((columnWidth, index) => pageOps.push(pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight)));
-        pageOps.push(pdfText(stringifyFieldValue(material.description), xs[0] + 4, rowTop - 12, 6));
-        pageOps.push(pdfText(materialType.text, xs[1] + 4, rowTop - 12, materialType.size));
-        pageOps.push(pdfText(fitText(material.quantity || '', 12), xs[2] + 4, rowTop - 12, 6));
-        rowTop -= rowHeight;
-      });
+      remainingMaterials
+        .slice(offset, offset + rowsPerPage)
+        .forEach((material) => {
+          const rowHeight = 18;
+          const materialType = fitPdfTextToWidth(
+            material.type || '',
+            widths[1] - 8,
+            6,
+          );
+          widths.forEach((columnWidth, index) =>
+            pageOps.push(
+              pdfRect(xs[index], rowTop - rowHeight, columnWidth, rowHeight),
+            ),
+          );
+          pageOps.push(
+            pdfText(
+              stringifyFieldValue(material.description),
+              xs[0] + 4,
+              rowTop - 12,
+              6,
+            ),
+          );
+          pageOps.push(
+            pdfText(
+              materialType.text,
+              xs[1] + 4,
+              rowTop - 12,
+              materialType.size,
+            ),
+          );
+          pageOps.push(
+            pdfText(
+              fitText(material.quantity || '', 12),
+              xs[2] + 4,
+              rowTop - 12,
+              6,
+            ),
+          );
+          rowTop -= rowHeight;
+        });
       continuationPages.push(pageOps.join('\n'));
     }
   }
@@ -2224,17 +2818,31 @@ export function buildWorkOrderPdf(
   if (showNotes) {
     const remainingNoteLines = allNoteLines.slice(materialRowCount);
     const linesPerPage = 48;
-    for (let offset = 0; offset < remainingNoteLines.length; offset += linesPerPage) {
+    for (
+      let offset = 0;
+      offset < remainingNoteLines.length;
+      offset += linesPerPage
+    ) {
       const pageOps: string[] = [];
       addContinuationHeader(pageOps, 'NOTES - CONTINUED');
       pageOps.push(pdfFillRect(left, 670, width, 20, accent));
       pageOps.push(pdfRect(left, 670, width, 20));
-      pageOps.push(pdfText(pdfBuilderLabel(builderConfig, 'notes', 'NOTES'), left + 5, 677, 7, 'F2'));
+      pageOps.push(
+        pdfText(
+          pdfBuilderLabel(builderConfig, 'notes', 'NOTES'),
+          left + 5,
+          677,
+          7,
+          'F2',
+        ),
+      );
       let lineY = 652;
-      remainingNoteLines.slice(offset, offset + linesPerPage).forEach((line) => {
-        pageOps.push(pdfText(line, left + 6, lineY, 7));
-        lineY -= 13;
-      });
+      remainingNoteLines
+        .slice(offset, offset + linesPerPage)
+        .forEach((line) => {
+          pageOps.push(pdfText(line, left + 6, lineY, 7));
+          lineY -= 13;
+        });
       continuationPages.push(pageOps.join('\n'));
     }
   }
@@ -2282,17 +2890,28 @@ export class FormSubmissionsService {
       type: 'signature-path',
       width: 600,
       height: 220,
-      strokes: [[
-        { x: 40, y: 150 }, { x: 120, y: 70 }, { x: 190, y: 145 },
-        { x: 270, y: 55 }, { x: 350, y: 140 }, { x: 510, y: 85 },
-      ]],
+      strokes: [
+        [
+          { x: 40, y: 150 },
+          { x: 120, y: 70 },
+          { x: 190, y: 145 },
+          { x: 270, y: 55 },
+          { x: 350, y: 140 },
+          { x: 510, y: 85 },
+        ],
+      ],
     };
     const sampleCustomerSignature = {
       ...sampleSignature,
-      strokes: [[
-        { x: 50, y: 130 }, { x: 150, y: 60 }, { x: 240, y: 135 },
-        { x: 330, y: 65 }, { x: 500, y: 120 },
-      ]],
+      strokes: [
+        [
+          { x: 50, y: 130 },
+          { x: 150, y: 60 },
+          { x: 240, y: 135 },
+          { x: 330, y: 65 },
+          { x: 500, y: 120 },
+        ],
+      ],
     };
     const samples: Record<string, unknown> = {
       workOrderNumber: 'ASN-2026-001',
@@ -2323,26 +2942,52 @@ export class FormSubmissionsService {
     } as FormSubmission;
     const context: WorkOrderPdfContext = {
       workOrder: { orderNumber: 'ASN-2026-001' } as WorkOrder,
-      project: { id: 'preview-project', number: '23', name: '2399 - Folsom Street' } as Project,
-      client: { name: 'Sample Customer', contactName: 'Project Contact' } as Client,
-      workers: [{
-        workerId: 'preview-worker',
-        workerName: 'Fernando Perez',
-        roleName: 'Lead',
-        startTime: '7:00 AM',
-        endTime: '4:00 PM',
-        regularHours: 8,
-        overtimeHours: 0.5,
-        doubleTimeHours: 0,
-        lunchTaken: true,
-        breakMinutes: 30,
-        signature: sampleSignature,
-      }],
-      equipment: [{ identifier: '03_05', description: 'Mini Maxi', hours: '8.5' }],
+      project: {
+        id: 'preview-project',
+        number: '23',
+        name: '2399 - Folsom Street',
+      } as Project,
+      client: {
+        name: 'Sample Customer',
+        contactName: 'Project Contact',
+      } as Client,
+      workers: [
+        {
+          workerId: 'preview-worker',
+          workerName: 'Fernando Perez',
+          roleName: 'Lead',
+          startTime: '7:00 AM',
+          endTime: '4:00 PM',
+          regularHours: 8,
+          overtimeHours: 0.5,
+          doubleTimeHours: 0,
+          lunchTaken: true,
+          breakMinutes: 30,
+          signature: sampleSignature,
+        },
+      ],
+      equipment: [
+        { identifier: '03_05', description: 'Mini Maxi', hours: '8.5' },
+      ],
       materials: [
-        { identifier: '1110', description: '1110 - Butyl Pads', type: 'Sales', quantity: '1' },
-        { identifier: '488', description: '488 - Paint', type: 'On Rent', quantity: '1' },
-        { identifier: '489', description: '489 - Spray Paint', type: 'Off Rent', quantity: '1' },
+        {
+          identifier: '1110',
+          description: '1110 - Butyl Pads',
+          type: 'Sales',
+          quantity: '1',
+        },
+        {
+          identifier: '488',
+          description: '488 - Paint',
+          type: 'On Rent',
+          quantity: '1',
+        },
+        {
+          identifier: '489',
+          description: '489 - Spray Paint',
+          type: 'Off Rent',
+          quantity: '1',
+        },
       ],
       workOrderTypes: [],
       shift: { date: '2026-08-02', shiftName: 'On Call' },
@@ -2401,10 +3046,14 @@ export class FormSubmissionsService {
       submission.shiftId,
     );
     const template = submission.templateId
-      ? await this.templatesRepo.findOne({ where: { id: submission.templateId } })
+      ? await this.templatesRepo.findOne({
+          where: { id: submission.templateId },
+        })
       : null;
     if (!isWorkOrderTemplate(template)) {
-      throw new BadRequestException('Only Work Order form PDFs can be regenerated.');
+      throw new BadRequestException(
+        'Only Work Order form PDFs can be regenerated.',
+      );
     }
     await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
       actor,
@@ -2432,7 +3081,9 @@ export class FormSubmissionsService {
     });
     for (const submission of submissions) {
       const template = submission.templateId
-        ? await this.templatesRepo.findOne({ where: { id: submission.templateId } })
+        ? await this.templatesRepo.findOne({
+            where: { id: submission.templateId },
+          })
         : null;
       if (isWorkOrderTemplate(template)) {
         return this.regeneratePdf(submission.id, actor);
@@ -2444,7 +3095,10 @@ export class FormSubmissionsService {
   }
 
   async create(dto: CreateFormSubmissionDto, actor?: UserAccessContext) {
-    await this.shiftsWrite.assertShiftNotPmApproved(dto.workOrderId, dto.shiftId);
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      dto.workOrderId,
+      dto.shiftId,
+    );
     const template = dto.templateId
       ? await this.templatesRepo.findOne({ where: { id: dto.templateId } })
       : null;
@@ -2849,7 +3503,10 @@ export class FormSubmissionsService {
 
   async remove(id: string) {
     const item = await this.findOne(id);
-    await this.shiftsWrite.assertShiftNotPmApproved(item.workOrderId, item.shiftId);
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      item.workOrderId,
+      item.shiftId,
+    );
     const removedTimesheetRows = findTimesheetRows(item.data ?? {});
     const incidentId = `inc_${item.id}`.slice(0, 64);
     await this.repo.remove(item);
@@ -3006,14 +3663,27 @@ export class FormSubmissionsService {
       ? await this.clientsRepo.findOne({ where: { id: project.clientId } })
       : null;
     const relationalShifts = workOrder?.id
-      ? (await this.shiftsQuery.loadShiftsForWorkOrder(workOrder.id)) ?? []
+      ? ((await this.shiftsQuery.loadShiftsForWorkOrder(workOrder.id)) ?? [])
       : [];
     const shift =
-      relationalShifts.find((entry) => entry?.id === submission.shiftId) ?? null;
+      relationalShifts.find((entry) => entry?.id === submission.shiftId) ??
+      null;
     const submissionData = submission.data ?? {};
-    const mappedWorkers = mappedPdfField(submissionData, builderConfig, 'workers');
-    const mappedEquipment = mappedPdfField(submissionData, builderConfig, 'equipment');
-    const mappedMaterials = mappedPdfField(submissionData, builderConfig, 'materials');
+    const mappedWorkers = mappedPdfField(
+      submissionData,
+      builderConfig,
+      'workers',
+    );
+    const mappedEquipment = mappedPdfField(
+      submissionData,
+      builderConfig,
+      'equipment',
+    );
+    const mappedMaterials = mappedPdfField(
+      submissionData,
+      builderConfig,
+      'materials',
+    );
     const workerSource = mappedWorkers.configured
       ? { selected: mappedWorkers.value }
       : submissionData;
@@ -3024,14 +3694,18 @@ export class FormSubmissionsService {
       ? { selected: mappedMaterials.value }
       : submissionData;
     const submittedTimesheetRows = findTimesheetRows(workerSource);
-    const submittedEquipmentRows = findResourceRows(equipmentSource, 'equipmentId');
-    const submittedMaterialResourceRows = findResourceRows(materialSource, 'materialId');
+    const submittedEquipmentRows = findResourceRows(
+      equipmentSource,
+      'equipmentId',
+    );
+    const submittedMaterialResourceRows = findResourceRows(
+      materialSource,
+      'materialId',
+    );
     const roles = Array.isArray(shift?.roles)
       ? shift.roles
           .map(recordValue)
-          .filter(
-            (role): role is Record<string, unknown> => role !== null,
-          )
+          .filter((role): role is Record<string, unknown> => role !== null)
       : [];
 
     const workerIds: string[] = [];
@@ -3056,9 +3730,9 @@ export class FormSubmissionsService {
       }
     }
 
-    // Fallback: when the work order has no rows in the relational shift
-    // tables (new WO created with shifts:[] before the user added a shift),
-    // harvest workers from the submission form data.
+                                                                        
+                                                                            
+                                                     
     if (workerIds.length === 0) {
       for (const row of submittedTimesheetRows) {
         const workerId = String(row.workerId ?? '').trim();
@@ -3069,11 +3743,13 @@ export class FormSubmissionsService {
     }
     for (const row of submittedEquipmentRows) {
       const equipmentId = String(row.equipmentId ?? '').trim();
-      if (equipmentId && !equipmentIds.includes(equipmentId)) equipmentIds.push(equipmentId);
+      if (equipmentId && !equipmentIds.includes(equipmentId))
+        equipmentIds.push(equipmentId);
     }
     for (const row of submittedMaterialResourceRows) {
       const materialId = String(row.materialId ?? '').trim();
-      if (materialId && !materialIds.includes(materialId)) materialIds.push(materialId);
+      if (materialId && !materialIds.includes(materialId))
+        materialIds.push(materialId);
     }
 
     const [workerRecords, equipmentRecords, materialRecords, timesheets] =
@@ -3182,10 +3858,7 @@ export class FormSubmissionsService {
       equipmentRecords.map((equipment) => [equipment.id, equipment]),
     );
     const equipmentHours = String(
-      fieldValue(submissionData, [
-        'equipment_hours',
-        'equipmentHours',
-      ]) ?? '',
+      fieldValue(submissionData, ['equipment_hours', 'equipmentHours']) ?? '',
     ).trim();
     const computedEquipmentHours = (() => {
       const totals = workers
@@ -3224,24 +3897,32 @@ export class FormSubmissionsService {
       };
     });
     const submittedMaterialRows = findPlannedMaterialUsageRows(materialSource);
-    const submittedMaterialIds = new Set(submittedMaterialRows.map((row) => String(row.materialId ?? '').trim()).filter(Boolean));
+    const submittedMaterialIds = new Set(
+      submittedMaterialRows
+        .map((row) => String(row.materialId ?? '').trim())
+        .filter(Boolean),
+    );
     const submittedMaterials = submittedMaterialRows.map((row) => {
       const materialId = String(row.materialId ?? '').trim();
       const item = materialId ? materialsById.get(materialId) : undefined;
       return {
         identifier: item?.identifier || materialId,
-        description: [item?.identifier, item?.name].filter(Boolean).join(' - ') || String(row.type ?? '').trim(),
+        description:
+          [item?.identifier, item?.name].filter(Boolean).join(' - ') ||
+          String(row.type ?? '').trim(),
         type: item?.type || String(row.type ?? '').trim(),
         quantity: String(Math.max(0, Number(row.actualQuantity) || 0)),
       };
     });
     const materials = [
       ...submittedMaterials,
-      ...catalogMaterials.filter((_, index) => !submittedMaterialIds.has(materialIds[index])),
+      ...catalogMaterials.filter(
+        (_, index) => !submittedMaterialIds.has(materialIds[index]),
+      ),
     ];
 
     return {
-    workOrder,
+      workOrder,
       project,
       client,
       workers,
@@ -3303,13 +3984,14 @@ export class FormSubmissionsService {
 
     const isWorkOrder = isWorkOrderTemplate(template);
     const settings = isWorkOrder
-      ? (await this.companySettings.findAll())[0] ?? null
+      ? ((await this.companySettings.findAll())[0] ?? null)
       : null;
     const savedBuilderConfig = normalizedPdfBuilderConfig(
       settings?.workOrderPdfBuilder,
     );
     const builderConfig =
-      !savedBuilderConfig.templateId || savedBuilderConfig.templateId === template?.id
+      !savedBuilderConfig.templateId ||
+      savedBuilderConfig.templateId === template?.id
         ? savedBuilderConfig
         : undefined;
     const workOrderContext = isWorkOrder
@@ -3330,7 +4012,12 @@ export class FormSubmissionsService {
     );
     const pdf =
       isWorkOrder && workOrderContext
-        ? buildWorkOrderPdf(submission, template, workOrderContext, builderConfig)
+        ? buildWorkOrderPdf(
+            submission,
+            template,
+            workOrderContext,
+            builderConfig,
+          )
         : buildSimplePdf(lines.slice(0, 48));
 
     if (this.spacesStorage.isConfigured()) {

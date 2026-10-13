@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddCertificationDocumentUrl20260429000500
-  implements MigrationInterface
-{
+export class AddCertificationDocumentUrl20260429000500 implements MigrationInterface {
   name = 'AddCertificationDocumentUrl20260429000500';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

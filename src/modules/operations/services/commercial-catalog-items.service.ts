@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
@@ -29,17 +33,19 @@ export class CommercialCatalogItemsService {
     const sku = dto.sku.trim();
     const exists = await this.repo.findOne({ where: { sku } });
     if (exists) throw new BadRequestException(`SKU ${sku} already exists.`);
-    const saved = await this.repo.save(this.repo.create({
-      id: dto.id?.trim() || `cci_${randomUUID()}`,
-      sku,
-      description: dto.description.trim(),
-      type: dto.type?.trim() || '',
-      dailyRate: dto.dailyRate,
-      itemPrice: dto.itemPrice ?? 0,
-      unit: dto.unit?.trim() || 'Each',
-      status: dto.status?.trim() || 'active',
-      notes: dto.notes?.trim() || '',
-    }));
+    const saved = await this.repo.save(
+      this.repo.create({
+        id: dto.id?.trim() || `cci_${randomUUID()}`,
+        sku,
+        description: dto.description.trim(),
+        type: dto.type?.trim() || '',
+        dailyRate: dto.dailyRate,
+        itemPrice: dto.itemPrice ?? 0,
+        unit: dto.unit?.trim() || 'Each',
+        status: dto.status?.trim() || 'active',
+        notes: dto.notes?.trim() || '',
+      }),
+    );
     this.realtime.emitTableUpdated('commercial_catalog_items');
     return saved;
   }
@@ -47,7 +53,8 @@ export class CommercialCatalogItemsService {
   async update(id: string, dto: UpdateCommercialCatalogItemDto) {
     const item = await this.findOne(id);
     if (dto.sku !== undefined) item.sku = dto.sku.trim();
-    if (dto.description !== undefined) item.description = dto.description.trim();
+    if (dto.description !== undefined)
+      item.description = dto.description.trim();
     if (dto.type !== undefined) item.type = dto.type.trim();
     if (dto.dailyRate !== undefined) item.dailyRate = dto.dailyRate;
     if (dto.itemPrice !== undefined) item.itemPrice = dto.itemPrice;

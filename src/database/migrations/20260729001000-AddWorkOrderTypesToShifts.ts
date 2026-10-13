@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddWorkOrderTypesToShifts20260729001000
-  implements MigrationInterface
-{
+export class AddWorkOrderTypesToShifts20260729001000 implements MigrationInterface {
   name = 'AddWorkOrderTypesToShifts20260729001000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

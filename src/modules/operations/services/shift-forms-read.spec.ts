@@ -17,8 +17,11 @@ describe('shift forms survive scheduler reads', () => {
     'preserves selected forms through a %s read and edit payload',
     async (mode) => {
       const shift = {
-        id: 'shift-1', workOrderId: 'wo-1', date: '2026-09-11',
-        startTime: '16:00', endTime: '23:00',
+        id: 'shift-1',
+        workOrderId: 'wo-1',
+        date: '2026-09-11',
+        startTime: '16:00',
+        endTime: '23:00',
         formTemplateIds: ['form-wo', 'form-timesheet'],
         workOrderAuthorizedWorkerIds: ['worker-1'],
       };
@@ -27,23 +30,32 @@ describe('shift forms survive scheduler reads', () => {
         { createQueryBuilder: queryBuilder } as never,
         { createQueryBuilder: queryBuilder } as never,
       );
-      const result = mode === 'single'
-        ? await service.loadShiftsForWorkOrder('wo-1')
-        : (await service.loadShiftsForWorkOrders(['wo-1'])).get('wo-1');
+      const result =
+        mode === 'single'
+          ? await service.loadShiftsForWorkOrder('wo-1')
+          : (await service.loadShiftsForWorkOrders(['wo-1'])).get('wo-1');
       expect(result?.[0]).toMatchObject({
         formTemplateIds: ['form-wo', 'form-timesheet'],
         workOrderAuthorizedWorkerIds: ['worker-1'],
       });
       expect(result?.[0].formTemplateIds).not.toBe(shift.formTemplateIds);
       const editPayload = normalizeWorkOrderShifts(result);
-      expect(editPayload[0].formTemplateIds).toEqual(['form-wo', 'form-timesheet']);
-      const templates = [{ id: 'form-wo' }, { id: 'form-timesheet' }, { id: 'unselected' }];
+      expect(editPayload[0].formTemplateIds).toEqual([
+        'form-wo',
+        'form-timesheet',
+      ]);
+      const templates = [
+        { id: 'form-wo' },
+        { id: 'form-timesheet' },
+        { id: 'unselected' },
+      ];
       const forms = new FormTemplatesService(
         { find: jest.fn().mockResolvedValue(templates) } as never,
         { findOne: jest.fn().mockResolvedValue(editPayload[0]) } as never,
       );
-      await expect(forms.findAssigned({ workOrderId: 'wo-1', shiftId: 'shift-1' }))
-        .resolves.toEqual(templates.slice(0, 2));
+      await expect(
+        forms.findAssigned({ workOrderId: 'wo-1', shiftId: 'shift-1' }),
+      ).resolves.toEqual(templates.slice(0, 2));
     },
   );
 });

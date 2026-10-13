@@ -1,4 +1,9 @@
-import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
+import {
+  MigrationInterface,
+  QueryRunner,
+  TableColumn,
+  TableIndex,
+} from 'typeorm';
 
 export class AddShiftScopedTimesheets20260520001000 implements MigrationInterface {
   name = 'AddShiftScopedTimesheets20260520001000';
@@ -72,7 +77,12 @@ export class AddShiftScopedTimesheets20260520001000 implements MigrationInterfac
       await queryRunner.dropIndex('timesheets', unique);
     }
 
-    for (const columnName of ['signature', 'employee_note', 'lunch_taken', 'shift_id']) {
+    for (const columnName of [
+      'signature',
+      'employee_note',
+      'lunch_taken',
+      'shift_id',
+    ]) {
       if (await queryRunner.hasColumn('timesheets', columnName)) {
         await queryRunner.dropColumn('timesheets', columnName);
       }

@@ -1,17 +1,12 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddMinimumRestHoursToCompanySettings20260610002000
-  implements MigrationInterface
-{
+export class AddMinimumRestHoursToCompanySettings20260610002000 implements MigrationInterface {
   name = 'AddMinimumRestHoursToCompanySettings20260610002000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasTable('company_settings')) {
       if (
-        !(await queryRunner.hasColumn(
-          'company_settings',
-          'minimum_rest_hours',
-        ))
+        !(await queryRunner.hasColumn('company_settings', 'minimum_rest_hours'))
       ) {
         await queryRunner.addColumn(
           'company_settings',
@@ -30,15 +25,9 @@ export class AddMinimumRestHoursToCompanySettings20260610002000
   public async down(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasTable('company_settings')) {
       if (
-        await queryRunner.hasColumn(
-          'company_settings',
-          'minimum_rest_hours',
-        )
+        await queryRunner.hasColumn('company_settings', 'minimum_rest_hours')
       ) {
-        await queryRunner.dropColumn(
-          'company_settings',
-          'minimum_rest_hours',
-        );
+        await queryRunner.dropColumn('company_settings', 'minimum_rest_hours');
       }
     }
   }

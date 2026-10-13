@@ -42,7 +42,12 @@ export function readString(
     if (required) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }
@@ -66,7 +71,12 @@ export function readNumber(
   raw: Record<string, unknown>,
   key: string,
   aliases: string[] = [],
-  opts: { required?: boolean; allowEmpty?: boolean; min?: number; max?: number } = {},
+  opts: {
+    required?: boolean;
+    allowEmpty?: boolean;
+    min?: number;
+    max?: number;
+  } = {},
 ): { value: number | null; error?: RowError; row: number } {
   const { required = false, allowEmpty = true, min, max } = opts;
   const v = pickField(raw, key, aliases);
@@ -74,7 +84,12 @@ export function readNumber(
     if (required) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }
@@ -84,25 +99,42 @@ export function readNumber(
     if (min !== undefined && v < min) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'OUT_OF_RANGE', message: `${key} debe ser >= ${min}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'OUT_OF_RANGE',
+          message: `${key} must be >= ${min}`,
+        },
         row: 0,
       };
     }
     if (max !== undefined && v > max) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'OUT_OF_RANGE', message: `${key} debe ser <= ${max}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'OUT_OF_RANGE',
+          message: `${key} must be <= ${max}`,
+        },
         row: 0,
       };
     }
     return { value: v, row: 0 };
   }
-  const cleaned = String(v).replace(/[$,\s]/g, '').trim();
+  const cleaned = String(v)
+    .replace(/[$,\s]/g, '')
+    .trim();
   if (cleaned === '') {
     if (required) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }
@@ -112,21 +144,36 @@ export function readNumber(
   if (!Number.isFinite(n)) {
     return {
       value: null,
-      error: { row: 0, field: key, code: 'NOT_A_NUMBER', message: `${key} no es numérico: "${v}"` },
+      error: {
+        row: 0,
+        field: key,
+        code: 'NOT_A_NUMBER',
+        message: `${key} is not numeric: "${v}"`,
+      },
       row: 0,
     };
   }
   if (min !== undefined && n < min) {
     return {
       value: null,
-      error: { row: 0, field: key, code: 'OUT_OF_RANGE', message: `${key} debe ser >= ${min}` },
+      error: {
+        row: 0,
+        field: key,
+        code: 'OUT_OF_RANGE',
+        message: `${key} must be >= ${min}`,
+      },
       row: 0,
     };
   }
   if (max !== undefined && n > max) {
     return {
       value: null,
-      error: { row: 0, field: key, code: 'OUT_OF_RANGE', message: `${key} debe ser <= ${max}` },
+      error: {
+        row: 0,
+        field: key,
+        code: 'OUT_OF_RANGE',
+        message: `${key} must be <= ${max}`,
+      },
       row: 0,
     };
   }
@@ -145,7 +192,12 @@ export function readDate(
     if (required) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }
@@ -155,7 +207,12 @@ export function readDate(
     if (Number.isNaN(v.getTime())) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'INVALID_DATE', message: `${key} no es una fecha válida` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'INVALID_DATE',
+          message: `${key} is not a valid date`,
+        },
         row: 0,
       };
     }
@@ -169,7 +226,12 @@ export function readDate(
     if (required) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }
@@ -208,7 +270,12 @@ export function readDate(
   }
   return {
     value: null,
-    error: { row: 0, field: key, code: 'INVALID_DATE', message: `${key} no es una fecha válida (${text})` },
+    error: {
+      row: 0,
+      field: key,
+      code: 'INVALID_DATE',
+      message: `${key} is not a valid date (${text})`,
+    },
     row: 0,
   };
 }
@@ -225,7 +292,12 @@ export function readBoolean(
     if (required) {
       return {
         value: def,
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }
@@ -233,11 +305,17 @@ export function readBoolean(
   }
   if (typeof v === 'boolean') return { value: v, row: 0 };
   const text = String(v).trim().toLowerCase();
-  if (['true', '1', 'yes', 'y', 'si', 'sí', 's'].includes(text)) return { value: true, row: 0 };
+  if (['true', '1', 'yes', 'y', 'si', 'sí', 's'].includes(text))
+    return { value: true, row: 0 };
   if (['false', '0', 'no', 'n'].includes(text)) return { value: false, row: 0 };
   return {
     value: def,
-    error: { row: 0, field: key, code: 'INVALID_BOOLEAN', message: `${key} no es booleano: "${v}"` },
+    error: {
+      row: 0,
+      field: key,
+      code: 'INVALID_BOOLEAN',
+      message: `${key} no es booleano: "${v}"`,
+    },
     row: 0,
   };
 }
@@ -247,7 +325,11 @@ export function readEnum(
   key: string,
   values: readonly string[],
   aliases: string[] = [],
-  opts: { required?: boolean; defaultValue?: string; allowEmpty?: boolean } = {},
+  opts: {
+    required?: boolean;
+    defaultValue?: string;
+    allowEmpty?: boolean;
+  } = {},
 ): { value: string | null; error?: RowError; row: number } {
   const { required = false, defaultValue, allowEmpty = true } = opts;
   const v = pickField(raw, key, aliases);
@@ -255,7 +337,12 @@ export function readEnum(
     if (required) {
       return {
         value: null,
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }
@@ -275,7 +362,7 @@ export function readEnum(
         row: 0,
         field: key,
         code: 'INVALID_ENUM',
-        message: `${key} debe ser uno de: ${values.join(', ')} (recibido: "${text}")`,
+        message: `${key} must be one of: ${values.join(', ')} (recibido: "${text}")`,
       },
       row: 0,
     };
@@ -287,7 +374,12 @@ export function readCsv(
   raw: Record<string, unknown>,
   key: string,
   aliases: string[] = [],
-  opts: { required?: boolean; unique?: boolean; lower?: boolean; trim?: boolean } = {},
+  opts: {
+    required?: boolean;
+    unique?: boolean;
+    lower?: boolean;
+    trim?: boolean;
+  } = {},
 ): { value: string[]; error?: RowError; row: number } {
   const { required = false, unique = true, lower = true, trim = true } = opts;
   const v = pickField(raw, key, aliases);
@@ -295,7 +387,12 @@ export function readCsv(
     if (required) {
       return {
         value: [],
-        error: { row: 0, field: key, code: 'REQUIRED', message: `Campo requerido: ${key}` },
+        error: {
+          row: 0,
+          field: key,
+          code: 'REQUIRED',
+          message: `Required field: ${key}`,
+        },
         row: 0,
       };
     }

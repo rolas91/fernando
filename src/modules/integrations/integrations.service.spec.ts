@@ -40,7 +40,15 @@ function makeService() {
     shiftsQuery as never,
     shiftsWrite as never,
   );
-  return { service, confirmationsRepo, workOrdersRepo, workersRepo, realtime, shiftsQuery, shiftsWrite };
+  return {
+    service,
+    confirmationsRepo,
+    workOrdersRepo,
+    workersRepo,
+    realtime,
+    shiftsQuery,
+    shiftsWrite,
+  };
 }
 
 describe('IntegrationsService.confirmShiftAssignment', () => {
@@ -70,8 +78,15 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
   });
 
   it('writes the confirmation to the relational table and emits realtime', async () => {
-    const { service, confirmationsRepo, workOrdersRepo, workersRepo, realtime, shiftsQuery, shiftsWrite } =
-      makeService();
+    const {
+      service,
+      confirmationsRepo,
+      workOrdersRepo,
+      workersRepo,
+      realtime,
+      shiftsQuery,
+      shiftsWrite,
+    } = makeService();
     confirmationsRepo.findOne.mockResolvedValue({
       id: 'c-1',
       token: 'tok',
@@ -131,8 +146,14 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
   });
 
   it('rejects when the worker is no longer assigned to that shift/role', async () => {
-    const { service, confirmationsRepo, workOrdersRepo, workersRepo, shiftsQuery, shiftsWrite } =
-      makeService();
+    const {
+      service,
+      confirmationsRepo,
+      workOrdersRepo,
+      workersRepo,
+      shiftsQuery,
+      shiftsWrite,
+    } = makeService();
     confirmationsRepo.findOne.mockResolvedValue({
       id: 'c-1',
       token: 'tok',
@@ -143,7 +164,11 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
       status: 'pending',
     });
     workOrdersRepo.findOne.mockResolvedValue({ id: 'wo-1' });
-    workersRepo.findOne.mockResolvedValue({ id: 'w-1', firstName: 'Jane', lastName: 'Doe' });
+    workersRepo.findOne.mockResolvedValue({
+      id: 'w-1',
+      firstName: 'Jane',
+      lastName: 'Doe',
+    });
     shiftsQuery.loadShiftsForWorkOrder.mockResolvedValue([
       {
         id: 's-1',
@@ -177,7 +202,10 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
       status: 'confirmed',
       requestedAt: new Date('2026-08-10T10:00:00.000Z'),
     });
-    workOrdersRepo.findOne.mockResolvedValue({ id: 'wo-1', title: 'Project A' });
+    workOrdersRepo.findOne.mockResolvedValue({
+      id: 'wo-1',
+      title: 'Project A',
+    });
     workersRepo.findOne.mockResolvedValue({
       id: 'w-1',
       firstName: 'Jane',
@@ -207,8 +235,15 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
   });
 
   it('is a no-op when the confirmation was already confirmed', async () => {
-    const { service, confirmationsRepo, workOrdersRepo, workersRepo, shiftsQuery, shiftsWrite, realtime } =
-      makeService();
+    const {
+      service,
+      confirmationsRepo,
+      workOrdersRepo,
+      workersRepo,
+      shiftsQuery,
+      shiftsWrite,
+      realtime,
+    } = makeService();
     confirmationsRepo.findOne.mockResolvedValue({
       id: 'c-1',
       token: 'tok',
@@ -219,7 +254,11 @@ describe('IntegrationsService.confirmShiftAssignment', () => {
       status: 'confirmed',
     });
     workOrdersRepo.findOne.mockResolvedValue({ id: 'wo-1' });
-    workersRepo.findOne.mockResolvedValue({ id: 'w-1', firstName: 'Jane', lastName: 'Doe' });
+    workersRepo.findOne.mockResolvedValue({
+      id: 'w-1',
+      firstName: 'Jane',
+      lastName: 'Doe',
+    });
     shiftsQuery.loadShiftsForWorkOrder.mockResolvedValue([
       {
         id: 's-1',

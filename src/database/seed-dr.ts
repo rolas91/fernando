@@ -87,14 +87,7 @@ const DEFAULT_SETTINGS: Pick<
     'Generator',
     'CMS Mini',
   ],
-  materialTypes: [
-    'Sign',
-    'Cone',
-    'Barricade',
-    'Drum',
-    'Sandbag',
-    'Delineator',
-  ],
+  materialTypes: ['Sign', 'Cone', 'Barricade', 'Drum', 'Sandbag', 'Delineator'],
   jobStatuses: [
     'Pending',
     'Confirmed',
@@ -107,7 +100,13 @@ const DEFAULT_SETTINGS: Pick<
 const DEFAULT_SHIFTS: Array<
   Pick<
     Shift,
-    'id' | 'name' | 'type' | 'startTime' | 'endTime' | 'durationHours' | 'status'
+    | 'id'
+    | 'name'
+    | 'type'
+    | 'startTime'
+    | 'endTime'
+    | 'durationHours'
+    | 'status'
   >
 > = [
   {
@@ -704,12 +703,37 @@ const DEFAULT_STATUS_CATALOG: Array<
 const DEFAULT_WORKER_ROLES: Array<
   Pick<WorkerRole, 'id' | 'name' | 'description' | 'status'>
 > = [
-  { id: 'worker_role_flagger', name: 'Flagger', description: '', status: 'active' },
+  {
+    id: 'worker_role_flagger',
+    name: 'Flagger',
+    description: '',
+    status: 'active',
+  },
   { id: 'worker_role_lead', name: 'Lead', description: '', status: 'active' },
-  { id: 'worker_role_striper', name: 'Striper', description: '', status: 'active' },
-  { id: 'worker_role_tma_driver', name: 'TMA Driver', description: '', status: 'active' },
-  { id: 'worker_role_freeway_cone_setter', name: 'Freeway Cone Setter', description: '', status: 'active' },
-  { id: 'worker_role_pole_depole', name: 'Pole/Depole', description: '', status: 'active' },
+  {
+    id: 'worker_role_striper',
+    name: 'Striper',
+    description: '',
+    status: 'active',
+  },
+  {
+    id: 'worker_role_tma_driver',
+    name: 'TMA Driver',
+    description: '',
+    status: 'active',
+  },
+  {
+    id: 'worker_role_freeway_cone_setter',
+    name: 'Freeway Cone Setter',
+    description: '',
+    status: 'active',
+  },
+  {
+    id: 'worker_role_pole_depole',
+    name: 'Pole/Depole',
+    description: '',
+    status: 'active',
+  },
 ];
 
 const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
@@ -734,7 +758,11 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     type: 'date',
     required: true,
     dataBinding: { path: 'shift.date', optional: true },
-    ui: { section: 'Work Order Details', layout: 'half', defaultValue: '2026-03-30' },
+    ui: {
+      section: 'Work Order Details',
+      layout: 'half',
+      defaultValue: '2026-03-30',
+    },
   },
   {
     id: 'job_name',
@@ -743,7 +771,11 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     type: 'text',
     required: true,
     dataBinding: { path: 'project.name', optional: true },
-    ui: { section: 'Work Order Details', layout: 'half', defaultValue: 'Redwood Blvd' },
+    ui: {
+      section: 'Work Order Details',
+      layout: 'half',
+      defaultValue: 'Redwood Blvd',
+    },
   },
   {
     id: 'cost_code',
@@ -786,7 +818,11 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     type: 'text',
     required: true,
     dataBinding: { path: 'client.name', optional: true },
-    ui: { section: 'Work Order Details', layout: 'half', defaultValue: 'Rosendin' },
+    ui: {
+      section: 'Work Order Details',
+      layout: 'half',
+      defaultValue: 'Rosendin',
+    },
   },
   {
     id: 'contact',
@@ -824,9 +860,11 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     dataBinding: { path: 'shift.timesheetWorkers', optional: false },
     ui: {
       section: 'Labor & Equipment',
-      sectionDescription: 'Review hours and collect signatures for each worker on this shift',
+      sectionDescription:
+        'Review hours and collect signatures for each worker on this shift',
       layout: 'full',
-      helperText: 'Workers are loaded from the selected shift. Complete each worker timesheet before submitting.',
+      helperText:
+        'Workers are loaded from the selected shift. Complete each worker timesheet before submitting.',
     },
   },
   {
@@ -853,7 +891,8 @@ const WORK_ORDER_FORM_FIELDS: Record<string, unknown>[] = [
     label: 'Extra Work Details',
     type: 'textarea',
     required: false,
-    placeholder: 'Add overtime details, no lunch note, or extra work performed...',
+    placeholder:
+      'Add overtime details, no lunch note, or extra work performed...',
     rules: { maxLength: 2000 },
     ui: {
       section: 'Extra Work / Overtime Details',
@@ -952,7 +991,12 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
       'Equipment Issue',
       'Safety Violation',
     ],
-    ui: { section: 'Incident Details', layout: 'full', defaultValue: 'Injury', tagTone: 'amber' },
+    ui: {
+      section: 'Incident Details',
+      layout: 'full',
+      defaultValue: 'Injury',
+      tagTone: 'amber',
+    },
   },
   {
     id: 'severity',
@@ -970,7 +1014,11 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
     type: 'date',
     required: true,
     dataBinding: { path: 'shift.date', optional: true },
-    ui: { section: 'Incident Details', layout: 'half', defaultValue: '2026-04-01' },
+    ui: {
+      section: 'Incident Details',
+      layout: 'half',
+      defaultValue: '2026-04-01',
+    },
   },
   {
     id: 'incident_time',
@@ -1000,7 +1048,11 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
     type: 'text',
     required: true,
     placeholder: 'Enter the reporter name',
-    ui: { section: 'Incident Details', layout: 'full', defaultValue: 'Derek Doan' },
+    ui: {
+      section: 'Incident Details',
+      layout: 'full',
+      defaultValue: 'Derek Doan',
+    },
   },
   {
     id: 'people_involved',
@@ -1014,7 +1066,8 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
     ui: {
       section: 'Incident Details',
       layout: 'full',
-      defaultValue: 'Freddy Moran - Flagger\nPena Zamora - Crew\nDerek Doan - Foreman',
+      defaultValue:
+        'Freddy Moran - Flagger\nPena Zamora - Crew\nDerek Doan - Foreman',
     },
   },
   {
@@ -1114,7 +1167,8 @@ const INCIDENT_REPORT_FORM_FIELDS: Record<string, unknown>[] = [
     ui: {
       section: 'Witnesses & Evidence',
       layout: 'full',
-      helperText: 'Tap to upload photos or supporting evidence. JPG, PNG, PDF supported.',
+      helperText:
+        'Tap to upload photos or supporting evidence. JPG, PNG, PDF supported.',
     },
   },
   {
@@ -1186,7 +1240,8 @@ export const DEFAULT_FORM_TEMPLATES: Array<
   {
     id: 'incident_report_field_report',
     name: 'Incident Report',
-    description: 'Field incident report for injuries, damage, unsafe events, and near misses.',
+    description:
+      'Field incident report for injuries, damage, unsafe events, and near misses.',
     category: 'Incident Report',
     isRequired: true,
     fields: INCIDENT_REPORT_FORM_FIELDS,
@@ -1478,7 +1533,10 @@ type SeedShiftFixture = {
     startTime: string;
     requiredCertificationIds: string[];
     requiredSkillIds: string[];
-    assignedWorkers: Array<{ workerId: string; status: 'pending' | 'confirmed' | 'declined' }>;
+    assignedWorkers: Array<{
+      workerId: string;
+      status: 'pending' | 'confirmed' | 'declined';
+    }>;
   }>;
 };
 
@@ -1531,18 +1589,66 @@ const SEED_DEMO_WORK_ORDER = {
 };
 
 const SEED_DEMO_WORKERS = [
-  { id: 'wkr_demo_fernando', firstName: 'Fernando', lastName: 'Perez', email: 'fernando@example.com', phone: '+15125550100', type: 'Flagger', role: 'Flagger', status: 'active', hourlyRate: '22.5' },
-  { id: 'wkr_demo_rolando', firstName: 'Rolando', lastName: 'Sanchez', email: 'rolando@example.com', phone: '+15125550101', type: 'Flagger', role: 'Flagger', status: 'active', hourlyRate: '21.0' },
-  { id: 'wkr_demo_jhon', firstName: 'Jhon', lastName: 'Doe', email: 'jhon@example.com', phone: '+15125550102', type: 'Flagger', role: 'Flagger', status: 'active', hourlyRate: '20.0' },
+  {
+    id: 'wkr_demo_fernando',
+    firstName: 'Fernando',
+    lastName: 'Perez',
+    email: 'fernando@example.com',
+    phone: '+15125550100',
+    type: 'Flagger',
+    role: 'Flagger',
+    status: 'active',
+    hourlyRate: '22.5',
+  },
+  {
+    id: 'wkr_demo_rolando',
+    firstName: 'Rolando',
+    lastName: 'Sanchez',
+    email: 'rolando@example.com',
+    phone: '+15125550101',
+    type: 'Flagger',
+    role: 'Flagger',
+    status: 'active',
+    hourlyRate: '21.0',
+  },
+  {
+    id: 'wkr_demo_jhon',
+    firstName: 'Jhon',
+    lastName: 'Doe',
+    email: 'jhon@example.com',
+    phone: '+15125550102',
+    type: 'Flagger',
+    role: 'Flagger',
+    status: 'active',
+    hourlyRate: '20.0',
+  },
 ];
 
 const SEED_DEMO_EQUIPMENT = [
-  { id: 'eq_demo_cone', name: 'Cone Set 28"', type: 'Traffic Control', identifier: 'CONE-28-001', status: 'available' },
-  { id: 'eq_demo_arrow', name: 'Arrow Board', type: 'Traffic Control', identifier: 'ARR-001', status: 'available' },
+  {
+    id: 'eq_demo_cone',
+    name: 'Cone Set 28"',
+    type: 'Traffic Control',
+    identifier: 'CONE-28-001',
+    status: 'available',
+  },
+  {
+    id: 'eq_demo_arrow',
+    name: 'Arrow Board',
+    type: 'Traffic Control',
+    identifier: 'ARR-001',
+    status: 'available',
+  },
 ];
 
 const SEED_DEMO_MATERIALS = [
-  { id: 'mat_demo_sign', name: 'Sign Aluminum 48x48', type: 'Signage', identifier: 'SIGN-ALU-48', status: 'available' },
+  {
+    id: 'mat_demo_sign',
+    name: 'Sign Aluminum 48x48',
+    type: 'Signage',
+    identifier: 'SIGN-ALU-48',
+    status: 'available',
+  },
 ];
 
 function buildSeedShiftFixtures(): SeedShiftFixture[] {
@@ -1596,9 +1702,7 @@ function buildSeedShiftFixtures(): SeedShiftFixture[] {
           startTime: '07:00',
           requiredCertificationIds: [],
           requiredSkillIds: [],
-          assignedWorkers: [
-            { workerId: 'wkr_demo_jhon', status: 'pending' },
-          ],
+          assignedWorkers: [{ workerId: 'wkr_demo_jhon', status: 'pending' }],
         },
       ],
     },
@@ -1626,7 +1730,9 @@ function buildSeedShiftFixtures(): SeedShiftFixture[] {
   ];
 }
 
-function buildSeedShiftsJson(fixtures: SeedShiftFixture[]): Record<string, unknown>[] {
+function buildSeedShiftsJson(
+  fixtures: SeedShiftFixture[],
+): Record<string, unknown>[] {
   return fixtures.map((s) => ({
     id: s.shiftId,
     date: s.date,
@@ -1645,7 +1751,10 @@ function buildSeedShiftsJson(fixtures: SeedShiftFixture[]): Record<string, unkno
       workerConfirmations: r.assignedWorkers.map((w) => ({
         workerId: w.workerId,
         status: w.status,
-        respondedAt: w.status === 'confirmed' ? new Date('2026-06-21T15:00:00Z') : undefined,
+        respondedAt:
+          w.status === 'confirmed'
+            ? new Date('2026-06-21T15:00:00Z')
+            : undefined,
         notificationChannel: w.status === 'confirmed' ? 'sms' : undefined,
       })),
     })),
@@ -1663,7 +1772,9 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
   const roleRepo = dataSource.getRepository(WorkOrderShiftRole);
   const roleWorkerRepo = dataSource.getRepository(WorkOrderShiftRoleWorker);
 
-  const existingClient = await clientRepo.findOne({ where: { id: SEED_DEMO_CLIENT.id } });
+  const existingClient = await clientRepo.findOne({
+    where: { id: SEED_DEMO_CLIENT.id },
+  });
   if (!existingClient) {
     await clientRepo.save(
       clientRepo.create({
@@ -1686,7 +1797,9 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
     );
   }
 
-  const existingProject = await projectRepo.findOne({ where: { id: SEED_DEMO_PROJECT.id } });
+  const existingProject = await projectRepo.findOne({
+    where: { id: SEED_DEMO_PROJECT.id },
+  });
   if (!existingProject) {
     await projectRepo.save(
       projectRepo.create({
@@ -1790,7 +1903,9 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
   const fixtures = buildSeedShiftFixtures();
   const shiftsJson = buildSeedShiftsJson(fixtures);
 
-  const existingWorkOrder = await workOrderRepo.findOne({ where: { id: SEED_DEMO_WORK_ORDER.id } });
+  const existingWorkOrder = await workOrderRepo.findOne({
+    where: { id: SEED_DEMO_WORK_ORDER.id },
+  });
   if (existingWorkOrder) {
     existingWorkOrder.projectId = SEED_DEMO_WORK_ORDER.projectId;
     existingWorkOrder.workOrderTypeId = SEED_DEMO_WORK_ORDER.workOrderTypeId;
@@ -1801,12 +1916,16 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
     existingWorkOrder.endDate = SEED_DEMO_WORK_ORDER.endDate;
     existingWorkOrder.requesterName = SEED_DEMO_WORK_ORDER.requesterName;
     existingWorkOrder.contactEmail = SEED_DEMO_WORK_ORDER.contactEmail;
-    existingWorkOrder.contactPhoneNumber = SEED_DEMO_WORK_ORDER.contactPhoneNumber;
-    existingWorkOrder.assignmentAddress = SEED_DEMO_WORK_ORDER.assignmentAddress;
+    existingWorkOrder.contactPhoneNumber =
+      SEED_DEMO_WORK_ORDER.contactPhoneNumber;
+    existingWorkOrder.assignmentAddress =
+      SEED_DEMO_WORK_ORDER.assignmentAddress;
     existingWorkOrder.assignmentCity = SEED_DEMO_WORK_ORDER.assignmentCity;
     existingWorkOrder.assignmentState = SEED_DEMO_WORK_ORDER.assignmentState;
-    existingWorkOrder.assignmentZipCode = SEED_DEMO_WORK_ORDER.assignmentZipCode;
-    existingWorkOrder.assignmentCountry = SEED_DEMO_WORK_ORDER.assignmentCountry;
+    existingWorkOrder.assignmentZipCode =
+      SEED_DEMO_WORK_ORDER.assignmentZipCode;
+    existingWorkOrder.assignmentCountry =
+      SEED_DEMO_WORK_ORDER.assignmentCountry;
     existingWorkOrder.latitude = SEED_DEMO_WORK_ORDER.latitude;
     existingWorkOrder.longitude = SEED_DEMO_WORK_ORDER.longitude;
     existingWorkOrder.notes = SEED_DEMO_WORK_ORDER.notes;
@@ -1841,7 +1960,9 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
   }
 
   for (const shift of fixtures) {
-    const existingShift = await shiftRepo.findOne({ where: { id: shift.shiftId } });
+    const existingShift = await shiftRepo.findOne({
+      where: { id: shift.shiftId },
+    });
     if (!existingShift) {
       await shiftRepo.save(
         shiftRepo.create({
@@ -1857,7 +1978,9 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
     }
 
     for (const role of shift.roles) {
-      const existingRole = await roleRepo.findOne({ where: { id: role.roleId } });
+      const existingRole = await roleRepo.findOne({
+        where: { id: role.roleId },
+      });
       if (!existingRole) {
         await roleRepo.save(
           roleRepo.create({
@@ -1882,13 +2005,15 @@ async function seedWorkOrderWithShifts(dataSource: DataSource): Promise<void> {
             roleId: role.roleId,
             workerId: w.workerId,
             confirmationStatus: w.status,
-            respondedAt: w.status === 'confirmed' ? new Date('2026-06-21T15:00:00Z') : null,
+            respondedAt:
+              w.status === 'confirmed'
+                ? new Date('2026-06-21T15:00:00Z')
+                : null,
             notificationChannel: w.status === 'confirmed' ? 'sms' : null,
             requestedAt: null,
           }),
         );
       }
-
     }
   }
 

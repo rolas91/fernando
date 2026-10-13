@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddWorkOrderTypeOptionsToCompanySettings20260730001000
-  implements MigrationInterface
-{
+export class AddWorkOrderTypeOptionsToCompanySettings20260730001000 implements MigrationInterface {
   name = 'AddWorkOrderTypeOptionsToCompanySettings20260730001000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

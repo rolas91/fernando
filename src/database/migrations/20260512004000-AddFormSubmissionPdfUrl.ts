@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddFormSubmissionPdfUrl20260512004000
-  implements MigrationInterface
-{
+export class AddFormSubmissionPdfUrl20260512004000 implements MigrationInterface {
   name = 'AddFormSubmissionPdfUrl20260512004000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

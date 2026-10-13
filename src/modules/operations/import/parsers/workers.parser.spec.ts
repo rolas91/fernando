@@ -34,14 +34,21 @@ describe('worker import parser', () => {
 
   it('trims, removes empty values, and deduplicates a mixed list', () => {
     expect(
-      readCsv({ skills: ' First Aid, / Traffic Control ; First Aid | ' }, 'skills', [], {
-        lower: false,
-      }).value,
+      readCsv(
+        { skills: ' First Aid, / Traffic Control ; First Aid | ' },
+        'skills',
+        [],
+        {
+          lower: false,
+        },
+      ).value,
     ).toEqual(['First Aid', 'Traffic Control']);
   });
 
   it('keeps every importable worker field in the downloadable template', () => {
-    expect(getDescriptor('workers').columns.map((column) => column.header)).toEqual([
+    expect(
+      getDescriptor('workers').columns.map((column) => column.header),
+    ).toEqual([
       'id',
       'firstName',
       'lastName',

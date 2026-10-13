@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
-export class AddWorkerFileUploads20260429000700
-  implements MigrationInterface
-{
+export class AddWorkerFileUploads20260429000700 implements MigrationInterface {
   name = 'AddWorkerFileUploads20260429000700';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

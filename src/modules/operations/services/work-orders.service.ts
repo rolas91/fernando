@@ -271,10 +271,13 @@ export function mobileShiftHasEnded(
   );
   const endMinutes = mobileClockMinutes(shift.endTime);
   if (endMinutes === null) {
-    return nowValue >= Date.UTC(
-      Number(dateMatch[1]),
-      Number(dateMatch[2]) - 1,
-      Number(dateMatch[3]) + 1,
+    return (
+      nowValue >=
+      Date.UTC(
+        Number(dateMatch[1]),
+        Number(dateMatch[2]) - 1,
+        Number(dateMatch[3]) + 1,
+      )
     );
   }
 
@@ -329,7 +332,7 @@ export class WorkOrdersService {
     return withShifts;
   }
 
-  /** Dedicated read contract for the Shifts module. */
+                                                       
   async findShiftOverview() {
     const workOrders = await this.findAll();
     const shiftTimestamp = (shift: Record<string, unknown>) =>
@@ -366,10 +369,10 @@ export class WorkOrdersService {
       });
   }
 
-  /**
-   * Combines the latest generated Work Order PDF for every matching shift.
-   * Only completed and PM-approved shifts are eligible for this export.
-   */
+     
+                                                                           
+                                                                        
+     
   async exportGeneratedWorkOrderPdfs(query: WorkOrderPdfExportQuery) {
     const { status, from, to } = query;
     if (!['all', 'completed', 'pm_approved'].includes(status)) {
@@ -397,8 +400,8 @@ export class WorkOrdersService {
         : [],
       this.formTemplatesRepo.find(),
     ]);
-    // Keep status evaluation identical to ShiftStatusService: any submitted
-    // shift form makes the shift completed unless it is PM-approved/cancelled.
+                                                                            
+                                                                               
     const completedShiftKeys = new Set(
       submissions
         .filter((submission) => Boolean(submission.shiftId))
@@ -594,7 +597,9 @@ export class WorkOrdersService {
         ? (query.today as string)
         : serverTodayKey;
       const serverNow = new Date();
-      const localNowKey = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(query.now || '')
+      const localNowKey = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(
+        query.now || '',
+      )
         ? (query.now as string)
         : `${serverTodayKey}T${String(serverNow.getHours()).padStart(2, '0')}:${String(serverNow.getMinutes()).padStart(2, '0')}`;
       const today = new Date(`${todayKey}T12:00:00Z`);
@@ -627,7 +632,8 @@ export class WorkOrdersService {
             shift.confirmationStatus === 'pending' &&
             shift.confirmationRequested === true &&
             mobileShiftHasEnded(shift, localNowKey);
-          if (filter === 'completed') return Boolean(shift.completed) || noResponse;
+          if (filter === 'completed')
+            return Boolean(shift.completed) || noResponse;
           if (filter === 'upcoming')
             return !shift.completed && !noResponse && shift.date >= todayKey;
           if (filter === 'this_week') {
@@ -932,7 +938,7 @@ export class WorkOrdersService {
       return this.serializeMobileAssignment(workOrder, worker.id);
     }
 
-    /** Defensive pass: re-apply every other worker's confirmation from the pre-mutation snapshot. */
+                                                                                                     
     const targets: Array<{
       shiftId: string;
       roleId: string;
@@ -1122,13 +1128,24 @@ export class WorkOrdersService {
         const shiftId = typeof record.id === 'string' ? record.id : '';
         if (!shiftId) continue;
         const pickedTemplateIds = new Set(
-          (Array.isArray(record.formTemplateIds) ? record.formTemplateIds : [])
-            .filter((id): id is string => typeof id === 'string' && Boolean(id.trim())),
+          (Array.isArray(record.formTemplateIds)
+            ? record.formTemplateIds
+            : []
+          ).filter(
+            (id): id is string => typeof id === 'string' && Boolean(id.trim()),
+          ),
         );
         const requiredTemplates = templates.filter((template) => {
-          if (template.isRequired === false || !pickedTemplateIds.has(template.id)) return false;
+          if (
+            template.isRequired === false ||
+            !pickedTemplateIds.has(template.id)
+          )
+            return false;
           if (this.isIncidentTemplate(template)) return false;
-          return this.isWorkOrderTemplate(template) || this.isTimesheetTemplate(template);
+          return (
+            this.isWorkOrderTemplate(template) ||
+            this.isTimesheetTemplate(template)
+          );
         });
         if (requiredTemplates.length === 0) continue;
         const shiftKey = `${workOrder.id}:${shiftId}`;
@@ -2052,8 +2069,8 @@ export class WorkOrdersService {
     const entity = this.workOrdersRepo.create({
       ...dto,
       orderNumber,
-      // Legacy NOT NULL column kept only for compatibility with databases
-      // created before assignment statuses were retired.
+                                                                          
+                                                         
       status: '',
       shifts,
       dispatchNote: dto.dispatchNote?.trim() || '',
@@ -2098,7 +2115,7 @@ export class WorkOrdersService {
         ? (await this.resolveMobileShiftCompletion([workOrder]))
             .completedShiftKeys
         : new Set<string>();
-    /** Must be captured before Object.assign: dto replaces entity.shifts, and normalize needs true DB-merge baseline. */
+                                                                                                                         
     const previousShiftsSnapshot: Record<string, unknown>[] =
       dto.shifts !== undefined
         ? (JSON.parse(JSON.stringify(workOrder.shifts ?? [])) as Record<
@@ -2241,10 +2258,10 @@ export class WorkOrdersService {
     );
   }
 
-  /**
-   * Creates multiple shifts for a work order in one transaction.
-   * Used by the scheduler to repeat a shift for several days of the week.
-   */
+     
+                                                                 
+                                                                          
+     
   async bulkCreateShifts(
     workOrderId: string,
     payload: BulkCreateShiftsDto,
@@ -2280,7 +2297,7 @@ export class WorkOrdersService {
       throw new BadRequestException('No valid dates provided.');
     }
 
-    /** Pre-validation: every date must fall within the assignment range. */
+                                                                            
     assertShiftsWithinAssignmentDateRange(
       workOrder.startDate,
       workOrder.endDate,
@@ -2403,10 +2420,10 @@ export class WorkOrdersService {
     return restored;
   }
 
-  /**
-   * Ensures every assigned worker has all required certifications for their shift role.
-   * Falls back to legacy requiredSkillIds for older assignments.
-   */
+     
+                                                                                        
+                                                                 
+     
   private async assertAssignedWorkersMeetRoleCertifications(
     shifts: Record<string, unknown>[],
   ): Promise<void> {
@@ -2535,12 +2552,12 @@ export class WorkOrdersService {
     );
   }
 
-  /**
-   * Reads shifts from the relational tables for the given work orders and
-   * overwrites each row's `shifts` with the result. Work orders with no
-   * rows in the new tables get `shifts: []`. The legacy `work_orders.shifts`
-   * JSON is no longer consulted by findOne/findAll.
-   */
+     
+                                                                          
+                                                                        
+                                                                             
+                                                    
+     
   private async mergeShiftsWithRelational<T extends WorkOrder>(
     rows: T[],
   ): Promise<T[]> {
@@ -2566,11 +2583,11 @@ export class WorkOrdersService {
     return rows;
   }
 
-  /**
-   * Re-applies the shifts merge on a single work order after a write.
-   * The relational tables are the source of truth, so the in-memory
-   * `shifts` must be refreshed after every mutation.
-   */
+     
+                                                                      
+                                                                    
+                                                     
+     
   private async refreshShifts<T extends WorkOrder>(row: T): Promise<T> {
     const [refreshed] = await this.mergeShiftsWithRelational([row]);
     return refreshed;

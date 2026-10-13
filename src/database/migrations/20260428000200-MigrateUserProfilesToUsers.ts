@@ -1,13 +1,6 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableColumn,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableColumn } from 'typeorm';
 
-export class MigrateUserProfilesToUsers20260428000200
-  implements MigrationInterface
-{
+export class MigrateUserProfilesToUsers20260428000200 implements MigrationInterface {
   name = 'MigrateUserProfilesToUsers20260428000200';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -15,7 +8,7 @@ export class MigrateUserProfilesToUsers20260428000200
 
     const usersTable = await queryRunner.getTable('users');
     if (!usersTable) {
-      throw new Error('La tabla users debe existir antes de migrar usuarios');
+      throw new Error('The users table must exist before migrating users');
     }
 
     const requiredColumns: TableColumn[] = [

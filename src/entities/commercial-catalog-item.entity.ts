@@ -20,10 +20,22 @@ export class CommercialCatalogItem {
   @Column({ type: 'varchar', length: 80, default: '' })
   type: string;
 
-  @Column({ name: 'daily_rate', type: 'numeric', precision: 12, scale: 2, default: 0 })
+  @Column({
+    name: 'daily_rate',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+  })
   dailyRate: number;
 
-  @Column({ name: 'item_price', type: 'numeric', precision: 12, scale: 2, default: 0 })
+  @Column({
+    name: 'item_price',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+  })
   itemPrice: number;
 
   @Column({ type: 'varchar', length: 40, default: 'Each' })

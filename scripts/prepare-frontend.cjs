@@ -7,7 +7,7 @@ const publicDir = path.resolve(backendRoot, 'public');
 
 if (!fs.existsSync(frontendDist)) {
   console.error(
-    `[prepare:frontend] No existe frontend dist en: ${frontendDist}\n` +
+    `[prepare:frontend] Frontend dist was not found at: ${frontendDist}\n` +
       'Ejecuta primero: cd ../frontend && npm run build',
   );
   process.exit(1);

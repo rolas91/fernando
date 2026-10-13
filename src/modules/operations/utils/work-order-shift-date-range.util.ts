@@ -9,7 +9,7 @@ function trimDate(value: unknown): string {
   return String(value).trim();
 }
 
-/** When both start and end are set, every shift with a `date` must fall within the range (YYYY-MM-DD inclusive). */
+                                                                                                                    
 export function assertShiftsWithinAssignmentDateRange(
   startDate: unknown,
   endDate: unknown,
@@ -32,10 +32,10 @@ export function assertShiftsWithinAssignmentDateRange(
   }
 }
 
-/**
- * When both project start and end are set, assignment start/end must be set and lie within
- * [projectStart, projectEnd] inclusive (YYYY-MM-DD). If either project bound is missing, no-op.
- */
+   
+                                                                                           
+                                                                                                
+   
 export function assertAssignmentWithinProjectDates(
   projectStart: unknown,
   projectEnd: unknown,
@@ -54,7 +54,9 @@ export function assertAssignmentWithinProjectDates(
     );
   }
   if (ws > we) {
-    throw new BadRequestException('Assignment end date cannot be earlier than start date.');
+    throw new BadRequestException(
+      'Assignment end date cannot be earlier than start date.',
+    );
   }
   if (ws < ps || we > pe) {
     throw new BadRequestException(

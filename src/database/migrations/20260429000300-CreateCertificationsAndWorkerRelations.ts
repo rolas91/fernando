@@ -19,9 +19,7 @@ function slugify(raw: string) {
     .slice(0, 48);
 }
 
-export class CreateCertificationsAndWorkerRelations20260429000300
-  implements MigrationInterface
-{
+export class CreateCertificationsAndWorkerRelations20260429000300 implements MigrationInterface {
   name = 'CreateCertificationsAndWorkerRelations20260429000300';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -62,7 +60,10 @@ export class CreateCertificationsAndWorkerRelations20260429000300
         SELECT id, certifications
         FROM workers
         WHERE certifications IS NOT NULL
-      `)) as Array<{ id: string; certifications: LegacyCertification[] | null }>;
+      `)) as Array<{
+        id: string;
+        certifications: LegacyCertification[] | null;
+      }>;
 
       const knownCertificationIds = new Map<string, string>();
       let generatedCounter = 0;
@@ -86,7 +87,8 @@ export class CreateCertificationsAndWorkerRelations20260429000300
           let certificationId = knownCertificationIds.get(lookupKey);
           if (!certificationId) {
             generatedCounter += 1;
-            const generatedSuffix = slugify(nameValue) || `item_${generatedCounter}`;
+            const generatedSuffix =
+              slugify(nameValue) || `item_${generatedCounter}`;
             certificationId = preferredId || `cert_${generatedSuffix}`;
             knownCertificationIds.set(lookupKey, certificationId);
           }

@@ -53,11 +53,7 @@ export class SpacesStorageService {
     files: UploadFileCandidate[],
     certificationId?: string,
   ) {
-    return this.uploadFilesForScope(
-      'certifications',
-      files,
-      certificationId,
-    );
+    return this.uploadFilesForScope('certifications', files, certificationId);
   }
 
   async uploadWorkerFiles(files: UploadFileCandidate[], workerId?: string) {
@@ -68,20 +64,22 @@ export class SpacesStorageService {
     return this.uploadFilesForScope('shift-chat', files, shiftId);
   }
 
-  async uploadLogo(
-    file: UploadFileCandidate,
-  ) {
+  async uploadLogo(file: UploadFileCandidate) {
     const processed = await this.processLogoImage(file);
-    const results = await this.uploadFilesForScope('logo', [processed], 'company');
+    const results = await this.uploadFilesForScope(
+      'logo',
+      [processed],
+      'company',
+    );
     return results[0] || null;
   }
 
-  /**
-   * Processes a logo upload: converts JPG/raster images to PNG and removes
-   * white/near-white backgrounds so the logo composites cleanly on any background.
-   * PNG images with transparency are returned as-is.
-   * SVG files are returned unchanged (vector format).
-   */
+     
+                                                                           
+                                                                                   
+                                                     
+                                                      
+     
   private async processLogoImage(
     file: UploadFileCandidate,
   ): Promise<UploadFileCandidate> {
@@ -95,41 +93,48 @@ export class SpacesStorageService {
       const trimmedName = originalName.replace(/\.(jpe?g|png|webp)$/i, '');
       const newName = `${trimmedName}.png`;
 
-      // Step 1: Get RGBA raw bytes
-      const { data: rgbaRaw, info } = await sharp(file.buffer, { failOn: 'none' })
+                                   
+      const { data: rgbaRaw, info } = await sharp(file.buffer, {
+        failOn: 'none',
+      })
         .ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
 
-      // Step 2: Create an alpha mask where "white-ish" pixels become transparent
-      // (we copy the rgbaRaw so we don't mutate sharp's internal buffer)
+                                                                                 
+                                                                         
       const channels = info.channels;
       const width = info.width;
       const height = info.height;
       const pixelCount = width * height;
       const safeRgba = Buffer.from(rgbaRaw);
-      const maskData = Buffer.alloc(pixelCount); // 1 byte per pixel
+      const maskData = Buffer.alloc(pixelCount);                    
       const threshold = 245;
       for (let i = 0; i < pixelCount; i++) {
         const idx = i * channels;
         const r = safeRgba[idx];
         const g = safeRgba[idx + 1];
         const b = safeRgba[idx + 2];
-        maskData[i] = r >= threshold && g >= threshold && b >= threshold ? 0 : 255;
+        maskData[i] =
+          r >= threshold && g >= threshold && b >= threshold ? 0 : 255;
       }
 
-      // Step 3: Apply mask to alpha channel
-      // If image was originally 3-channel (RGB), channels===3 means maskData[i] goes to alpha
-      // If image was already 4-channel (RGBA), we need to update the existing alpha
+                                            
+                                                                                              
+                                                                                    
       if (channels === 3) {
         for (let i = 0; i < pixelCount; i++) {
           safeRgba[i * 4 + 3] = maskData[i];
         }
         const processedBuffer = await sharp(safeRgba, {
           raw: { width, height, channels: 4 },
-        }).png().toBuffer();
+        })
+          .png()
+          .toBuffer();
 
-        this.logger.log(`Logo processed: ${originalName} → ${newName} (${processedBuffer.length} bytes)`);
+        this.logger.log(
+          `Logo processed: ${originalName} → ${newName} (${processedBuffer.length} bytes)`,
+        );
         return {
           ...file,
           buffer: processedBuffer,
@@ -139,19 +144,23 @@ export class SpacesStorageService {
         };
       }
 
-      // For 4-channel (RGBA) images, modify alpha in place
+                                                           
       for (let i = 0; i < pixelCount; i++) {
         const alphaIdx = i * 4 + 3;
-        // Keep the original alpha if it was already transparent, otherwise use mask
+                                                                                    
         if (safeRgba[alphaIdx] > 0) {
           safeRgba[alphaIdx] = Math.min(safeRgba[alphaIdx], maskData[i]);
         }
       }
       const processedBuffer = await sharp(safeRgba, {
         raw: { width, height, channels: 4 },
-      }).png().toBuffer();
+      })
+        .png()
+        .toBuffer();
 
-      this.logger.log(`Logo processed: ${originalName} → ${newName} (${processedBuffer.length} bytes)`);
+      this.logger.log(
+        `Logo processed: ${originalName} → ${newName} (${processedBuffer.length} bytes)`,
+      );
       return {
         ...file,
         buffer: processedBuffer,
@@ -170,7 +179,12 @@ export class SpacesStorageService {
   }
 
   private async uploadFilesForScope(
-    scopePrefix: 'workers' | 'work-orders' | 'certifications' | 'shift-chat' | 'logo',
+    scopePrefix:
+      | 'workers'
+      | 'work-orders'
+      | 'certifications'
+      | 'shift-chat'
+      | 'logo',
     files: UploadFileCandidate[],
     scopeId?: string,
     preserveFileName = false,
@@ -198,11 +212,7 @@ export class SpacesStorageService {
       contentType: string;
     }> = [];
     for (const file of files) {
-      this.assertUploadCandidate(
-        file,
-        scopePrefix,
-        maxBytes,
-      );
+      this.assertUploadCandidate(file, scopePrefix, maxBytes);
       const body = file.buffer!;
       const key = this.buildObjectKey(
         scopePrefix,
@@ -253,9 +263,9 @@ export class SpacesStorageService {
   isConfigured() {
     return Boolean(
       this.configService.get<string>('SPACES_ENDPOINT') &&
-        this.configService.get<string>('SPACES_BUCKET') &&
-        this.configService.get<string>('SPACES_ACCESS_KEY_ID') &&
-        this.configService.get<string>('SPACES_SECRET_ACCESS_KEY'),
+      this.configService.get<string>('SPACES_BUCKET') &&
+      this.configService.get<string>('SPACES_ACCESS_KEY_ID') &&
+      this.configService.get<string>('SPACES_SECRET_ACCESS_KEY'),
     );
   }
 
@@ -274,16 +284,15 @@ export class SpacesStorageService {
   ) {
     const buffer = file.buffer;
     if (!buffer?.length) {
-      throw new BadRequestException('Uno o más archivos están vacíos.');
+      throw new BadRequestException('One or more files are empty.');
     }
     const reported = file.size ?? buffer.length;
     if (reported > maxBytes || buffer.length > maxBytes) {
       throw new BadRequestException(
-        'El archivo supera el tamaño máximo permitido.',
+        'The file exceeds the maximum allowed size.',
       );
     }
-    const rawForMessage =
-      (file.mimetype || '').trim().toLowerCase() || 'vacío';
+    const rawForMessage = (file.mimetype || '').trim().toLowerCase() || 'empty';
     const normalized = normalizeUploadMimeForScope(
       file.mimetype,
       file.originalname,
@@ -291,7 +300,7 @@ export class SpacesStorageService {
     );
     if (!normalized) {
       throw new BadRequestException(
-        `Tipo de archivo no permitido (${rawForMessage}).`,
+        `File type not allowed (${rawForMessage}).`,
       );
     }
     file.mimetype = normalized;
@@ -315,7 +324,9 @@ export class SpacesStorageService {
       this.logger.error(
         `Spaces upload failed for key=${key}: ${response.status} ${detail}`,
       );
-      throw new InternalServerErrorException('Could not upload the file. Please try again.');
+      throw new InternalServerErrorException(
+        'Could not upload the file. Please try again.',
+      );
     }
   }
 
@@ -333,7 +344,9 @@ export class SpacesStorageService {
       this.logger.error(
         `Spaces delete failed for key=${key}: ${response.status} ${detail}`,
       );
-      throw new InternalServerErrorException('Could not delete the file. Please try again.');
+      throw new InternalServerErrorException(
+        'Could not delete the file. Please try again.',
+      );
     }
   }
 
@@ -349,7 +362,9 @@ export class SpacesStorageService {
     const host = this.getBucketHost();
     const region = this.getRegion();
     const accessKey = this.configService.get<string>('SPACES_ACCESS_KEY_ID')!;
-    const secretKey = this.configService.get<string>('SPACES_SECRET_ACCESS_KEY')!;
+    const secretKey = this.configService.get<string>(
+      'SPACES_SECRET_ACCESS_KEY',
+    )!;
 
     const headers: SignedHeaderMap = {
       host,
@@ -451,7 +466,9 @@ export class SpacesStorageService {
       }
     }
 
-    throw new InternalServerErrorException('Could not locate the file from the provided URL.');
+    throw new InternalServerErrorException(
+      'Could not locate the file from the provided URL.',
+    );
   }
 
   private getBucketHost() {
@@ -507,21 +524,25 @@ export class SpacesStorageService {
   }
 
   private sanitizeFileName(name: string) {
-    return name
-      .normalize('NFKD')
-      .replace(/[^\w.\-]+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 180) || 'file';
+    return (
+      name
+        .normalize('NFKD')
+        .replace(/[^\w.\-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 180) || 'file'
+    );
   }
 
   private sanitizePathSegment(value: string) {
-    return value
-      .normalize('NFKD')
-      .replace(/[^\w.-]+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 120) || 'item';
+    return (
+      value
+        .normalize('NFKD')
+        .replace(/[^\w.-]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 120) || 'item'
+    );
   }
 
   private getFileNameFromKey(key: string) {

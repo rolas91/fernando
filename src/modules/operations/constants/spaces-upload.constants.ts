@@ -1,13 +1,13 @@
-/** Default per-file cap before upload to Spaces (matches Multer). */
+                                                                     
 export const SPACES_UPLOAD_DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
 
-/**
- * DigitalOcean Spaces: single PUT supports up to 5 GiB per object.
- * See https://docs.digitalocean.com/products/spaces/details/limits/
- */
+   
+                                                                   
+                                                                    
+   
 export const SPACES_SINGLE_PUT_MAX_BYTES = 5 * 1024 * 1024 * 1024;
 
-/** Certification uploads: PDF + raster images. */
+                                                  
 export const ALLOWED_CERTIFICATION_UPLOAD_MIME = new Set([
   'application/pdf',
   'image/jpeg',
@@ -15,14 +15,14 @@ export const ALLOWED_CERTIFICATION_UPLOAD_MIME = new Set([
   'image/webp',
 ]);
 
-/** Worker files: sólo PDF e imágenes JPEG/PNG según política UI. */
+                                                                    
 export const ALLOWED_WORKER_UPLOAD_MIME = new Set([
   'application/pdf',
   'image/jpeg',
   'image/png',
 ]);
 
-/** Logo: solo imágenes. */
+                           
 export const ALLOWED_LOGO_UPLOAD_MIME = new Set([
   'image/jpeg',
   'image/png',
@@ -30,7 +30,7 @@ export const ALLOWED_LOGO_UPLOAD_MIME = new Set([
   'image/svg+xml',
 ]);
 
-/** Work orders: PDF, imágenes, Office habitual. */
+                                                   
 export const ALLOWED_WORK_ORDER_UPLOAD_MIME = new Set([
   'application/pdf',
   'image/jpeg',
@@ -73,10 +73,10 @@ export const ALLOWED_MIME_BY_UPLOAD_SCOPE: Record<
 
 export type SpacesUploadScope = keyof typeof ALLOWED_MIME_BY_UPLOAD_SCOPE;
 
-/**
- * Infer canonical MIME from filename extension for Spaces uploads.
- * Scoped so workers do not inherit cert-only types (e.g. webp).
- */
+   
+                                                                   
+                                                                
+   
 function inferMimeFromOriginalName(
   originalname: string | undefined | null,
   scope: SpacesUploadScope,
@@ -131,10 +131,10 @@ function inferMimeFromOriginalName(
   }
 }
 
-/**
- * Normalize client-reported MIME (often `application/octet-stream` or empty for PDFs)
- * using filename when the reported type is missing or not in the scope allow-list.
- */
+   
+                                                                                      
+                                                                                   
+   
 export function normalizeUploadMimeForScope(
   reportedMime: string | undefined | null,
   originalname: string | undefined | null,

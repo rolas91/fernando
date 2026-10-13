@@ -118,7 +118,10 @@ function asStringArray(value: unknown): string[] | undefined {
   return values.length > 0 ? Array.from(new Set(values)) : undefined;
 }
 
-function normalizeRules(type: FieldType, input: unknown): FieldRules | undefined {
+function normalizeRules(
+  type: FieldType,
+  input: unknown,
+): FieldRules | undefined {
   if (!isRecord(input)) return undefined;
 
   const rules: FieldRules = {};
@@ -198,7 +201,9 @@ function normalizeUi(type: FieldType, input: unknown): FieldUi | undefined {
     return Object.keys(ui).length > 0 ? ui : undefined;
   }
 
-  const keyboardType = asString(input.keyboardType).trim() as FieldUi['keyboardType'];
+  const keyboardType = asString(
+    input.keyboardType,
+  ).trim() as FieldUi['keyboardType'];
   const inputMode = asString(input.inputMode).trim() as FieldUi['inputMode'];
   const section = asString(input.section).trim();
   const sectionDescription = asString(input.sectionDescription).trim();
@@ -216,14 +221,19 @@ function normalizeUi(type: FieldType, input: unknown): FieldUi | undefined {
   if (sectionDescription) ui.sectionDescription = sectionDescription;
   if (helperText) ui.helperText = helperText;
   if (layout === 'full' || layout === 'half') ui.layout = layout;
-  if (typeof input.defaultValue === 'string' || typeof input.defaultValue === 'number' || typeof input.defaultValue === 'boolean') {
+  if (
+    typeof input.defaultValue === 'string' ||
+    typeof input.defaultValue === 'number' ||
+    typeof input.defaultValue === 'boolean'
+  ) {
     ui.defaultValue = input.defaultValue;
   }
   if (typeof input.lunchTakenDefault === 'boolean') {
     ui.lunchTakenDefault = input.lunchTakenDefault;
   }
   if (quickTags) ui.quickTags = quickTags;
-  if (tagTone === 'blue' || tagTone === 'amber' || tagTone === 'slate') ui.tagTone = tagTone;
+  if (tagTone === 'blue' || tagTone === 'amber' || tagTone === 'slate')
+    ui.tagTone = tagTone;
   if (containerClassName) ui.containerClassName = containerClassName;
   if (labelClassName) ui.labelClassName = labelClassName;
   if (inputClassName) ui.inputClassName = inputClassName;
@@ -254,7 +264,8 @@ export function normalizeFormFields(rawFields: unknown): DynamicFormField[] {
     const raw = isRecord(rawField) ? rawField : {};
     const rawType = asString(raw.type).trim() as FieldType;
     const type = SUPPORTED_TYPES.includes(rawType) ? rawType : 'text';
-    const label = asString(raw.label, `Field ${index + 1}`).trim() || `Field ${index + 1}`;
+    const label =
+      asString(raw.label, `Field ${index + 1}`).trim() || `Field ${index + 1}`;
     const id =
       asString(raw.id).trim() ||
       asString(raw.key).trim() ||
@@ -331,7 +342,9 @@ export function validateSubmissionAgainstFields(
 
     if (field.type === 'text' || field.type === 'textarea') {
       if (typeof value !== 'string') {
-        throw new BadRequestException(`Field "${field.label}" must be a string`);
+        throw new BadRequestException(
+          `Field "${field.label}" must be a string`,
+        );
       }
       const stringValue = value as string;
       if (field.rules?.minLength !== undefined) {
@@ -415,7 +428,10 @@ export function validateSubmissionAgainstFields(
     }
 
     if (field.type === 'checkbox') {
-      assert(typeof value === 'boolean', `Field "${field.label}" must be boolean`);
+      assert(
+        typeof value === 'boolean',
+        `Field "${field.label}" must be boolean`,
+      );
     }
 
     if (field.type === 'work_order_types') {
@@ -427,11 +443,17 @@ export function validateSubmissionAgainstFields(
     }
 
     if (field.type === 'date') {
-      assert(typeof value === 'string' && ISO_DATE_RE.test(value), `Field "${field.label}" must use YYYY-MM-DD`);
+      assert(
+        typeof value === 'string' && ISO_DATE_RE.test(value),
+        `Field "${field.label}" must use YYYY-MM-DD`,
+      );
     }
 
     if (field.type === 'time') {
-      assert(typeof value === 'string' && HHMM_RE.test(value), `Field "${field.label}" must use HH:mm`);
+      assert(
+        typeof value === 'string' && HHMM_RE.test(value),
+        `Field "${field.label}" must use HH:mm`,
+      );
     }
 
     if (field.type === 'signature') {
@@ -442,7 +464,8 @@ export function validateSubmissionAgainstFields(
     }
 
     if (field.type === 'photo') {
-      const valid = typeof value === 'string' || Array.isArray(value) || isRecord(value);
+      const valid =
+        typeof value === 'string' || Array.isArray(value) || isRecord(value);
       assert(valid, `Field "${field.label}" requires photo payload`);
       if (Array.isArray(value) && field.rules?.maxPhotos !== undefined) {
         assert(
@@ -453,7 +476,8 @@ export function validateSubmissionAgainstFields(
     }
 
     if (field.type === 'attachment') {
-      const valid = typeof value === 'string' || Array.isArray(value) || isRecord(value);
+      const valid =
+        typeof value === 'string' || Array.isArray(value) || isRecord(value);
       assert(valid, `Field "${field.label}" requires attachment payload`);
       if (Array.isArray(value) && field.rules?.maxFiles !== undefined) {
         assert(
@@ -466,19 +490,32 @@ export function validateSubmissionAgainstFields(
     if (field.type === 'timesheet') {
       assert(Array.isArray(value), `Field "${field.label}" must be an array`);
       for (const entry of value as unknown[]) {
-        assert(isRecord(entry), `Field "${field.label}" contains an invalid timesheet entry`);
+        assert(
+          isRecord(entry),
+          `Field "${field.label}" contains an invalid timesheet entry`,
+        );
         const record = entry as Record<string, unknown>;
         assert(
-          typeof record.workerId === 'string' && record.workerId.trim().length > 0,
+          typeof record.workerId === 'string' &&
+            record.workerId.trim().length > 0,
           `Field "${field.label}" timesheet entries require workerId`,
         );
       }
     }
     if (field.type === 'resource_usage') {
-      assert(isRecord(value), `Field "${field.label}" must contain equipment and materials`);
+      assert(
+        isRecord(value),
+        `Field "${field.label}" must contain equipment and materials`,
+      );
       const record = value as Record<string, unknown>;
-      assert(Array.isArray(record.equipment), `Field "${field.label}" equipment must be an array`);
-      assert(Array.isArray(record.materials), `Field "${field.label}" materials must be an array`);
+      assert(
+        Array.isArray(record.equipment),
+        `Field "${field.label}" equipment must be an array`,
+      );
+      assert(
+        Array.isArray(record.materials),
+        `Field "${field.label}" materials must be an array`,
+      );
     }
   }
 }

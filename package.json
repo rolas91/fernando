@@ -6,6 +6,10 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "source:scan": "node scripts/source-language.cjs scan",
+    "source:apply": "node scripts/source-language.cjs apply",
+    "source:comments": "node scripts/source-language.cjs comments",
+    "source:test": "node --test scripts/source-language.test.cjs",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",

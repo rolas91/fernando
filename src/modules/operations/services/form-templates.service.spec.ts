@@ -10,7 +10,10 @@ describe('FormTemplatesService.findAssigned', () => {
     const service = new FormTemplatesService(
       { find: jest.fn(async () => templates) } as never,
       {
-        findOne: jest.fn(async () => ({ id: 'shift-1', formTemplateIds: ['form-b'] })),
+        findOne: jest.fn(async () => ({
+          id: 'shift-1',
+          formTemplateIds: ['form-b'],
+        })),
       } as never,
     );
 
@@ -22,7 +25,9 @@ describe('FormTemplatesService.findAssigned', () => {
   it('returns no forms for a shift with an empty allowlist', async () => {
     const service = new FormTemplatesService(
       { find: jest.fn(async () => templates) } as never,
-      { findOne: jest.fn(async () => ({ id: 'shift-1', formTemplateIds: [] })) } as never,
+      {
+        findOne: jest.fn(async () => ({ id: 'shift-1', formTemplateIds: [] })),
+      } as never,
     );
 
     await expect(

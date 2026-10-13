@@ -17,7 +17,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CatalogImportService } from './catalog-import.service';
-import { CATALOG_SCOPES, type CatalogScope, type ImportMode } from './parsers/parser.types';
+import {
+  CATALOG_SCOPES,
+  type CatalogScope,
+  type ImportMode,
+} from './parsers/parser.types';
 import * as multer from 'multer';
 
 const ALLOWED_IMPORT_MIME = new Set([
@@ -30,13 +34,15 @@ function isCatalogScope(value: string): value is CatalogScope {
   return (CATALOG_SCOPES as readonly string[]).includes(value);
 }
 
-function normalizeMime(
-  file: { mimetype?: string; originalname?: string },
-): string {
+function normalizeMime(file: {
+  mimetype?: string;
+  originalname?: string;
+}): string {
   const raw = (file.mimetype || '').toLowerCase();
   if (ALLOWED_IMPORT_MIME.has(raw)) return raw;
   const name = (file.originalname || '').toLowerCase();
-  if (name.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (name.endsWith('.xlsx'))
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   if (name.endsWith('.xls')) return 'application/vnd.ms-excel';
   return raw || 'application/octet-stream';
 }
@@ -52,13 +58,16 @@ export class CatalogImportController {
   }
 
   @Get(':scope/template')
-  @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
   async downloadTemplate(
     @Param('scope') scopeParam: string,
     @Res() res: Response,
   ): Promise<void> {
     if (!isCatalogScope(scopeParam)) {
-      throw new BadRequestException(`Alcance inválido: ${scopeParam}`);
+      throw new BadRequestException(`Invalid scope: ${scopeParam}`);
     }
     const buffer = await this.service.generateTemplate(scopeParam);
     res.setHeader(
@@ -78,7 +87,12 @@ export class CatalogImportController {
       fileFilter: (_req, file, cb) => {
         const mime = normalizeMime(file);
         if (!ALLOWED_IMPORT_MIME.has(mime)) {
-          cb(new BadRequestException('Tipo de archivo no permitido (solo .xlsx)'), false);
+          cb(
+            new BadRequestException(
+              'File type not allowed (.xlsx only)',
+            ),
+            false,
+          );
           return;
         }
         cb(null, true);
@@ -90,10 +104,10 @@ export class CatalogImportController {
     @UploadedFile() file: { buffer?: Buffer; originalname?: string },
   ) {
     if (!isCatalogScope(scopeParam)) {
-      throw new BadRequestException(`Alcance inválido: ${scopeParam}`);
+      throw new BadRequestException(`Invalid scope: ${scopeParam}`);
     }
     if (!file?.buffer) {
-      throw new BadRequestException('Falta el archivo "file"');
+      throw new BadRequestException('The "file" upload is missing');
     }
     return this.service.preview(scopeParam, file.buffer, file.originalname);
   }
@@ -107,7 +121,12 @@ export class CatalogImportController {
       fileFilter: (_req, file, cb) => {
         const mime = normalizeMime(file);
         if (!ALLOWED_IMPORT_MIME.has(mime)) {
-          cb(new BadRequestException('Tipo de archivo no permitido (solo .xlsx)'), false);
+          cb(
+            new BadRequestException(
+              'File type not allowed (.xlsx only)',
+            ),
+            false,
+          );
           return;
         }
         cb(null, true);
@@ -120,10 +139,10 @@ export class CatalogImportController {
     @Body() body: { mode?: ImportMode; dryRun?: boolean | string },
   ) {
     if (!isCatalogScope(scopeParam)) {
-      throw new BadRequestException(`Alcance inválido: ${scopeParam}`);
+      throw new BadRequestException(`Invalid scope: ${scopeParam}`);
     }
     if (!file?.buffer) {
-      throw new BadRequestException('Falta el archivo "file"');
+      throw new BadRequestException('The "file" upload is missing');
     }
     const mode: ImportMode = body?.mode === 'create' ? 'create' : 'upsert';
     const dryRun = body?.dryRun === true || body?.dryRun === 'true';
@@ -144,7 +163,12 @@ export class CatalogImportController {
       fileFilter: (_req, file, cb) => {
         const mime = normalizeMime(file);
         if (!ALLOWED_IMPORT_MIME.has(mime)) {
-          cb(new BadRequestException('Tipo de archivo no permitido (solo .xlsx)'), false);
+          cb(
+            new BadRequestException(
+              'File type not allowed (.xlsx only)',
+            ),
+            false,
+          );
           return;
         }
         cb(null, true);
@@ -157,10 +181,10 @@ export class CatalogImportController {
     @Body() body: { mode?: ImportMode },
   ) {
     if (!isCatalogScope(scopeParam)) {
-      throw new BadRequestException(`Alcance inválido: ${scopeParam}`);
+      throw new BadRequestException(`Invalid scope: ${scopeParam}`);
     }
     if (!file?.buffer) {
-      throw new BadRequestException('Falta el archivo "file"');
+      throw new BadRequestException('The "file" upload is missing');
     }
     const mode: ImportMode = body?.mode === 'create' ? 'create' : 'upsert';
     const job = await this.service.applyAsync(scopeParam, file.buffer, {
@@ -174,7 +198,7 @@ export class CatalogImportController {
   getJob(@Param('id') id: string, @Query('wait') wait?: string) {
     const job = this.service.getJob(id);
     if (!job) {
-      throw new BadRequestException(`Trabajo ${id} no encontrado`);
+      throw new BadRequestException(`Trabajo ${id} not found`);
     }
     void wait;
     return job;

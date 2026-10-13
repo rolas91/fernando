@@ -84,7 +84,10 @@ export class AuthController {
   @ApiBearerAuth('bearer')
   @UseGuards(JwtAuthGuard)
   @ApiBody({ type: UpdateProfileDto })
-  async updateProfile(@Req() req: AuthedRequest, @Body() dto: UpdateProfileDto) {
+  async updateProfile(
+    @Req() req: AuthedRequest,
+    @Body() dto: UpdateProfileDto,
+  ) {
     await this.usersService.update(req.user.id, {
       email: dto.email,
       firstName: dto.firstName,

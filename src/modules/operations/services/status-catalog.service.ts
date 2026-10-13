@@ -15,7 +15,9 @@ export class StatusCatalogService {
   ) {}
 
   findAll() {
-    return this.repo.find({ order: { scope: 'ASC', sortOrder: 'ASC', name: 'ASC' } });
+    return this.repo.find({
+      order: { scope: 'ASC', sortOrder: 'ASC', name: 'ASC' },
+    });
   }
 
   async findOne(id: string) {

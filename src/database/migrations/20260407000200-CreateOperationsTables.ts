@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner, Table } from 'typeorm';
 
-export class CreateOperationsTables20260407000200
-  implements MigrationInterface
-{
+export class CreateOperationsTables20260407000200 implements MigrationInterface {
   name = 'CreateOperationsTables20260407000200';
 
   private async createIfMissing(queryRunner: QueryRunner, table: Table) {
@@ -1199,13 +1197,13 @@ export class CreateOperationsTables20260407000200
       'notifications',
       'incidents',
       'form_submissions',
-        'form_templates',
-        'timesheets',
-        'work_orders',
-        'shifts',
-        'materials',
-        'equipment',
-        'workers',
+      'form_templates',
+      'timesheets',
+      'work_orders',
+      'shifts',
+      'materials',
+      'equipment',
+      'workers',
       'work_order_types',
       'projects',
       'clients',

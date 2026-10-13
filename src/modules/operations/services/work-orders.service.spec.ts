@@ -119,18 +119,16 @@ describe('WorkOrdersService mobile required-action completion', () => {
     } as WorkOrder;
     const completion = await (
       service as unknown as {
-        resolveMobileShiftCompletion(
-          workOrders: WorkOrder[],
-        ): Promise<{
+        resolveMobileShiftCompletion(workOrders: WorkOrder[]): Promise<{
           completedShiftKeys: Set<string>;
           completedTemplateIdsByShift: Map<string, Set<string>>;
         }>;
       }
     ).resolveMobileShiftCompletion([workOrder]);
 
-    expect(
-      completion.completedTemplateIdsByShift.get('wo-1:shift-1'),
-    ).toEqual(new Set(['template-wo', 'template-timesheet']));
+    expect(completion.completedTemplateIdsByShift.get('wo-1:shift-1')).toEqual(
+      new Set(['template-wo', 'template-timesheet']),
+    );
     expect(completion.completedShiftKeys.has('wo-1:shift-1')).toBe(true);
   });
 
@@ -149,9 +147,7 @@ describe('WorkOrdersService mobile required-action completion', () => {
         templateId: 'template-timesheet',
         status: 'submitted',
         data: {
-          timesheetWorkers: [
-            { workerId: 'worker-a', status: 'completed' },
-          ],
+          timesheetWorkers: [{ workerId: 'worker-a', status: 'completed' }],
         },
       },
     ];
@@ -203,9 +199,7 @@ describe('WorkOrdersService mobile required-action completion', () => {
     } as WorkOrder;
     const resolveCompletion = (
       service as unknown as {
-        resolveMobileShiftCompletion(
-          workOrders: WorkOrder[],
-        ): Promise<{
+        resolveMobileShiftCompletion(workOrders: WorkOrder[]): Promise<{
           completedShiftKeys: Set<string>;
           completedTemplateIdsByShift: Map<string, Set<string>>;
         }>;
@@ -213,9 +207,9 @@ describe('WorkOrdersService mobile required-action completion', () => {
     ).resolveMobileShiftCompletion.bind(service);
 
     const partial = await resolveCompletion([workOrder]);
-    expect(
-      partial.completedTemplateIdsByShift.get('wo-1:shift-1'),
-    ).toEqual(new Set(['template-wo']));
+    expect(partial.completedTemplateIdsByShift.get('wo-1:shift-1')).toEqual(
+      new Set(['template-wo']),
+    );
     expect(partial.completedShiftKeys.has('wo-1:shift-1')).toBe(false);
 
     submissions.push({
@@ -224,16 +218,14 @@ describe('WorkOrdersService mobile required-action completion', () => {
       templateId: 'template-timesheet',
       status: 'submitted',
       data: {
-        timesheetWorkers: [
-          { workerId: 'worker-b', status: 'completed' },
-        ],
+        timesheetWorkers: [{ workerId: 'worker-b', status: 'completed' }],
       },
     });
 
     const complete = await resolveCompletion([workOrder]);
-    expect(
-      complete.completedTemplateIdsByShift.get('wo-1:shift-1'),
-    ).toEqual(new Set(['template-wo', 'template-timesheet']));
+    expect(complete.completedTemplateIdsByShift.get('wo-1:shift-1')).toEqual(
+      new Set(['template-wo', 'template-timesheet']),
+    );
     expect(complete.completedShiftKeys.has('wo-1:shift-1')).toBe(true);
   });
 });
@@ -249,8 +241,7 @@ describe('workOrderAccessNotificationChanges', () => {
     roles: [
       {
         id: 'role-1',
-        assignedWorkers:
-          options.assigned === false ? [] : ['worker-1'],
+        assignedWorkers: options.assigned === false ? [] : ['worker-1'],
         workerConfirmations:
           options.notified === false
             ? []
@@ -275,10 +266,7 @@ describe('workOrderAccessNotificationChanges', () => {
 
   it('notifies when access is removed from a previously notified assigned worker', () => {
     expect(
-      workOrderAccessNotificationChanges(
-        [shift(['worker-1'])],
-        [shift([])],
-      ),
+      workOrderAccessNotificationChanges([shift(['worker-1'])], [shift([])]),
     ).toEqual([
       {
         shiftId: 'shift-1',
@@ -301,10 +289,7 @@ describe('workOrderAccessNotificationChanges', () => {
 
   it('notifies when access is granted to a previously notified assigned worker', () => {
     expect(
-      workOrderAccessNotificationChanges(
-        [shift([])],
-        [shift(['worker-1'])],
-      ),
+      workOrderAccessNotificationChanges([shift([])], [shift(['worker-1'])]),
     ).toEqual([
       {
         shiftId: 'shift-1',
@@ -340,10 +325,13 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       }),
     } as never;
     const workerRepo = {
-      findOne: jest.fn(async () => ({
-        id: 'worker-b',
-        email: 'b@example.com',
-      } as Worker)),
+      findOne: jest.fn(
+        async () =>
+          ({
+            id: 'worker-b',
+            email: 'b@example.com',
+          }) as Worker,
+      ),
     } as never;
     const realtime = {
       emitTableUpdated: jest.fn(),
@@ -353,7 +341,11 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       loadShiftsForWorkOrders: jest.fn(async (ids: string[]) => {
         const map = new Map<string, unknown[]>();
         const current = saved.value;
-        if (current && ids.includes(current.id) && Array.isArray(current.shifts)) {
+        if (
+          current &&
+          ids.includes(current.id) &&
+          Array.isArray(current.shifts)
+        ) {
           map.set(current.id, current.shifts as unknown[]);
         }
         return map;
@@ -434,8 +426,16 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
               workerConfirmations: [
-                { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T10:00:00.000Z' },
-                { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T11:00:00.000Z' },
+                {
+                  workerId: 'worker-a',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T10:00:00.000Z',
+                },
+                {
+                  workerId: 'worker-b',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T11:00:00.000Z',
+                },
               ],
             },
           ],
@@ -477,11 +477,20 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       permissions: [],
     };
 
-    await service.updateMobileShiftConfirmation(actor, 'wo-1', 'shift-1', 'confirmed');
+    await service.updateMobileShiftConfirmation(
+      actor,
+      'wo-1',
+      'shift-1',
+      'confirmed',
+    );
 
     const role = saved.value!.shifts[0].roles[0];
-    const confirmations = (role as { workerConfirmations?: Array<{ workerId: string; status: string }> })
-      .workerConfirmations ?? [];
+    const confirmations =
+      (
+        role as {
+          workerConfirmations?: Array<{ workerId: string; status: string }>;
+        }
+      ).workerConfirmations ?? [];
 
     const a = confirmations.find((c) => c.workerId === 'worker-a');
     const b = confirmations.find((c) => c.workerId === 'worker-b');
@@ -551,9 +560,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       string,
       unknown
     >;
-    const clientRole = (
-      clientCopy.roles as Array<Record<string, unknown>>
-    )[0];
+    const clientRole = (clientCopy.roles as Array<Record<string, unknown>>)[0];
     delete clientRole.workerConfirmations;
 
     expect(() =>
@@ -662,8 +669,16 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
               workerConfirmations: [
-                { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T10:00:00.000Z' },
-                { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T11:00:00.000Z' },
+                {
+                  workerId: 'worker-a',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T10:00:00.000Z',
+                },
+                {
+                  workerId: 'worker-b',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T11:00:00.000Z',
+                },
               ],
             },
           ],
@@ -705,11 +720,19 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       permissions: [],
     };
 
-    await service.updateMobileAssignmentConfirmation(actor, 'wo-1', 'confirmed');
+    await service.updateMobileAssignmentConfirmation(
+      actor,
+      'wo-1',
+      'confirmed',
+    );
 
     const role = saved.value!.shifts[0].roles[0];
-    const confirmations = (role as { workerConfirmations?: Array<{ workerId: string; status: string }> })
-      .workerConfirmations ?? [];
+    const confirmations =
+      (
+        role as {
+          workerConfirmations?: Array<{ workerId: string; status: string }>;
+        }
+      ).workerConfirmations ?? [];
 
     const a = confirmations.find((c) => c.workerId === 'worker-a');
     const b = confirmations.find((c) => c.workerId === 'worker-b');
@@ -745,8 +768,16 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
               workerConfirmations: [
-                { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T10:00:00.000Z' },
-                { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T11:00:00.000Z' },
+                {
+                  workerId: 'worker-a',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T10:00:00.000Z',
+                },
+                {
+                  workerId: 'worker-b',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T11:00:00.000Z',
+                },
               ],
             },
           ],
@@ -767,8 +798,16 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
               requiredSkillIds: [],
               assignedWorkers: ['worker-a', 'worker-b'],
               workerConfirmations: [
-                { workerId: 'worker-a', status: 'confirmed', respondedAt: '2026-06-20T12:00:00.000Z' },
-                { workerId: 'worker-b', status: 'confirmed', respondedAt: '2026-06-20T13:00:00.000Z' },
+                {
+                  workerId: 'worker-a',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T12:00:00.000Z',
+                },
+                {
+                  workerId: 'worker-b',
+                  status: 'confirmed',
+                  respondedAt: '2026-06-20T13:00:00.000Z',
+                },
               ],
             },
           ],
@@ -810,19 +849,46 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       permissions: [],
     };
 
-    await service.updateMobileShiftConfirmation(actor, 'wo-1', 'shift-1', 'confirmed');
+    await service.updateMobileShiftConfirmation(
+      actor,
+      'wo-1',
+      'shift-1',
+      'confirmed',
+    );
 
-    const shift1 = saved.value!.shifts.find((s) => (s as { id?: string }).id === 'shift-1')!;
-    const shift2 = saved.value!.shifts.find((s) => (s as { id?: string }).id === 'shift-2')!;
+    const shift1 = saved.value!.shifts.find(
+      (s) => (s as { id?: string }).id === 'shift-1',
+    )!;
+    const shift2 = saved.value!.shifts.find(
+      (s) => (s as { id?: string }).id === 'shift-2',
+    )!;
     const role1 = shift1.roles[0];
     const role2 = shift2.roles[0];
-    const confs1 = (role1 as { workerConfirmations?: Array<{ workerId: string; status: string }> }).workerConfirmations ?? [];
-    const confs2 = (role2 as { workerConfirmations?: Array<{ workerId: string; status: string }> }).workerConfirmations ?? [];
+    const confs1 =
+      (
+        role1 as {
+          workerConfirmations?: Array<{ workerId: string; status: string }>;
+        }
+      ).workerConfirmations ?? [];
+    const confs2 =
+      (
+        role2 as {
+          workerConfirmations?: Array<{ workerId: string; status: string }>;
+        }
+      ).workerConfirmations ?? [];
 
-    expect(confs1.find((c) => c.workerId === 'worker-a')?.status).toBe('confirmed');
-    expect(confs1.find((c) => c.workerId === 'worker-b')?.status).toBe('confirmed');
-    expect(confs2.find((c) => c.workerId === 'worker-a')?.status).toBe('confirmed');
-    expect(confs2.find((c) => c.workerId === 'worker-b')?.status).toBe('confirmed');
+    expect(confs1.find((c) => c.workerId === 'worker-a')?.status).toBe(
+      'confirmed',
+    );
+    expect(confs1.find((c) => c.workerId === 'worker-b')?.status).toBe(
+      'confirmed',
+    );
+    expect(confs2.find((c) => c.workerId === 'worker-a')?.status).toBe(
+      'confirmed',
+    );
+    expect(confs2.find((c) => c.workerId === 'worker-b')?.status).toBe(
+      'confirmed',
+    );
   });
 });
 
@@ -869,7 +935,9 @@ describe('WorkOrdersService.findOne shifts merge', () => {
     const map = new Map<string, Record<string, unknown>[]>();
     if (opts.relationalShifts) map.set('wo-1', opts.relationalShifts);
     const shiftsQuery = {
-      loadShiftsForWorkOrder: jest.fn(async () => opts.relationalShifts ?? null),
+      loadShiftsForWorkOrder: jest.fn(
+        async () => opts.relationalShifts ?? null,
+      ),
       loadShiftsForWorkOrders: jest.fn(async () => map),
     } as never;
     const service = new WorkOrdersService(
@@ -902,13 +970,19 @@ describe('WorkOrdersService.findOne shifts merge', () => {
 
   it('returns an empty shifts array when no relational rows exist', async () => {
     const jsonShifts = [{ id: 'old', roles: [] }];
-    const { service } = makeService({ jsonShifts, relationalShifts: undefined });
+    const { service } = makeService({
+      jsonShifts,
+      relationalShifts: undefined,
+    });
     const result = await service.findOne('wo-1');
     expect(result.shifts).toEqual([]);
   });
 
   it('keeps the work order intact when relational query returns null', async () => {
-    const { service } = makeService({ jsonShifts: null, relationalShifts: null });
+    const { service } = makeService({
+      jsonShifts: null,
+      relationalShifts: null,
+    });
     const result = await service.findOne('wo-1');
     expect(result.id).toBe('wo-1');
     expect(result.shifts).toEqual([]);

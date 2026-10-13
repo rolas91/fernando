@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/** Manual shift status is optional until an administrator explicitly selects it. */
+                                                                                    
 export class MakeShiftStatusOptional20260712003000 implements MigrationInterface {
   name = 'MakeShiftStatusOptional20260712003000';
 

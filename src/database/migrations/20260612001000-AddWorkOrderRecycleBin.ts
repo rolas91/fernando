@@ -13,7 +13,11 @@ export class AddWorkOrderRecycleBin20260612001000 implements MigrationInterface 
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query('DROP INDEX IF EXISTS "IDX_work_orders_deleted_at"');
-    await queryRunner.query('ALTER TABLE "work_orders" DROP COLUMN IF EXISTS "deleted_at"');
+    await queryRunner.query(
+      'DROP INDEX IF EXISTS "IDX_work_orders_deleted_at"',
+    );
+    await queryRunner.query(
+      'ALTER TABLE "work_orders" DROP COLUMN IF EXISTS "deleted_at"',
+    );
   }
 }

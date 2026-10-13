@@ -33,6 +33,8 @@ export function typeOrmModuleOptions(
         ? synchronizeOverride
         : nodeEnv !== 'production',
     logging:
-      loggingOverride !== undefined ? loggingOverride : nodeEnv === 'development',
+      loggingOverride !== undefined
+        ? loggingOverride
+        : nodeEnv === 'development',
   };
 }

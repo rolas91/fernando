@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class FixCompletedWorkOrderStatusColor20260616001000
-  implements MigrationInterface
-{
+export class FixCompletedWorkOrderStatusColor20260616001000 implements MigrationInterface {
   name = 'FixCompletedWorkOrderStatusColor20260616001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

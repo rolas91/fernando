@@ -5,12 +5,12 @@ import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../../entities/work-order-shift-role-worker.entity';
 
-/**
- * Read-only query service for the relational representation of work order shifts.
- * Returns the shifts/roles/assignments from the new tables. Returns null when
- * the work order has no rows in the tables, so callers can render an empty
- * shifts list.
- */
+   
+                                                                                  
+                                                                              
+                                                                           
+               
+   
 @Injectable()
 export class ShiftsQueryService {
   private readonly logger = new Logger(ShiftsQueryService.name);
@@ -24,10 +24,10 @@ export class ShiftsQueryService {
     private readonly workerAssignmentsRepo: Repository<WorkOrderShiftRoleWorker>,
   ) {}
 
-  /**
-   * Returns the relational shifts for a work order, or null if no rows
-   * exist in the new tables (caller should fall back to the legacy JSON).
-   */
+     
+                                                                       
+                                                                          
+     
   async loadShiftsForWorkOrder(
     workOrderId: string,
   ): Promise<Record<string, unknown>[] | null> {
@@ -46,11 +46,11 @@ export class ShiftsQueryService {
       .getMany();
 
     const workerRows = await this.workerAssignmentsRepo
-        .createQueryBuilder('w')
-        .innerJoin('work_order_shift_roles', 'role', 'role.id = w.role_id')
-        .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
-        .where('shift.work_order_id = :workOrderId', { workOrderId })
-        .getMany();
+      .createQueryBuilder('w')
+      .innerJoin('work_order_shift_roles', 'role', 'role.id = w.role_id')
+      .innerJoin('work_order_shifts', 'shift', 'shift.id = role.shift_id')
+      .where('shift.work_order_id = :workOrderId', { workOrderId })
+      .getMany();
 
     const workerByRole = new Map<string, WorkOrderShiftRoleWorker[]>();
     for (const w of workerRows) {
@@ -91,9 +91,12 @@ export class ShiftsQueryService {
         requesterUserId: shift.requesterUserId ?? undefined,
         address: shift.address ?? undefined,
         crossStreetLocationDetail: shift.crossStreetLocationDetail ?? undefined,
-        addressLatitude: shift.addressLatitude, addressLongitude: shift.addressLongitude,
-        addressCity: shift.addressCity ?? undefined, addressState: shift.addressState ?? undefined,
-        addressZipCode: shift.addressZipCode ?? undefined, addressCountry: shift.addressCountry ?? undefined,
+        addressLatitude: shift.addressLatitude,
+        addressLongitude: shift.addressLongitude,
+        addressCity: shift.addressCity ?? undefined,
+        addressState: shift.addressState ?? undefined,
+        addressZipCode: shift.addressZipCode ?? undefined,
+        addressCountry: shift.addressCountry ?? undefined,
         requesterName: shift.requesterName ?? undefined,
         requesterPhone: shift.requesterPhone ?? undefined,
         requesterEmail: shift.requesterEmail ?? undefined,
@@ -105,7 +108,9 @@ export class ShiftsQueryService {
         plannedEquipment: [...(shift.plannedEquipment ?? [])],
         plannedMaterials: [...(shift.plannedMaterials ?? [])],
         workOrderTypes: [...(shift.workOrderTypes ?? [])],
-        workOrderAuthorizedWorkerIds: [...(shift.workOrderAuthorizedWorkerIds ?? [])],
+        workOrderAuthorizedWorkerIds: [
+          ...(shift.workOrderAuthorizedWorkerIds ?? []),
+        ],
         defaultRoleStartTime: shift.defaultRoleStartTime ?? undefined,
         shiftTemplateId: shift.shiftTemplateId ?? undefined,
         roles: roleList.map((role) => {
@@ -125,7 +130,8 @@ export class ShiftsQueryService {
               };
               if (w.requestedAt) out.requestedAt = w.requestedAt.toISOString();
               if (w.respondedAt) out.respondedAt = w.respondedAt.toISOString();
-              if (w.notificationChannel) out.notificationChannel = w.notificationChannel;
+              if (w.notificationChannel)
+                out.notificationChannel = w.notificationChannel;
               return out;
             }),
           };
@@ -134,17 +140,17 @@ export class ShiftsQueryService {
     });
   }
 
-  /** Returns true once the work order has any row in the new tables. */
+                                                                        
   async hasRelationalData(workOrderId: string): Promise<boolean> {
     const count = await this.shiftsRepo.count({ where: { workOrderId } });
     return count > 0;
   }
 
-  /**
-   * Batch version: returns a map workOrderId -> shifts[]|null. Work orders
-   * with no relational rows are omitted from the map so callers can fall
-   * back to the legacy JSON for them.
-   */
+     
+                                                                           
+                                                                         
+                                      
+     
   async loadShiftsForWorkOrders(
     workOrderIds: string[],
   ): Promise<Map<string, Record<string, unknown>[]>> {
@@ -220,10 +226,14 @@ export class ShiftsQueryService {
               : undefined,
             requesterUserId: shift.requesterUserId ?? undefined,
             address: shift.address ?? undefined,
-            crossStreetLocationDetail: shift.crossStreetLocationDetail ?? undefined,
-            addressLatitude: shift.addressLatitude, addressLongitude: shift.addressLongitude,
-            addressCity: shift.addressCity ?? undefined, addressState: shift.addressState ?? undefined,
-            addressZipCode: shift.addressZipCode ?? undefined, addressCountry: shift.addressCountry ?? undefined,
+            crossStreetLocationDetail:
+              shift.crossStreetLocationDetail ?? undefined,
+            addressLatitude: shift.addressLatitude,
+            addressLongitude: shift.addressLongitude,
+            addressCity: shift.addressCity ?? undefined,
+            addressState: shift.addressState ?? undefined,
+            addressZipCode: shift.addressZipCode ?? undefined,
+            addressCountry: shift.addressCountry ?? undefined,
             requesterName: shift.requesterName ?? undefined,
             requesterPhone: shift.requesterPhone ?? undefined,
             requesterEmail: shift.requesterEmail ?? undefined,
@@ -235,7 +245,9 @@ export class ShiftsQueryService {
             plannedEquipment: [...(shift.plannedEquipment ?? [])],
             plannedMaterials: [...(shift.plannedMaterials ?? [])],
             workOrderTypes: [...(shift.workOrderTypes ?? [])],
-            workOrderAuthorizedWorkerIds: [...(shift.workOrderAuthorizedWorkerIds ?? [])],
+            workOrderAuthorizedWorkerIds: [
+              ...(shift.workOrderAuthorizedWorkerIds ?? []),
+            ],
             defaultRoleStartTime: shift.defaultRoleStartTime ?? undefined,
             shiftTemplateId: shift.shiftTemplateId ?? undefined,
             roles: roleList.map((role) => {
@@ -253,8 +265,10 @@ export class ShiftsQueryService {
                     workerId: w.workerId,
                     status: w.confirmationStatus,
                   };
-                  if (w.requestedAt) conf.requestedAt = w.requestedAt.toISOString();
-                  if (w.respondedAt) conf.respondedAt = w.respondedAt.toISOString();
+                  if (w.requestedAt)
+                    conf.requestedAt = w.requestedAt.toISOString();
+                  if (w.respondedAt)
+                    conf.respondedAt = w.respondedAt.toISOString();
                   if (w.notificationChannel)
                     conf.notificationChannel = w.notificationChannel;
                   return conf;

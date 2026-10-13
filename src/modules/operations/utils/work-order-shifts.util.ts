@@ -67,15 +67,16 @@ function asPositiveInt(value: unknown, fallback = 1): number {
   return fallback;
 }
 
-function sanitizeConfirmation(
-  value: unknown,
-): ShiftWorkerConfirmation | null {
+function sanitizeConfirmation(value: unknown): ShiftWorkerConfirmation | null {
   const record = asObject(value);
-  const workerId = typeof record.workerId === 'string' ? record.workerId.trim() : '';
+  const workerId =
+    typeof record.workerId === 'string' ? record.workerId.trim() : '';
   if (!workerId) return null;
 
   const rawStatus =
-    typeof record.status === 'string' ? record.status.trim().toLowerCase() : 'pending';
+    typeof record.status === 'string'
+      ? record.status.trim().toLowerCase()
+      : 'pending';
   const status: ShiftConfirmationStatus =
     rawStatus === 'confirmed' || rawStatus === 'declined'
       ? (rawStatus as ShiftConfirmationStatus)
@@ -151,12 +152,12 @@ export function normalizeWorkOrderShifts(
       );
       const requiredSkillIds = asStringArray(roleRecord.requiredSkillIds);
 
-      /**
-       * Resolve the previous role so we can preserve workerConfirmations across
-       * edits. Match by id first, then fall back to (roleName + assignedWorkers
-       * intersection) when the frontend regenerates role ids. This protects
-       * confirmation state from being silently reset by re-id'd roles.
-       */
+         
+                                                                                
+                                                                                
+                                                                            
+                                                                       
+         
       const previousRole = roleId ? previousRoleById.get(roleId) : undefined;
       let resolvedPrevious = previousRole;
       if (!resolvedPrevious && typeof roleRecord.roleName === 'string') {
@@ -165,7 +166,10 @@ export function normalizeWorkOrderShifts(
         const fallback = previousRoles.find((pr) => {
           if (!pr || typeof pr !== 'object') return false;
           const name = (pr as { roleName?: unknown }).roleName;
-          if (typeof name !== 'string' || name.trim().toLowerCase() !== incomingName) {
+          if (
+            typeof name !== 'string' ||
+            name.trim().toLowerCase() !== incomingName
+          ) {
             return false;
           }
           const prevWorkers = asStringArray(
@@ -177,7 +181,9 @@ export function normalizeWorkOrderShifts(
         if (fallback) resolvedPrevious = fallback as ShiftRoleLike;
       }
 
-      const existingConfirmations = Array.isArray(resolvedPrevious?.workerConfirmations)
+      const existingConfirmations = Array.isArray(
+        resolvedPrevious?.workerConfirmations,
+      )
         ? resolvedPrevious?.workerConfirmations
         : Array.isArray(roleRecord.workerConfirmations)
           ? roleRecord.workerConfirmations
@@ -192,7 +198,10 @@ export function normalizeWorkOrderShifts(
       const isNewShift = !previousShift;
       const workerConfirmations = assignedWorkers.map((workerId) => {
         if (isNewShift) return buildPendingConfirmation(workerId);
-        return confirmationsByWorker.get(workerId) || buildPendingConfirmation(workerId);
+        return (
+          confirmationsByWorker.get(workerId) ||
+          buildPendingConfirmation(workerId)
+        );
       });
       void resolvedPrevious;
 
@@ -217,11 +226,11 @@ export function normalizeWorkOrderShifts(
   });
 }
 
-/**
- * A date change makes every earlier worker response stale. Reset the full
- * confirmation request/response history so the normal status calculation
- * returns Ready to Notify until dispatch sends the updated shift again.
- */
+   
+                                                                          
+                                                                         
+                                                                        
+   
 export function invalidateConfirmationsForChangedShiftDates(
   shifts: unknown,
   previousShifts: unknown,
@@ -274,7 +283,7 @@ export function invalidateConfirmationsForChangedShiftDates(
   });
 }
 
-/** Places newly-created shifts before existing shifts on the same date. */
+                                                                           
 export function placeNewShiftsFirstWithinDates(
   shifts: Record<string, unknown>[],
   previousShifts: unknown,
@@ -288,7 +297,10 @@ export function placeNewShiftsFirstWithinDates(
 
   const groups = new Map<
     string,
-    { newlyCreated: Record<string, unknown>[]; existing: Record<string, unknown>[] }
+    {
+      newlyCreated: Record<string, unknown>[];
+      existing: Record<string, unknown>[];
+    }
   >();
   shifts.forEach((shift) => {
     const date = typeof shift.date === 'string' ? shift.date : '';
@@ -318,7 +330,8 @@ export function updateShiftWorkerConfirmation(
   const normalized = normalizeWorkOrderShifts(shifts, shifts);
 
   return normalized.map((shift) => {
-    if (shift.id !== target.shiftId || !Array.isArray(shift.roles)) return shift;
+    if (shift.id !== target.shiftId || !Array.isArray(shift.roles))
+      return shift;
 
     return {
       ...shift,
@@ -329,13 +342,16 @@ export function updateShiftWorkerConfirmation(
         const assignedWorkers = asStringArray(roleRecord.assignedWorkers);
         if (!assignedWorkers.includes(target.workerId)) return roleRecord;
 
-        const workerConfirmations = Array.isArray(roleRecord.workerConfirmations)
+        const workerConfirmations = Array.isArray(
+          roleRecord.workerConfirmations,
+        )
           ? roleRecord.workerConfirmations
           : [];
 
         const nextConfirmations = workerConfirmations.map((entry) => {
           const parsed = sanitizeConfirmation(entry);
-          if (!parsed || parsed.workerId !== target.workerId) return parsed || entry;
+          if (!parsed || parsed.workerId !== target.workerId)
+            return parsed || entry;
           return {
             ...parsed,
             ...updates,
@@ -357,7 +373,9 @@ export function preserveOtherWorkerConfirmations(
   snapshot: Map<string, Map<string, Map<string, ShiftWorkerConfirmation>>>,
   target: { shiftId: string; roleId: string; workerId: string },
 ): Record<string, unknown>[] {
-  const list = Array.isArray(shifts) ? (shifts as Record<string, unknown>[]) : [];
+  const list = Array.isArray(shifts)
+    ? (shifts as Record<string, unknown>[])
+    : [];
   return list.map((shift) => {
     const shiftId = typeof shift.id === 'string' ? shift.id : '';
     if (shiftId !== target.shiftId || !Array.isArray(shift.roles)) return shift;
@@ -370,7 +388,9 @@ export function preserveOtherWorkerConfirmations(
         const roleSnapshot = snapshot.get(target.shiftId)?.get(roleId);
         if (!roleSnapshot || roleSnapshot.size === 0) return roleRecord;
 
-        const currentConfirmations = Array.isArray(roleRecord.workerConfirmations)
+        const currentConfirmations = Array.isArray(
+          roleRecord.workerConfirmations,
+        )
           ? (roleRecord.workerConfirmations as Record<string, unknown>[])
           : [];
         const currentByWorker = new Map<string, Record<string, unknown>>();
@@ -412,8 +432,13 @@ export function preserveOtherWorkerConfirmations(
 export function snapshotWorkerConfirmations(
   shifts: unknown,
 ): Map<string, Map<string, Map<string, ShiftWorkerConfirmation>>> {
-  const result = new Map<string, Map<string, Map<string, ShiftWorkerConfirmation>>>();
-  const list = Array.isArray(shifts) ? (shifts as Record<string, unknown>[]) : [];
+  const result = new Map<
+    string,
+    Map<string, Map<string, ShiftWorkerConfirmation>>
+  >();
+  const list = Array.isArray(shifts)
+    ? (shifts as Record<string, unknown>[])
+    : [];
   for (const shift of list) {
     const shiftId = typeof shift.id === 'string' ? shift.id : '';
     if (!shiftId || !Array.isArray(shift.roles)) continue;

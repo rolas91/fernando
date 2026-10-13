@@ -35,7 +35,12 @@ export class Notification {
   @Column({ name: 'worker_id', type: 'varchar', length: 64, nullable: true })
   workerId: string | null;
 
-  @Column({ name: 'work_order_id', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'work_order_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   workOrderId: string | null;
 
   @Column({ name: 'shift_id', type: 'varchar', length: 64, nullable: true })
@@ -44,7 +49,12 @@ export class Notification {
   @Column({ name: 'role_id', type: 'varchar', length: 64, nullable: true })
   roleId: string | null;
 
-  @Column({ name: 'delivery_status', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'delivery_status',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   deliveryStatus: string | null;
 
   @Column({ name: 'provider_message_id', type: 'text', nullable: true })

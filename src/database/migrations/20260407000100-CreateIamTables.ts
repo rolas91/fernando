@@ -10,7 +10,7 @@ export class CreateIamTables20260407000100 implements MigrationInterface {
   name = 'CreateIamTables20260407000100';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // For uuid_generate_v4() (PrimaryGeneratedColumn('uuid'))
+                                                              
     await queryRunner.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
 
     const hasUsers = await queryRunner.hasTable('users');
@@ -287,7 +287,7 @@ export class CreateIamTables20260407000100 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Drop join tables first (FK dependencies)
+                                               
     const hasUserRoles = await queryRunner.hasTable('user_roles');
     if (hasUserRoles) await queryRunner.dropTable('user_roles', true);
 

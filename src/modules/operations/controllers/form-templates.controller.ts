@@ -24,16 +24,25 @@ import { ShiftWorkOrderAccessService } from '../services/shift-work-order-access
 type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
 function normalizedTemplateText(value: string | undefined) {
-  return (value || '').trim().toLowerCase().replace(/[_\s-]+/g, ' ');
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s-]+/g, ' ');
 }
 
 function templateCategoryKey(template: { category?: string; name?: string }) {
   const category = normalizedTemplateText(template.category);
   const name = normalizedTemplateText(template.name);
-  if (category.includes('timesheet') || category.includes('time sheet') || name.includes('timesheet') || name.includes('time sheet')) {
+  if (
+    category.includes('timesheet') ||
+    category.includes('time sheet') ||
+    name.includes('timesheet') ||
+    name.includes('time sheet')
+  ) {
     return 'timesheet';
   }
-  if (category.includes('incident') || name.includes('incident')) return 'incident';
+  if (category.includes('incident') || name.includes('incident'))
+    return 'incident';
   if (
     category.includes('work order') ||
     category.includes('workorder') ||
@@ -63,13 +72,10 @@ export class FormTemplatesController {
     @Query('shiftId') shiftId?: string,
     @Req() req?: ReqWithOpsUser,
   ) {
-    const filterForActor = (templates: Awaited<ReturnType<FormTemplatesService['findAll']>>) =>
-      this.filterTemplatesForActor(
-        templates,
-        req?.user,
-        workOrderId,
-        shiftId,
-      );
+    const filterForActor = (
+      templates: Awaited<ReturnType<FormTemplatesService['findAll']>>,
+    ) =>
+      this.filterTemplatesForActor(templates, req?.user, workOrderId, shiftId);
     if (projectId || role || workOrderId || shiftId) {
       return this.service
         .findAssigned({ projectId, role, workOrderId, shiftId })
@@ -78,10 +84,10 @@ export class FormTemplatesController {
     return this.service.findAll().then(filterForActor);
   }
 
-  /**
-   * Devuelve valores sugeridos por campo según dataBinding y la assignment (work order).
-   * Query: workOrderId (obligatorio), shiftId (opcional, para rutas shift.*).
-   */
+     
+                                                                                         
+                                                                              
+     
   @Get(':id/context-preview')
   async contextPreview(
     @Param('id') id: string,
@@ -94,16 +100,26 @@ export class FormTemplatesController {
     if (!w) {
       throw new BadRequestException('workOrderId query parameter is required');
     }
-    const preview = await this.contextResolution.previewTemplateForWorkOrder(id, w, shiftId, req?.user, {
-      timesheetScope: timesheetScope === 'own' || timesheetScope === 'all' ? timesheetScope : undefined,
-    });
+    const preview = await this.contextResolution.previewTemplateForWorkOrder(
+      id,
+      w,
+      shiftId,
+      req?.user,
+      {
+        timesheetScope:
+          timesheetScope === 'own' || timesheetScope === 'all'
+            ? timesheetScope
+            : undefined,
+      },
+    );
     return {
       ...preview,
-      canManageWorkOrder: await this.shiftWorkOrderAccess.canManageShiftWorkOrder(
-        req?.user,
-        w,
-        shiftId,
-      ),
+      canManageWorkOrder:
+        await this.shiftWorkOrderAccess.canManageShiftWorkOrder(
+          req?.user,
+          w,
+          shiftId,
+        ),
     };
   }
 
@@ -145,8 +161,10 @@ export class FormTemplatesController {
       );
     return templates.filter((template) => {
       const category = templateCategoryKey(template);
-      if (category === 'timesheet') return actor.permissions.includes('mobile.timesheets.submit');
-      if (category === 'incident') return actor.permissions.includes('mobile.incidents.submit');
+      if (category === 'timesheet')
+        return actor.permissions.includes('mobile.timesheets.submit');
+      if (category === 'incident')
+        return actor.permissions.includes('mobile.incidents.submit');
       if (category === 'workorder') {
         return (
           actor.permissions.includes('mobile.work-orders.submit') ||

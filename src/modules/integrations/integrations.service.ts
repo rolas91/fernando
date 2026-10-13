@@ -255,24 +255,32 @@ export class IntegrationsService {
   }
 
   async notifyShiftCancellation(workOrderId: string, shiftId: string) {
-    const workOrder = await this.workOrdersRepo.findOne({ where: { id: workOrderId } });
+    const workOrder = await this.workOrdersRepo.findOne({
+      where: { id: workOrderId },
+    });
     if (!workOrder) return { attempted: 0, sent: 0 };
 
     const shifts = await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId);
-    const shift = (shifts || []).find((item: any) => item.id === shiftId) as any;
+    const shift = (shifts || []).find(
+      (item: any) => item.id === shiftId,
+    ) as any;
     if (!shift) return { attempted: 0, sent: 0 };
 
     const workersById = new Map<string, { startTime: string }>();
     for (const role of shift.roles || []) {
-      const startTime = role.startTime || shift.defaultRoleStartTime || shift.startTime;
+      const startTime =
+        role.startTime || shift.defaultRoleStartTime || shift.startTime;
       for (const workerId of role.assignedWorkers || []) {
-        if (!workersById.has(workerId)) workersById.set(workerId, { startTime });
+        if (!workersById.has(workerId))
+          workersById.set(workerId, { startTime });
       }
     }
 
     let sent = 0;
     for (const [workerId, details] of workersById) {
-      const worker = await this.workersRepo.findOne({ where: { id: workerId } });
+      const worker = await this.workersRepo.findOne({
+        where: { id: workerId },
+      });
       if (!worker) continue;
       const message = `Shift Cancelled\n\nYour scheduled shift for ${workOrder.title} on ${shift.date} at ${details.startTime} has been cancelled.\n\nYou are no longer assigned to this shift. If you have any questions, please contact dispatch`;
       const result = await this.sendNotification(
@@ -304,7 +312,9 @@ export class IntegrationsService {
     projectName: string;
     shiftName: string;
   }): Promise<NotificationResult> {
-    const worker = await this.workersRepo.findOne({ where: { id: params.workerId } });
+    const worker = await this.workersRepo.findOne({
+      where: { id: params.workerId },
+    });
     const tokens = (worker?.fcmTokens || []).filter((token) => token.trim());
     if (tokens.length === 0) {
       return {
@@ -373,7 +383,9 @@ export class IntegrationsService {
         success: false,
         simulated: false,
         channel: 'in_app',
-        error: sendResults.find((item) => !item.ok)?.error || 'Could not deliver the chat notifications.',
+        error:
+          sendResults.find((item) => !item.ok)?.error ||
+          'Could not deliver the chat notifications.',
       };
     }
 
@@ -381,16 +393,20 @@ export class IntegrationsService {
       success: true,
       simulated: false,
       channel: 'in_app',
-      messageId: sent.map((item) => item.name).filter(Boolean).join(','),
+      messageId: sent
+        .map((item) => item.name)
+        .filter(Boolean)
+        .join(','),
     };
   }
 
   async handleTwilioStatusCallback(payload: TwilioStatusCallbackPayload) {
     const messageSid = payload.MessageSid || payload.SmsSid || null;
     const status = payload.MessageStatus || payload.SmsStatus || null;
-    const errorParts = [payload.ErrorCode, payload.ErrorMessage].filter(Boolean);
-    const errorMessage =
-      errorParts.length > 0 ? errorParts.join(': ') : null;
+    const errorParts = [payload.ErrorCode, payload.ErrorMessage].filter(
+      Boolean,
+    );
+    const errorMessage = errorParts.length > 0 ? errorParts.join(': ') : null;
 
     this.logger.log(
       `Twilio status callback received sid=${messageSid || 'unknown'} status=${status || 'unknown'} to=${payload.To || 'unknown'} error=${errorMessage || 'none'}`,
@@ -438,14 +454,19 @@ export class IntegrationsService {
     };
   }
 
-  async confirmShiftAssignment(token: string): Promise<ConfirmationRenderResult> {
-    const confirmation = await this.confirmationsRepo.findOne({ where: { token } });
+  async confirmShiftAssignment(
+    token: string,
+  ): Promise<ConfirmationRenderResult> {
+    const confirmation = await this.confirmationsRepo.findOne({
+      where: { token },
+    });
     if (!confirmation) {
       return {
         httpStatus: 404,
         state: 'invalid',
         title: 'Confirmation link invalid',
-        description: 'This confirmation link does not exist or is no longer available.',
+        description:
+          'This confirmation link does not exist or is no longer available.',
       };
     }
 
@@ -457,16 +478,16 @@ export class IntegrationsService {
         httpStatus: 404,
         state: 'invalid',
         title: 'Shift not found',
-        description: 'The linked assignment no longer exists, so this confirmation cannot be applied.',
+        description:
+          'The linked assignment no longer exists, so this confirmation cannot be applied.',
       };
     }
 
-    const shifts = (await this.shiftsQuery.loadShiftsForWorkOrder(
-      workOrder.id,
-    )) ?? [];
-    const shift = shifts.find((item: any) => item?.id === confirmation.shiftId) as
-      | Record<string, any>
-      | undefined;
+    const shifts =
+      (await this.shiftsQuery.loadShiftsForWorkOrder(workOrder.id)) ?? [];
+    const shift = shifts.find(
+      (item: any) => item?.id === confirmation.shiftId,
+    ) as Record<string, any> | undefined;
     const role = Array.isArray(shift?.roles)
       ? shift?.roles.find((item: any) => item?.id === confirmation.roleId)
       : undefined;
@@ -485,7 +506,8 @@ export class IntegrationsService {
         httpStatus: 409,
         state: 'invalid',
         title: 'Assignment changed',
-        description: 'This worker is no longer assigned to that shift, so the confirmation was not applied.',
+        description:
+          'This worker is no longer assigned to that shift, so the confirmation was not applied.',
         workerName,
       };
     }
@@ -521,8 +543,7 @@ export class IntegrationsService {
             'The shift date changed and this confirmation link expired. Please use the newest notification to confirm your availability.',
           workerName,
           projectName: workOrder.title,
-          shiftDate:
-            typeof shift.date === 'string' ? shift.date : undefined,
+          shiftDate: typeof shift.date === 'string' ? shift.date : undefined,
         };
       }
     }
@@ -623,7 +644,9 @@ export class IntegrationsService {
           ${
             meta.length > 0
               ? `<ul>${meta
-                  .map((entry) => `<li>${this.escapeHtml(entry as string)}</li>`)
+                  .map(
+                    (entry) => `<li>${this.escapeHtml(entry as string)}</li>`,
+                  )
                   .join('')}</ul>`
               : ''
           }
@@ -643,8 +666,17 @@ export class IntegrationsService {
     let confirmationUrl: string | undefined;
     let confirmationRequest: PreparedConfirmationRequest | undefined;
 
-    if (body.confirmation?.workOrderId && body.confirmation.shiftId && body.confirmation.roleId && body.confirmation.workerId) {
-      const prepared = await this.prepareConfirmationLink(body, baseUrl, action);
+    if (
+      body.confirmation?.workOrderId &&
+      body.confirmation.shiftId &&
+      body.confirmation.roleId &&
+      body.confirmation.workerId
+    ) {
+      const prepared = await this.prepareConfirmationLink(
+        body,
+        baseUrl,
+        action,
+      );
       message = prepared.message;
       confirmationUrl = prepared.confirmationUrl;
       confirmationRequest = prepared.confirmationRequest;
@@ -672,12 +704,11 @@ export class IntegrationsService {
       throw new Error(`Assignment ${confirmation.workOrderId} was not found.`);
     }
 
-    const shifts = (await this.shiftsQuery.loadShiftsForWorkOrder(
-      workOrder.id,
-    )) ?? [];
-    const shift = shifts.find((item: any) => item?.id === confirmation.shiftId) as
-      | Record<string, any>
-      | undefined;
+    const shifts =
+      (await this.shiftsQuery.loadShiftsForWorkOrder(workOrder.id)) ?? [];
+    const shift = shifts.find(
+      (item: any) => item?.id === confirmation.shiftId,
+    ) as Record<string, any> | undefined;
     const role = Array.isArray(shift?.roles)
       ? shift?.roles.find((item: any) => item?.id === confirmation.roleId)
       : undefined;
@@ -686,7 +717,9 @@ export class IntegrationsService {
       : [];
 
     if (!shift || !role || !assignedWorkers.includes(confirmation.workerId)) {
-      throw new Error('The selected worker is no longer assigned to that shift.');
+      throw new Error(
+        'The selected worker is no longer assigned to that shift.',
+      );
     }
 
     const token = this.generateConfirmationToken();
@@ -897,7 +930,9 @@ export class IntegrationsService {
     });
   }
 
-  private formatTwilioWhatsappParticipant(raw: string | undefined): string | null {
+  private formatTwilioWhatsappParticipant(
+    raw: string | undefined,
+  ): string | null {
     if (!raw?.trim()) return null;
     let s = raw.trim();
     const lowerPrefix = 'whatsapp:';
@@ -918,28 +953,26 @@ export class IntegrationsService {
     return `${lowerPrefix}${e164}`;
   }
 
-  /** WhatsApp-enabled sender from env, or SMS From prefixed with whatsapp:. */
+                                                                               
   private resolveTwilioWhatsAppFromAddress(): string {
     const explicit = (process.env.TWILIO_WHATSAPP_FROM || '').trim();
     const fallback = (process.env.TWILIO_FROM_NUMBER || '').trim();
-    return (
-      this.formatTwilioWhatsappParticipant(explicit || fallback) || ''
-    );
+    return this.formatTwilioWhatsappParticipant(explicit || fallback) || '';
   }
 
-  /** Twilio/WhatsApp: max length per Content variable (see Content API docs). */
+                                                                                 
   private capContentVar(value: string): string {
     const max = Number(process.env.TWILIO_WHATSAPP_CONTENT_VAR_MAX_LEN || 1600);
     const n = Number.isFinite(max) && max > 0 ? Math.min(max, 4096) : 1600;
     return value.slice(0, n);
   }
 
-  /**
-   * Builds ContentVariables for an approved WhatsApp Content template (fixes error 63016 outside 24h session).
-   * TWILIO_WHATSAPP_TEMPLATE_VAR_MODE:
-   * - full (default): {"1": entire message} — template body must use a single variable for the text.
-   * - split: {"1": workerName, "2": message without link line, "3": confirmation URL} — match a 3-variable template.
-   */
+     
+                                                                                                               
+                                       
+                                                                                                     
+                                                                                                                     
+     
   private buildWhatsAppContentVariables(
     body: NotificationBody & { confirmationUrl?: string },
   ): Record<string, string> {
@@ -947,14 +980,17 @@ export class IntegrationsService {
       .trim()
       .toLowerCase();
     const msg = (body.message || 'Notification').trim();
-    const url = (body as { confirmationUrl?: string }).confirmationUrl?.trim() || '';
+    const url =
+      (body as { confirmationUrl?: string }).confirmationUrl?.trim() || '';
     const name = (body.workerName || 'Worker').trim();
 
     if (mode === 'split') {
       let textWithoutLink = msg;
       if (url && msg.includes(url)) {
         textWithoutLink = msg.replace(url, '').trim();
-        textWithoutLink = textWithoutLink.replace(/\s*Confirm your shift here:\s*$/i, '').trim();
+        textWithoutLink = textWithoutLink
+          .replace(/\s*Confirm your shift here:\s*$/i, '')
+          .trim();
       }
       return {
         '1': this.capContentVar(name),
@@ -1020,7 +1056,8 @@ export class IntegrationsService {
         success: false,
         simulated: false,
         channel,
-        error: 'Could not send the message. Please try again or contact your administrator.',
+        error:
+          'Could not send the message. Please try again or contact your administrator.',
       };
     }
     const responseBody = (await res.json()) as {
@@ -1058,7 +1095,13 @@ export class IntegrationsService {
         error: 'Worker email is missing.',
       };
     }
-    if (!host || !user || !pass || host.includes('placeholder') || user.includes('placeholder')) {
+    if (
+      !host ||
+      !user ||
+      !pass ||
+      host.includes('placeholder') ||
+      user.includes('placeholder')
+    ) {
       return {
         success: true,
         simulated: true,
@@ -1171,7 +1214,10 @@ export class IntegrationsService {
       success: true,
       simulated: false,
       channel: 'in_app',
-      messageId: sent.map((item) => item.name).filter(Boolean).join(','),
+      messageId: sent
+        .map((item) => item.name)
+        .filter(Boolean)
+        .join(','),
       confirmationUrl: body.confirmationUrl,
     };
   }

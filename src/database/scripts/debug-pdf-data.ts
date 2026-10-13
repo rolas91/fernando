@@ -61,13 +61,17 @@ async function main() {
     const status = !r.workOrderExists
       ? '❌ WORK ORDER MISSING'
       : !r.shiftExistsInTable
-      ? '❌ SHIFT MISSING IN RELATIONAL TABLE'
-      : r.shiftsFoundForWorkOrder === 0
-      ? '❌ WORK ORDER HAS NO SHIFTS'
-      : '✅';
+        ? '❌ SHIFT MISSING IN RELATIONAL TABLE'
+        : r.shiftsFoundForWorkOrder === 0
+          ? '❌ WORK ORDER HAS NO SHIFTS'
+          : '✅';
     console.log(`${status} ${r.submissionId}`);
-    console.log(`   workOrderId: ${r.workOrderId || '(none)'} | exists=${r.workOrderExists}`);
-    console.log(`   shiftId:     ${r.shiftId || '(none)'} | existsInTable=${r.shiftExistsInTable}`);
+    console.log(
+      `   workOrderId: ${r.workOrderId || '(none)'} | exists=${r.workOrderExists}`,
+    );
+    console.log(
+      `   shiftId:     ${r.shiftId || '(none)'} | existsInTable=${r.shiftExistsInTable}`,
+    );
     console.log(`   shifts for WO: ${r.shiftsFoundForWorkOrder}`);
     console.log(`   pdfUrl:      ${r.pdfUrl || '(none)'}`);
     console.log('');

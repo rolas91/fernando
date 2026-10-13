@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class SetNoLunchCreditToOvertime20260708001000
-  implements MigrationInterface
-{
+export class SetNoLunchCreditToOvertime20260708001000 implements MigrationInterface {
   name = 'SetNoLunchCreditToOvertime20260708001000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

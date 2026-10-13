@@ -7,7 +7,7 @@ export class CreatePermissionDto {
   @MinLength(3)
   key: string;
 
-  @ApiPropertyOptional({ example: 'Administrar roles/permisos' })
+  @ApiPropertyOptional({ example: 'Manage roles/permissions' })
   @IsOptional()
   @IsString()
   description?: string;

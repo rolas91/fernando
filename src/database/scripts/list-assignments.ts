@@ -63,7 +63,9 @@ async function main() {
     ORDER BY ws.date, r.role_name, worker_name
   `);
   for (const d of details) {
-    console.log(`  ${d.order_number} ${d.shift_date} ${d.role_name}: ${d.worker_name} → ${d.confirmation_status}${d.responded_at ? ' (' + d.responded_at.toISOString().slice(0, 10) + ')' : ''}`);
+    console.log(
+      `  ${d.order_number} ${d.shift_date} ${d.role_name}: ${d.worker_name} → ${d.confirmation_status}${d.responded_at ? ' (' + d.responded_at.toISOString().slice(0, 10) + ')' : ''}`,
+    );
   }
 
   if (AppDataSource.isInitialized) await AppDataSource.destroy();

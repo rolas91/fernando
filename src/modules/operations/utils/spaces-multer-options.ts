@@ -15,9 +15,7 @@ type MulterLikeFile = {
 
 export function createSpacesUploadMulterOptions(
   scope: SpacesUploadScope,
-  maxBytes = parseSpacesUploadMaxBytes(
-    process.env.SPACES_UPLOAD_MAX_BYTES,
-  ),
+  maxBytes = parseSpacesUploadMaxBytes(process.env.SPACES_UPLOAD_MAX_BYTES),
 ) {
   return {
     storage: multer.memoryStorage(),
@@ -36,7 +34,7 @@ export function createSpacesUploadMulterOptions(
       if (!normalized) {
         cb(
           new BadRequestException(
-            `Tipo de archivo no permitido (${raw || 'vacío'}).`,
+            `File type not allowed (${raw || 'empty'}).`,
           ),
           false,
         );

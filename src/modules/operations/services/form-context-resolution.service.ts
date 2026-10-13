@@ -312,10 +312,6 @@ export class FormContextResolutionService {
     private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
   ) {}
 
-     
-                                                                                          
-                                                                 
-     
   async previewTemplateForWorkOrder(
     templateId: string,
     workOrderId: string,
@@ -324,7 +320,7 @@ export class FormContextResolutionService {
     options?: { timesheetScope?: TimesheetScope },
   ) {
     const template = await this.formTemplates.findOne(templateId);
-    const fields = normalizeFormFields(template.fields) as DynamicFormField[];
+    const fields = normalizeFormFields(template.fields);
     const workOrder = await this.workOrders.findOne(workOrderId);
 
     const project =
@@ -748,9 +744,9 @@ export class FormContextResolutionService {
     actor?: UserAccessContext,
     timesheetScope?: TimesheetScope,
   ): Promise<Record<string, unknown>[]> {
-    const timesheetField = (
-      normalizeFormFields(template.fields) as DynamicFormField[]
-    ).find((field) => field.type === 'timesheet');
+    const timesheetField = normalizeFormFields(template.fields).find(
+      (field) => field.type === 'timesheet',
+    );
     const configuredLunchDefault = timesheetField?.ui?.lunchTakenDefault;
     let workerIds = collectRoleIds(shift, 'assignedWorkers');
     const workerIdForActor = await this.resolveWorkerIdForActor(actor);

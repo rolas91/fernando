@@ -55,11 +55,6 @@ export class CompanySettings {
   @Column({ name: 'work_order_pdf_builder', type: 'jsonb', nullable: true })
   workOrderPdfBuilder: Record<string, unknown> | null;
 
-    
-                                                                            
-                                                                   
-     
-
   @Column({
     name: 'minimum_rest_hours',
     type: 'numeric',

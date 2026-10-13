@@ -129,7 +129,6 @@ async function bootstrap() {
       swaggerOptions: { persistAuthorization: true },
     });
 
-                                         
     SwaggerModule.setup('docs-json', app, document);
   }
 

@@ -5,12 +5,6 @@ import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../../entities/work-order-shift-role-worker.entity';
 
-   
-                                                                                  
-                                                                              
-                                                                           
-               
-   
 @Injectable()
 export class ShiftsQueryService {
   private readonly logger = new Logger(ShiftsQueryService.name);
@@ -24,10 +18,6 @@ export class ShiftsQueryService {
     private readonly workerAssignmentsRepo: Repository<WorkOrderShiftRoleWorker>,
   ) {}
 
-     
-                                                                       
-                                                                          
-     
   async loadShiftsForWorkOrder(
     workOrderId: string,
   ): Promise<Record<string, unknown>[] | null> {
@@ -140,17 +130,11 @@ export class ShiftsQueryService {
     });
   }
 
-                                                                        
   async hasRelationalData(workOrderId: string): Promise<boolean> {
     const count = await this.shiftsRepo.count({ where: { workOrderId } });
     return count > 0;
   }
 
-     
-                                                                           
-                                                                         
-                                      
-     
   async loadShiftsForWorkOrders(
     workOrderIds: string[],
   ): Promise<Map<string, Record<string, unknown>[]>> {

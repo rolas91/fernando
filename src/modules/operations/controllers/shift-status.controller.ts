@@ -44,21 +44,11 @@ export class ShiftStatusController {
     }
   }
 
-     
-                                           
-                                                                             
-                                                          
-     
   @Get('status-catalog')
   listStatusCatalog() {
     return this.shiftStatus.listShiftStatuses();
   }
 
-     
-                                                                
-                                                                      
-                                                                       
-     
   @Get('stats')
   @ApiQuery({ name: 'from', required: false, type: String })
   @ApiQuery({ name: 'to', required: false, type: String })
@@ -66,11 +56,6 @@ export class ShiftStatusController {
     return this.shiftStatus.computeStats({ from, to });
   }
 
-     
-                                                           
-                                                    
-                                                             
-     
   @Patch(':workOrderId/:shiftId/status')
   @ApiBody({
     schema: {
@@ -95,11 +80,6 @@ export class ShiftStatusController {
     return updated;
   }
 
-     
-                                                          
-                                                                  
-                                               
-     
   @Post(':workOrderId/:shiftId/cancel')
   async cancelShift(
     @Param('workOrderId') workOrderId: string,
@@ -118,10 +98,6 @@ export class ShiftStatusController {
     return { shift: updated, notifications };
   }
 
-     
-                                                           
-                                    
-     
   @Post(':workOrderId/:shiftId/restore')
   async restoreShift(
     @Param('workOrderId') workOrderId: string,

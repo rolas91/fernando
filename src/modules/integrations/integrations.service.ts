@@ -953,26 +953,18 @@ export class IntegrationsService {
     return `${lowerPrefix}${e164}`;
   }
 
-                                                                               
   private resolveTwilioWhatsAppFromAddress(): string {
     const explicit = (process.env.TWILIO_WHATSAPP_FROM || '').trim();
     const fallback = (process.env.TWILIO_FROM_NUMBER || '').trim();
     return this.formatTwilioWhatsappParticipant(explicit || fallback) || '';
   }
 
-                                                                                 
   private capContentVar(value: string): string {
     const max = Number(process.env.TWILIO_WHATSAPP_CONTENT_VAR_MAX_LEN || 1600);
     const n = Number.isFinite(max) && max > 0 ? Math.min(max, 4096) : 1600;
     return value.slice(0, n);
   }
 
-     
-                                                                                                               
-                                       
-                                                                                                     
-                                                                                                                     
-     
   private buildWhatsAppContentVariables(
     body: NotificationBody & { confirmationUrl?: string },
   ): Record<string, string> {

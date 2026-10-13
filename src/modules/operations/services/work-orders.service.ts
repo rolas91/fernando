@@ -332,15 +332,12 @@ export class WorkOrdersService {
     return withShifts;
   }
 
-                                                       
   async findShiftOverview() {
     const workOrders = await this.findAll();
     const shiftTimestamp = (shift: Record<string, unknown>) =>
       `${typeof shift.date === 'string' ? shift.date : ''}T${typeof shift.startTime === 'string' ? shift.startTime : '00:00'}`;
     const latestShiftTimestamp = (workOrder: WorkOrder) => {
-      const shifts = Array.isArray(workOrder.shifts)
-        ? (workOrder.shifts as Record<string, unknown>[])
-        : [];
+      const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
       return shifts.reduce((latest, shift) => {
         const value = shiftTimestamp(shift);
         return value > latest ? value : latest;
@@ -350,7 +347,7 @@ export class WorkOrdersService {
     return workOrders
       .map((workOrder) => {
         const shifts = Array.isArray(workOrder.shifts)
-          ? [...(workOrder.shifts as Record<string, unknown>[])]
+          ? [...workOrder.shifts]
           : [];
         shifts.sort((a, b) =>
           shiftTimestamp(b).localeCompare(shiftTimestamp(a)),
@@ -369,10 +366,6 @@ export class WorkOrdersService {
       });
   }
 
-     
-                                                                           
-                                                                        
-     
   async exportGeneratedWorkOrderPdfs(query: WorkOrderPdfExportQuery) {
     const { status, from, to } = query;
     if (!['all', 'completed', 'pm_approved'].includes(status)) {
@@ -400,8 +393,7 @@ export class WorkOrdersService {
         : [],
       this.formTemplatesRepo.find(),
     ]);
-                                                                            
-                                                                               
+
     const completedShiftKeys = new Set(
       submissions
         .filter((submission) => Boolean(submission.shiftId))
@@ -938,7 +930,6 @@ export class WorkOrdersService {
       return this.serializeMobileAssignment(workOrder, worker.id);
     }
 
-                                                                                                     
     const targets: Array<{
       shiftId: string;
       roleId: string;
@@ -964,7 +955,7 @@ export class WorkOrdersService {
         }
       }
     }
-    let guarded = nextShifts as Record<string, unknown>[];
+    let guarded = nextShifts;
     for (const t of targets) {
       guarded = preserveOtherWorkerConfirmations(
         guarded,
@@ -1049,11 +1040,8 @@ export class WorkOrdersService {
   private workOrderHasNotifiedWorker(workOrder: WorkOrder, workerId: string) {
     const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
     return shifts.some((shift) => {
-      const roles = Array.isArray((shift as Record<string, unknown>).roles)
-        ? ((shift as Record<string, unknown>).roles as Record<
-            string,
-            unknown
-          >[])
+      const roles = Array.isArray(shift.roles)
+        ? (shift.roles as Record<string, unknown>[])
         : [];
       return roles.some((role) => {
         const assignedWorkers = Array.isArray(role.assignedWorkers)
@@ -1124,7 +1112,7 @@ export class WorkOrdersService {
     for (const workOrder of workOrders) {
       const shifts = Array.isArray(workOrder.shifts) ? workOrder.shifts : [];
       for (const shift of shifts) {
-        const record = shift as Record<string, unknown>;
+        const record = shift;
         const shiftId = typeof record.id === 'string' ? record.id : '';
         if (!shiftId) continue;
         const pickedTemplateIds = new Set(
@@ -1212,8 +1200,7 @@ export class WorkOrdersService {
   ): Promise<void> {
     const workOrder = await this.findOne(workOrderId);
     const shiftExists = (workOrder.shifts ?? []).some(
-      (shift) =>
-        String((shift as Record<string, unknown>).id || '') === shiftId,
+      (shift) => String(shift.id || '') === shiftId,
     );
     if (!shiftExists) {
       throw new NotFoundException(`Shift ${shiftId} not found`);
@@ -1310,7 +1297,7 @@ export class WorkOrdersService {
       Array.isArray(workOrder.shifts) ? workOrder.shifts : []
     )
       .map((shift) => {
-        const record = shift as Record<string, unknown>;
+        const record = shift;
         const roles = Array.isArray(record.roles)
           ? (record.roles as Record<string, unknown>[])
           : [];
@@ -1601,10 +1588,7 @@ export class WorkOrdersService {
     for (const shift of Array.isArray(workOrder.shifts)
       ? workOrder.shifts
       : []) {
-      const shiftId =
-        typeof (shift as Record<string, unknown>).id === 'string'
-          ? String((shift as Record<string, unknown>).id)
-          : '';
+      const shiftId = typeof shift.id === 'string' ? String(shift.id) : '';
       if (visibleShiftIds && (!shiftId || !visibleShiftIds.has(shiftId)))
         continue;
       const roles = Array.isArray(shift.roles)
@@ -1855,7 +1839,7 @@ export class WorkOrdersService {
     for (const shift of Array.isArray(workOrder.shifts)
       ? workOrder.shifts
       : []) {
-      const shiftRecord = shift as Record<string, unknown>;
+      const shiftRecord = shift;
       const shiftId = typeof shiftRecord.id === 'string' ? shiftRecord.id : '';
       if (!shiftId) continue;
       const roleNames = new Set<string>();
@@ -2069,8 +2053,7 @@ export class WorkOrdersService {
     const entity = this.workOrdersRepo.create({
       ...dto,
       orderNumber,
-                                                                          
-                                                         
+
       status: '',
       shifts,
       dispatchNote: dto.dispatchNote?.trim() || '',
@@ -2115,7 +2098,7 @@ export class WorkOrdersService {
         ? (await this.resolveMobileShiftCompletion([workOrder]))
             .completedShiftKeys
         : new Set<string>();
-                                                                                                                         
+
     const previousShiftsSnapshot: Record<string, unknown>[] =
       dto.shifts !== undefined
         ? (JSON.parse(JSON.stringify(workOrder.shifts ?? [])) as Record<
@@ -2125,15 +2108,12 @@ export class WorkOrdersService {
         : [];
 
     if (dto.shifts !== undefined) {
-      this.assertPmApprovedShiftsUnchanged(
-        previousShiftsSnapshot,
-        dto.shifts as Record<string, unknown>[],
-      );
+      this.assertPmApprovedShiftsUnchanged(previousShiftsSnapshot, dto.shifts);
       this.assertCompletedShiftsUnchanged(
         id,
         completedShiftKeys,
         previousShiftsSnapshot,
-        dto.shifts as Record<string, unknown>[],
+        dto.shifts,
         options?.mutableCompletedShiftId,
       );
     }
@@ -2145,13 +2125,13 @@ export class WorkOrdersService {
         previousShiftsSnapshot,
       );
       workOrder.shifts = placeNewShiftsFirstWithinDates(
-        workOrder.shifts as Record<string, unknown>[],
+        workOrder.shifts,
         previousShiftsSnapshot,
       );
       this.assertWorkOrderDelegationChangesAllowed(
         actor,
         previousShiftsSnapshot,
-        workOrder.shifts as Record<string, unknown>[],
+        workOrder.shifts,
       );
     }
     const accessNotificationChanges =
@@ -2258,10 +2238,6 @@ export class WorkOrdersService {
     );
   }
 
-     
-                                                                 
-                                                                          
-     
   async bulkCreateShifts(
     workOrderId: string,
     payload: BulkCreateShiftsDto,
@@ -2297,7 +2273,6 @@ export class WorkOrdersService {
       throw new BadRequestException('No valid dates provided.');
     }
 
-                                                                            
     assertShiftsWithinAssignmentDateRange(
       workOrder.startDate,
       workOrder.endDate,
@@ -2305,7 +2280,7 @@ export class WorkOrdersService {
     );
 
     const existingShifts = Array.isArray(workOrder.shifts)
-      ? (workOrder.shifts as Record<string, unknown>[])
+      ? workOrder.shifts
       : [];
 
     const created: Record<string, unknown>[] = [];
@@ -2420,10 +2395,6 @@ export class WorkOrdersService {
     return restored;
   }
 
-     
-                                                                                        
-                                                                 
-     
   private async assertAssignedWorkersMeetRoleCertifications(
     shifts: Record<string, unknown>[],
   ): Promise<void> {
@@ -2552,12 +2523,6 @@ export class WorkOrdersService {
     );
   }
 
-     
-                                                                          
-                                                                        
-                                                                             
-                                                    
-     
   private async mergeShiftsWithRelational<T extends WorkOrder>(
     rows: T[],
   ): Promise<T[]> {
@@ -2583,11 +2548,6 @@ export class WorkOrdersService {
     return rows;
   }
 
-     
-                                                                      
-                                                                    
-                                                     
-     
   private async refreshShifts<T extends WorkOrder>(row: T): Promise<T> {
     const [refreshed] = await this.mergeShiftsWithRelational([row]);
     return refreshed;

@@ -9,7 +9,6 @@ function trimDate(value: unknown): string {
   return String(value).trim();
 }
 
-                                                                                                                    
 export function assertShiftsWithinAssignmentDateRange(
   startDate: unknown,
   endDate: unknown,
@@ -32,10 +31,6 @@ export function assertShiftsWithinAssignmentDateRange(
   }
 }
 
-   
-                                                                                           
-                                                                                                
-   
 export function assertAssignmentWithinProjectDates(
   projectStart: unknown,
   projectEnd: unknown,

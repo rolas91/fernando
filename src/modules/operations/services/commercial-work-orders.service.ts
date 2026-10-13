@@ -488,7 +488,7 @@ export class CommercialWorkOrdersService {
   private renderInvoiceHtml(invoice: CommercialInvoice) {
     const rows = (Array.isArray(invoice.items) ? invoice.items : [])
       .map((raw) => {
-        const item = raw as Record<string, unknown>;
+        const item = raw;
         return `<tr><td>${this.escape(item.sku)}</td><td>${this.escape(item.description)}</td><td>${this.numberValue(item.onRentQty)}</td><td>${this.numberValue(item.rentalDurationDays)}</td><td>${this.numberValue(item.invoiceQty)}</td><td>${this.money(this.numberValue(item.unitPrice))}</td><td>${this.money(this.numberValue(item.amount))}</td></tr>`;
       })
       .join('');

@@ -40,11 +40,6 @@ export class ShiftStatusService {
     private readonly shiftsQuery: ShiftsQueryService,
   ) {}
 
-     
-                                                                         
-                                                                     
-                                                         
-     
   async listShiftStatuses(): Promise<ShiftCatalogItem[]> {
     const rows = await this.statusCatalogRepo.find({
       where: { scope: 'shift', status: 'active' },
@@ -83,14 +78,12 @@ export class ShiftStatusService {
   }> {
     const { from, to } = args;
 
-                                                                    
     const workOrders = await this.workOrdersRepo.find({
       where: {},
       withDeleted: false,
     });
     const workOrderIds = workOrders.map((w) => w.id);
 
-                                                    
     const shiftsByWorkOrder = new Map<string, Record<string, unknown>[]>();
     if (workOrderIds.length > 0) {
       const shiftRows = await this.workOrdersRepo.manager
@@ -118,10 +111,8 @@ export class ShiftStatusService {
       });
     }
 
-                                                            
     const completion = await this.buildCompletionLookup(workOrderIds);
 
-                                                                      
     const totals: ShiftAggregateCounters = {
       totalShifts: 0,
       customerPending: 0,
@@ -186,10 +177,6 @@ export class ShiftStatusService {
     };
   }
 
-     
-                                                                           
-                                                 
-     
   async computeShiftForWorkOrder(args: {
     workOrderId: string;
     shiftId: string;
@@ -217,9 +204,7 @@ export class ShiftStatusService {
     if (workOrderIds.length === 0) {
       return { isShiftCompleted: () => false };
     }
-                                                                          
-                                                               
-                                                    
+
     const rows = await this.formSubmissionsRepo.find({
       where: { workOrderId: In(workOrderIds) },
     });

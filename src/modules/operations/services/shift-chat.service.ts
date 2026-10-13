@@ -242,9 +242,9 @@ export class ShiftChatService {
     const shift = (
       Array.isArray(workOrder.shifts) ? workOrder.shifts : []
     ).find((item) => {
-      const record = item as Record<string, unknown>;
+      const record = item;
       return record.id === shiftId;
-    }) as Record<string, unknown> | undefined;
+    });
     const roles = Array.isArray(shift?.roles)
       ? (shift.roles as Record<string, unknown>[])
       : [];
@@ -260,9 +260,9 @@ export class ShiftChatService {
     const shift = (
       Array.isArray(workOrder.shifts) ? workOrder.shifts : []
     ).find((item) => {
-      const record = item as Record<string, unknown>;
+      const record = item;
       return record.id === shiftId;
-    }) as Record<string, unknown> | undefined;
+    });
     const roles = Array.isArray(shift?.roles)
       ? (shift.roles as Record<string, unknown>[])
       : [];
@@ -381,9 +381,9 @@ export class ShiftChatService {
     const shift = (
       Array.isArray(workOrder.shifts) ? workOrder.shifts : []
     ).find((item) => {
-      const record = item as Record<string, unknown>;
+      const record = item;
       return record.id === shiftId;
-    }) as Record<string, unknown> | undefined;
+    });
     return typeof shift?.date === 'string' ? shift.date : undefined;
   }
 
@@ -393,9 +393,7 @@ export class ShiftChatService {
       : null;
     const shift = (
       Array.isArray(workOrder.shifts) ? workOrder.shifts : []
-    ).find((item) => (item as Record<string, unknown>).id === shiftId) as
-      | Record<string, unknown>
-      | undefined;
+    ).find((item) => item.id === shiftId);
     const shiftName =
       typeof shift?.shiftName === 'string'
         ? shift.shiftName

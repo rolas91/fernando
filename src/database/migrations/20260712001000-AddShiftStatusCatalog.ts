@@ -1,19 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-   
-                                                                      
-  
-                                                                        
-                                                                         
-                                                  
-  
-                                                                
-                                                            
-  
-                                                                           
-                                            
-                                                                               
-   
 export class AddShiftStatusCatalog20260712001000 implements MigrationInterface {
   name = 'AddShiftStatusCatalog20260712001000';
 

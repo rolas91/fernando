@@ -88,9 +88,7 @@ export class CatalogImportController {
         const mime = normalizeMime(file);
         if (!ALLOWED_IMPORT_MIME.has(mime)) {
           cb(
-            new BadRequestException(
-              'File type not allowed (.xlsx only)',
-            ),
+            new BadRequestException('File type not allowed (.xlsx only)'),
             false,
           );
           return;
@@ -122,9 +120,7 @@ export class CatalogImportController {
         const mime = normalizeMime(file);
         if (!ALLOWED_IMPORT_MIME.has(mime)) {
           cb(
-            new BadRequestException(
-              'File type not allowed (.xlsx only)',
-            ),
+            new BadRequestException('File type not allowed (.xlsx only)'),
             false,
           );
           return;
@@ -164,9 +160,7 @@ export class CatalogImportController {
         const mime = normalizeMime(file);
         if (!ALLOWED_IMPORT_MIME.has(mime)) {
           cb(
-            new BadRequestException(
-              'File type not allowed (.xlsx only)',
-            ),
+            new BadRequestException('File type not allowed (.xlsx only)'),
             false,
           );
           return;

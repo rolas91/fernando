@@ -1,10 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-   
-                                                                      
-                                                                       
-                                                             
-   
 export class AddShiftCancelledFlag20260712002000 implements MigrationInterface {
   name = 'AddShiftCancelledFlag20260712002000';
 

@@ -613,7 +613,7 @@ export class CatalogImportService {
       }
       case 'projects': {
         const payload: Record<string, unknown> = {
-          ...(data as Record<string, unknown>),
+          ...data,
         };
         const clientName = String(payload.clientName || '').trim();
         if (!payload.clientId && clientName) {
@@ -642,7 +642,7 @@ export class CatalogImportService {
       }
       case 'workers': {
         const payload: Record<string, unknown> = {
-          ...(data as Record<string, unknown>),
+          ...data,
         };
         const skills = (payload.skills as string[] | undefined) || [];
         const workerRoles = (payload.workerRoles as string[] | undefined) || [];
@@ -806,7 +806,7 @@ export class CatalogImportService {
         const item = await this.projectsRepo.findOne({ where: { id } });
         if (!item) throw new Error(`Project ${id} not found`);
         const payload: Record<string, unknown> = {
-          ...(data as Record<string, unknown>),
+          ...data,
         };
         const clientName = String(payload.clientName || '').trim();
         if (!payload.clientId && clientName) {
@@ -841,7 +841,7 @@ export class CatalogImportService {
         });
         if (!item) throw new Error(`Worker ${id} not found`);
         const payload: Record<string, unknown> = {
-          ...(data as Record<string, unknown>),
+          ...data,
         };
         const skills = (payload.skills as string[] | undefined) || [];
         const workerRoles = (payload.workerRoles as string[] | undefined) || [];

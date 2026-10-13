@@ -484,7 +484,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       'confirmed',
     );
 
-    const role = saved.value!.shifts[0].roles[0];
+    const role = saved.value.shifts[0].roles[0];
     const confirmations =
       (
         role as {
@@ -726,7 +726,7 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       'confirmed',
     );
 
-    const role = saved.value!.shifts[0].roles[0];
+    const role = saved.value.shifts[0].roles[0];
     const confirmations =
       (
         role as {
@@ -856,10 +856,10 @@ describe('WorkOrdersService.updateMobileShiftConfirmation', () => {
       'confirmed',
     );
 
-    const shift1 = saved.value!.shifts.find(
+    const shift1 = saved.value.shifts.find(
       (s) => (s as { id?: string }).id === 'shift-1',
     )!;
-    const shift2 = saved.value!.shifts.find(
+    const shift2 = saved.value.shifts.find(
       (s) => (s as { id?: string }).id === 'shift-2',
     )!;
     const role1 = shift1.roles[0];

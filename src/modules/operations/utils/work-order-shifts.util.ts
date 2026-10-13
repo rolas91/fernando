@@ -152,12 +152,6 @@ export function normalizeWorkOrderShifts(
       );
       const requiredSkillIds = asStringArray(roleRecord.requiredSkillIds);
 
-         
-                                                                                
-                                                                                
-                                                                            
-                                                                       
-         
       const previousRole = roleId ? previousRoleById.get(roleId) : undefined;
       let resolvedPrevious = previousRole;
       if (!resolvedPrevious && typeof roleRecord.roleName === 'string') {
@@ -178,7 +172,7 @@ export function normalizeWorkOrderShifts(
           const overlap = prevWorkers.some((wid) => incomingWorkerSet.has(wid));
           return overlap;
         });
-        if (fallback) resolvedPrevious = fallback as ShiftRoleLike;
+        if (fallback) resolvedPrevious = fallback;
       }
 
       const existingConfirmations = Array.isArray(
@@ -226,11 +220,6 @@ export function normalizeWorkOrderShifts(
   });
 }
 
-   
-                                                                          
-                                                                         
-                                                                        
-   
 export function invalidateConfirmationsForChangedShiftDates(
   shifts: unknown,
   previousShifts: unknown,
@@ -283,7 +272,6 @@ export function invalidateConfirmationsForChangedShiftDates(
   });
 }
 
-                                                                           
 export function placeNewShiftsFirstWithinDates(
   shifts: Record<string, unknown>[],
   previousShifts: unknown,

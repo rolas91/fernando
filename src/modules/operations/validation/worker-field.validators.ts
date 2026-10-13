@@ -82,7 +82,6 @@ export function IsDateOnlyTodayOrFuture(validationOptions?: ValidationOptions) {
   };
 }
 
-                                                                   
 @ValidatorConstraint({ name: 'isUsNanpPhone', async: false })
 export class IsUsNanpPhoneConstraint implements ValidatorConstraintInterface {
   validate(value: unknown) {

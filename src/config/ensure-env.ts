@@ -12,7 +12,6 @@ export function ensureRuntimeEnv() {
       );
     }
 
-                                                         
     process.env.JWT_SECRET = randomBytes(32).toString('hex');
 
     console.warn(

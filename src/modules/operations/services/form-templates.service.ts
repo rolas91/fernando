@@ -42,7 +42,6 @@ export class FormTemplatesService {
         shift?.formTemplateIds?.map((id) => id.trim()).filter(Boolean) ?? [],
       );
     } else if (workOrderId) {
-                                                                                            
       pickupIds = new Set();
     }
 

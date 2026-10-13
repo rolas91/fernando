@@ -46,10 +46,6 @@ export class StatusCatalog {
   @Column({ name: 'requires_approval', type: 'boolean', default: false })
   requiresApproval: boolean;
 
-     
-                                                                   
-                                                                            
-     
   @Column({ type: 'boolean', default: false })
   automatic: boolean;
 

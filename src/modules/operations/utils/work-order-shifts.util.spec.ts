@@ -395,7 +395,7 @@ describe('preserveOtherWorkerConfirmations', () => {
     const c = role2.workerConfirmations?.find((c) => c.workerId === 'worker-c');
     expect(a?.status).toBe('pending');
     expect(b?.status).toBe('confirmed');
-                                                                                        
+
     expect(c?.status).toBe('pending');
   });
 });

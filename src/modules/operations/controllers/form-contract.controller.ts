@@ -6,10 +6,6 @@ import { FORM_CONTRACT_VERSION } from '../utils/form-contract.util';
 @ApiTags('operations')
 @Controller('form-contract')
 export class FormContractController {
-     
-                                                    
-                                                                                 
-     
   @Get('data-bindings')
   getDataBindings() {
     return {

@@ -183,12 +183,6 @@ export const CURRENT_FORM_TEMPLATES_BACKUP = DEFAULT_FORM_TEMPLATES.map(
   }),
 );
 
-   
-                                                        
-  
-                                                                            
-                                                                      
-   
 export async function restoreMissingFormTemplates(dataSource: DataSource) {
   const repo = dataSource.getRepository(FormTemplate);
   const restored: string[] = [];

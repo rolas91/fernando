@@ -71,12 +71,6 @@ export type ShiftWriteInput = {
   }>;
 };
 
-   
-                                                                         
-                                                      
-                                                                           
-                                                                    
-   
 @Injectable()
 export class WorkOrderShiftsWriteService {
   private readonly logger = new Logger(WorkOrderShiftsWriteService.name);
@@ -107,7 +101,6 @@ export class WorkOrderShiftsWriteService {
     }
   }
 
-                                                                          
   async replaceShiftsForWorkOrder(
     workOrderId: string,
     shifts: ShiftWriteInput[],
@@ -165,8 +158,7 @@ export class WorkOrderShiftsWriteService {
           workOrderId,
           shiftName: s.shiftName?.trim() ?? '',
           date: s.date,
-                                                                             
-                                                                         
+
           displayOrder: index,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -239,7 +231,6 @@ export class WorkOrderShiftsWriteService {
     });
   }
 
-                                                                               
   async updateWorkerConfirmation(input: {
     workOrderId: string;
     shiftId: string;
@@ -300,7 +291,6 @@ export class WorkOrderShiftsWriteService {
     });
   }
 
-                                                              
   async deleteShiftsForWorkOrder(workOrderId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const shiftRepo = manager.getRepository(WorkOrderShift);
@@ -321,11 +311,6 @@ export class WorkOrderShiftsWriteService {
     });
   }
 
-     
-                                                             
-                                                                   
-                                                                  
-     
   async setShiftManualStatus(input: {
     workOrderId: string;
     shiftId: string;
@@ -352,10 +337,6 @@ export class WorkOrderShiftsWriteService {
     return shift;
   }
 
-     
-                                                                  
-                                                                     
-     
   async cancelShift(input: {
     workOrderId: string;
     shiftId: string;
@@ -409,7 +390,6 @@ export class WorkOrderShiftsWriteService {
     return this.shiftsRepo.save(shift);
   }
 
-                                                                                      
   static fromJson(workOrderId: string, json: unknown): ShiftWriteInput[] {
     if (!Array.isArray(json)) return [];
     return json.map((raw: Record<string, unknown>) => {

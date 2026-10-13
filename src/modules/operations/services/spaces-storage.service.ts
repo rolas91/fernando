@@ -74,12 +74,6 @@ export class SpacesStorageService {
     return results[0] || null;
   }
 
-     
-                                                                           
-                                                                                   
-                                                     
-                                                      
-     
   private async processLogoImage(
     file: UploadFileCandidate,
   ): Promise<UploadFileCandidate> {
@@ -93,7 +87,6 @@ export class SpacesStorageService {
       const trimmedName = originalName.replace(/\.(jpe?g|png|webp)$/i, '');
       const newName = `${trimmedName}.png`;
 
-                                   
       const { data: rgbaRaw, info } = await sharp(file.buffer, {
         failOn: 'none',
       })
@@ -101,14 +94,12 @@ export class SpacesStorageService {
         .raw()
         .toBuffer({ resolveWithObject: true });
 
-                                                                                 
-                                                                         
       const channels = info.channels;
       const width = info.width;
       const height = info.height;
       const pixelCount = width * height;
       const safeRgba = Buffer.from(rgbaRaw);
-      const maskData = Buffer.alloc(pixelCount);                    
+      const maskData = Buffer.alloc(pixelCount);
       const threshold = 245;
       for (let i = 0; i < pixelCount; i++) {
         const idx = i * channels;
@@ -119,9 +110,6 @@ export class SpacesStorageService {
           r >= threshold && g >= threshold && b >= threshold ? 0 : 255;
       }
 
-                                            
-                                                                                              
-                                                                                    
       if (channels === 3) {
         for (let i = 0; i < pixelCount; i++) {
           safeRgba[i * 4 + 3] = maskData[i];
@@ -144,10 +132,9 @@ export class SpacesStorageService {
         };
       }
 
-                                                           
       for (let i = 0; i < pixelCount; i++) {
         const alphaIdx = i * 4 + 3;
-                                                                                    
+
         if (safeRgba[alphaIdx] > 0) {
           safeRgba[alphaIdx] = Math.min(safeRgba[alphaIdx], maskData[i]);
         }

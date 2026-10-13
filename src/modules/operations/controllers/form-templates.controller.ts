@@ -84,10 +84,6 @@ export class FormTemplatesController {
     return this.service.findAll().then(filterForActor);
   }
 
-     
-                                                                                         
-                                                                              
-     
   @Get(':id/context-preview')
   async contextPreview(
     @Param('id') id: string,

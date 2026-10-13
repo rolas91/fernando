@@ -1,13 +1,7 @@
-                                                                     
 export const SPACES_UPLOAD_DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
 
-   
-                                                                   
-                                                                    
-   
 export const SPACES_SINGLE_PUT_MAX_BYTES = 5 * 1024 * 1024 * 1024;
 
-                                                  
 export const ALLOWED_CERTIFICATION_UPLOAD_MIME = new Set([
   'application/pdf',
   'image/jpeg',
@@ -15,14 +9,12 @@ export const ALLOWED_CERTIFICATION_UPLOAD_MIME = new Set([
   'image/webp',
 ]);
 
-                                                                    
 export const ALLOWED_WORKER_UPLOAD_MIME = new Set([
   'application/pdf',
   'image/jpeg',
   'image/png',
 ]);
 
-                           
 export const ALLOWED_LOGO_UPLOAD_MIME = new Set([
   'image/jpeg',
   'image/png',
@@ -30,7 +22,6 @@ export const ALLOWED_LOGO_UPLOAD_MIME = new Set([
   'image/svg+xml',
 ]);
 
-                                                   
 export const ALLOWED_WORK_ORDER_UPLOAD_MIME = new Set([
   'application/pdf',
   'image/jpeg',
@@ -73,10 +64,6 @@ export const ALLOWED_MIME_BY_UPLOAD_SCOPE: Record<
 
 export type SpacesUploadScope = keyof typeof ALLOWED_MIME_BY_UPLOAD_SCOPE;
 
-   
-                                                                   
-                                                                
-   
 function inferMimeFromOriginalName(
   originalname: string | undefined | null,
   scope: SpacesUploadScope,
@@ -131,10 +118,6 @@ function inferMimeFromOriginalName(
   }
 }
 
-   
-                                                                                      
-                                                                                   
-   
 export function normalizeUploadMimeForScope(
   reportedMime: string | undefined | null,
   originalname: string | undefined | null,

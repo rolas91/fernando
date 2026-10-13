@@ -29,8 +29,11 @@ export class FormSubmissionsController {
   constructor(private readonly service: FormSubmissionsService) {}
 
   @Post('pdf-builder/preview')
-  previewPdfBuilder(@Body() body: { config?: unknown }, @Res() res: Response) {
-    const pdf = this.service.buildPdfBuilderPreview(body?.config);
+  async previewPdfBuilder(
+    @Body() body: { config?: unknown },
+    @Res() res: Response,
+  ) {
+    const pdf = await this.service.buildPdfBuilderPreview(body?.config);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',

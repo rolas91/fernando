@@ -52,12 +52,6 @@ export class NumberingService {
     };
   }
 
-     
-                                                                        
-                                                                        
-                                                                          
-                                                      
-     
   async nextWorkOrderNumber(referenceDate: Date = new Date()): Promise<string> {
     const config = await this.loadConfig();
     const resetKey = this.computeResetKey(config.reset, referenceDate);
@@ -65,10 +59,6 @@ export class NumberingService {
     return this.format(config, nextValue, referenceDate);
   }
 
-     
-                                                                        
-                                                   
-     
   async previewNextWorkOrderNumber(
     referenceDate: Date = new Date(),
   ): Promise<{ number: string; config: WorkOrderNumberingConfig }> {
@@ -84,9 +74,6 @@ export class NumberingService {
     };
   }
 
-     
-                                                            
-     
   async resetSequence(
     resetKey: string = 'GLOBAL',
     value: number = 0,

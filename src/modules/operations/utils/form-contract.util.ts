@@ -346,7 +346,7 @@ export function validateSubmissionAgainstFields(
           `Field "${field.label}" must be a string`,
         );
       }
-      const stringValue = value as string;
+      const stringValue = value;
       if (field.rules?.minLength !== undefined) {
         assert(
           stringValue.length >= field.rules.minLength,
@@ -417,7 +417,7 @@ export function validateSubmissionAgainstFields(
             `Field "${field.label}" must be a string`,
           );
         }
-        const selectedValue = value as string;
+        const selectedValue = value;
         if (field.options && field.options.length > 0) {
           assert(
             field.options.includes(selectedValue),

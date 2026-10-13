@@ -1,19 +1,9 @@
-   
-                                                           
-            
-                                                            
-                                                           
-                                                                           
-                                                                                   
-                                                                           
-   
-
 export type FormBindingPathDefinition = {
   path: string;
   description: string;
-                                                                 
+
   requiresShift: boolean;
-                                
+
   example?: string;
 };
 
@@ -219,12 +209,11 @@ export const FORM_DATA_BINDING_PATHS: FormBindingPathDefinition[] = [
   },
 ];
 
-                                                                                             
 export type FormFieldDataBinding = {
   path: string;
-                                                                                        
+
   optional?: boolean;
-                                                                                          
+
   editable?: boolean;
 };
 

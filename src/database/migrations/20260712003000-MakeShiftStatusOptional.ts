@@ -1,6 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-                                                                                    
 export class MakeShiftStatusOptional20260712003000 implements MigrationInterface {
   name = 'MakeShiftStatusOptional20260712003000';
 

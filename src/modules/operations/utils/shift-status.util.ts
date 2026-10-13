@@ -1,26 +1,3 @@
-   
-                            
-  
-                                                                 
-  
-                                                    
-                                   
-                                   
-                                 
-  
-                                                                           
-                                    
-                                   
-                                 
-                                   
-  
-                                         
-                                                                                
-  
-                                                                        
-                                           
-   
-
 export type ManualShiftStatus =
   | 'customer_pending'
   | 'dispatch_pending'
@@ -91,12 +68,6 @@ export interface ShiftLike {
 }
 
 export interface ShiftCompletionLookup {
-     
-                                                                        
-                                                        
-                                                                           
-             
-     
   isShiftCompleted(workOrderId: string, shiftId: string): boolean;
 }
 
@@ -184,11 +155,10 @@ function isAwaitingResponse(role: ShiftRoleLike, workerId: string): boolean {
 }
 
 export interface ShiftComputedStatus {
-                                                            
   status: ShiftStatusValue | null;
-                                                   
+
   automatic: boolean;
-                                                                   
+
   reason?: string;
 }
 
@@ -196,21 +166,10 @@ export interface ComputeShiftStatusInput {
   workOrderId: string;
   shift: ShiftLike;
   completion: ShiftCompletionLookup;
-                                                                           
+
   workOrderCancelled?: boolean;
 }
 
-   
-                                              
-  
-                             
-                                               
-                                               
-                                                
-                                                          
-                                                                                             
-                                                               
-   
 export function computeShiftStatus(
   input: ComputeShiftStatusInput,
 ): ShiftComputedStatus {
@@ -220,7 +179,6 @@ export function computeShiftStatus(
     typeof shift.status === 'string' ? shift.status.trim().toLowerCase() : '';
   const automaticLifecycleEnabled = manualStatus === 'ready_to_notify';
 
-                                                     
   if (workOrderCancelled) {
     return {
       status: 'shift_cancelled',
@@ -229,7 +187,6 @@ export function computeShiftStatus(
     };
   }
 
-                                          
   if (shift.cancelled === true) {
     return {
       status: 'shift_cancelled',
@@ -249,7 +206,6 @@ export function computeShiftStatus(
     };
   }
 
-                                      
   if (
     automaticLifecycleEnabled &&
     shiftId &&
@@ -262,7 +218,6 @@ export function computeShiftStatus(
     };
   }
 
-                                                          
   const roles = Array.isArray(shift.roles) ? shift.roles : [];
   let totalAssigned = 0;
   let totalConfirmed = 0;
@@ -300,7 +255,6 @@ export function computeShiftStatus(
     };
   }
 
-                                   
   const fallback = MANUAL_SHIFT_STATUSES.includes(
     manualStatus as ManualShiftStatus,
   )
@@ -319,9 +273,9 @@ export interface ShiftAggregateCounters {
   shiftCancelled: number;
   shiftCompleted: number;
   pmApproved: number;
-                                                       
+
   pending: number;
-                                                                       
+
   workersMissing: number;
 }
 
@@ -407,10 +361,6 @@ function computeMissingSlots(shift: ShiftLike): number {
   return total;
 }
 
-   
-                                                                         
-                                                           
-   
 export class InMemoryShiftCompletionLookup implements ShiftCompletionLookup {
   private readonly completed = new Set<string>();
 

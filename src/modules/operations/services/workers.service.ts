@@ -231,7 +231,6 @@ export class WorkersService {
     );
   }
 
-                                                                                                        
   private async provisionLinkedAppUser(payload: {
     email: string;
     firstName: string;

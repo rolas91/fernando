@@ -71,7 +71,9 @@ export class UsersService {
       if (normalizedEmail !== user.email) {
         const existing = await this.findByEmail(normalizedEmail);
         if (existing && existing.id !== user.id) {
-          throw new ConflictException('The email address is already registered');
+          throw new ConflictException(
+            'The email address is already registered',
+          );
         }
         user.email = normalizedEmail;
       }

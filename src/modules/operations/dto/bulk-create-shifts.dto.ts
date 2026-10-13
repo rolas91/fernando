@@ -38,11 +38,9 @@ export class BulkCreateShiftsDto {
   @IsString()
   shiftName: string;
 
-                                                                        
   @IsString()
   baseDate: string;
 
-                                                              
   @IsArray()
   @IsString({ each: true })
   dates: string[];
@@ -102,7 +100,6 @@ export class BulkCreateShiftsDto {
   @Type(() => BulkShiftRoleDto)
   roles: BulkShiftRoleDto[];
 
-                                                                                    
   @IsOptional()
   @IsBoolean()
   skipDuplicates?: boolean = false;

@@ -29,8 +29,6 @@ export async function findWorkerForActor(
   });
   if (!worker) return null;
 
-                                                                            
-                                                                          
   if (actor?.id && !worker.userId) {
     await workersRepo.update(worker.id, { userId: actor.id });
     worker.userId = actor.id;

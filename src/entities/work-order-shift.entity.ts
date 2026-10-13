@@ -48,10 +48,6 @@ export class WorkOrderShift {
   })
   confirmationResetReason: string | null;
 
-     
-                                                                             
-                                                                      
-     
   @Column({ type: 'boolean', default: false })
   cancelled: boolean;
 

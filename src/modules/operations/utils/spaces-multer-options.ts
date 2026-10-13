@@ -33,9 +33,7 @@ export function createSpacesUploadMulterOptions(
       );
       if (!normalized) {
         cb(
-          new BadRequestException(
-            `File type not allowed (${raw || 'empty'}).`,
-          ),
+          new BadRequestException(`File type not allowed (${raw || 'empty'}).`),
           false,
         );
         return;

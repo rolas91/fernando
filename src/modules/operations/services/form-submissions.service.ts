@@ -28,6 +28,7 @@ import { TimesheetsService } from './timesheets.service';
 import { ShiftsQueryService } from './shifts-query.service';
 import { ShiftWorkOrderAccessService } from './shift-work-order-access.service';
 import { CompanySettingsService } from './company-settings.service';
+import { NumberingService } from './numbering.service';
 import { WorkOrderShiftsWriteService } from './work-order-shifts-write.service';
 import {
   normalizeFormFields,
@@ -1226,7 +1227,6 @@ function buildTimesheetPdf(
   let y = 728;
   cell('Date:', dateValue, left, y, 92, 24, 18, yellow);
 
-                                           
   ops.push(pdfFillRect(left + 92, y - 24, 116, 24, yellow));
   ops.push(pdfRect(left + 92, y - 24, 116, 24));
   ops.push(pdfText('Circle One:', left + 95, y - 7, 5.8, 'F2'));
@@ -1242,7 +1242,6 @@ function buildTimesheetPdf(
     ops.push(pdfText(d, dx + 6, dy, 5.5));
   });
 
-                              
   ops.push(pdfFillRect(left + 208, y - 24, 105, 24, yellow));
   ops.push(pdfRect(left + 208, y - 24, 105, 24));
   ops.push(pdfText('Shift:', left + 211, y - 7, 5.8, 'F2'));
@@ -1272,7 +1271,6 @@ function buildTimesheetPdf(
     ),
   );
 
-                                
   ops.push(pdfFillRect(left + 313, y - 24, 60, 24, yellow));
   ops.push(pdfRect(left + 313, y - 24, 60, 24));
   ops.push(pdfText('Lunch?', left + 316, y - 7, 5.8, 'F2'));
@@ -1398,14 +1396,12 @@ function buildTimesheetPdf(
       4,
     );
 
-                                                 
     if (index % 2 === 1) {
       ops.push(
         pdfFillRect(tableX, rowY - rowH, colEnds[1], rowH, [0.98, 0.96, 0.78]),
       );
     }
 
-                                         
     ops.push(pdfRect(tableX, rowY - rowH, colEnds[1], rowH));
     if (row.workerId) {
       ops.push(pdfText(nameText, tableX + 3, rowY - 18, 8));
@@ -1419,7 +1415,6 @@ function buildTimesheetPdf(
       );
     }
 
-                                          
     ops.push(
       pdfRect(tableX + colEnds[1], rowY - rowH, colEnds[2] - colEnds[1], rowH),
     );
@@ -1436,7 +1431,6 @@ function buildTimesheetPdf(
       );
     }
 
-                                    
     ops.push(
       pdfRect(tableX + colEnds[6], rowY - rowH, colEnds[7] - colEnds[6], rowH),
     );
@@ -1450,7 +1444,6 @@ function buildTimesheetPdf(
       ),
     );
 
-                                      
     ops.push(
       pdfRect(tableX + colEnds[7], rowY - rowH, colEnds[8] - colEnds[7], rowH),
     );
@@ -1458,14 +1451,12 @@ function buildTimesheetPdf(
       pdfText(fitText(rowNotes, 28), tableX + colEnds[7] + 3, rowY - 18, 7),
     );
 
-                                                               
     const subValues = [st, ot, dt];
     for (let si = 0; si < 3; si++) {
       const subY = rowY - si * subH;
       const val = subValues[si];
       const label = subLabels[si];
 
-                         
       ops.push(
         pdfRect(
           tableX + colEnds[2],
@@ -1480,7 +1471,6 @@ function buildTimesheetPdf(
         );
       }
 
-                         
       ops.push(
         pdfRect(
           tableX + colEnds[3],
@@ -1500,7 +1490,6 @@ function buildTimesheetPdf(
         );
       }
 
-                         
       ops.push(
         pdfRect(
           tableX + colEnds[4],
@@ -1520,7 +1509,6 @@ function buildTimesheetPdf(
         );
       }
 
-                     
       ops.push(
         pdfRect(
           tableX + colEnds[5],
@@ -1751,7 +1739,6 @@ export function buildWorkOrderPdf(
     pdfRect(0.75, 0.75, 610.5, 790.5),
   ];
 
-                                                               
   if (showHeader && logo)
     ops.push('q 160.56 0 0 53.52 39.24 679.48 cm /Logo Do Q');
   const documentTitle = fitText(
@@ -2104,9 +2091,6 @@ export function buildWorkOrderPdf(
           );
         });
       } else {
-                                                                              
-                                                                            
-                                                                          
         ops.push(
           pdfRect(
             workXs[0],
@@ -2882,9 +2866,12 @@ export class FormSubmissionsService {
     private readonly shiftWorkOrderAccess: ShiftWorkOrderAccessService,
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly companySettings: CompanySettingsService,
+    private readonly numbering: NumberingService,
   ) {}
 
-  buildPdfBuilderPreview(rawConfig: unknown): Buffer {
+  async buildPdfBuilderPreview(rawConfig: unknown): Promise<Buffer> {
+    const { number: previewNumber } =
+      await this.numbering.previewNextWorkOrderNumber();
     const builderConfig = normalizedPdfBuilderConfig(rawConfig);
     const sampleSignature = {
       type: 'signature-path',
@@ -2914,7 +2901,7 @@ export class FormSubmissionsService {
       ],
     };
     const samples: Record<string, unknown> = {
-      workOrderNumber: 'ASN-2026-001',
+      workOrderNumber: previewNumber,
       jobNumber: '23',
       jobName: '2399 - Folsom Street',
       workDate: '2026-08-02',
@@ -2941,7 +2928,7 @@ export class FormSubmissionsService {
       data,
     } as FormSubmission;
     const context: WorkOrderPdfContext = {
-      workOrder: { orderNumber: 'ASN-2026-001' } as WorkOrder,
+      workOrder: { orderNumber: previewNumber } as WorkOrder,
       project: {
         id: 'preview-project',
         number: '23',
@@ -3199,7 +3186,7 @@ export class FormSubmissionsService {
     const data =
       dto.data !== undefined
         ? await this.prepareTimesheetData(
-            normalizeSubmissionData(dto.data as Record<string, unknown>),
+            normalizeSubmissionData(dto.data),
             template,
             actor,
             {
@@ -3730,9 +3717,6 @@ export class FormSubmissionsService {
       }
     }
 
-                                                                        
-                                                                            
-                                                     
     if (workerIds.length === 0) {
       for (const row of submittedTimesheetRows) {
         const workerId = String(row.workerId ?? '').trim();

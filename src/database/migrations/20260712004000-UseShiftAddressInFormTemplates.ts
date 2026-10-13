@@ -1,6 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-                                                                               
 export class UseShiftAddressInFormTemplates20260712004000 implements MigrationInterface {
   name = 'UseShiftAddressInFormTemplates20260712004000';
 

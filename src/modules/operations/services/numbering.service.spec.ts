@@ -19,7 +19,7 @@ describe('work order numbering', () => {
       sequence as any,
       {} as any,
     );
-    return { service, sequence };
+    return { service, sequence, settings };
   }
   it.each([
     ['{NNNNN}', 5, '', '00001'],
@@ -38,6 +38,16 @@ describe('work order numbering', () => {
   );
   it('preserves an intentionally empty prefix', async () => {
     expect((await setup('{NNNNN}').service.loadConfig()).prefix).toBe('');
+  });
+  it('selects the same settings record shown by company settings', async () => {
+    const { service, settings } = setup('{NNNNNN}', 6);
+    expect((await service.previewNextWorkOrderNumber(date)).number).toBe(
+      '000001',
+    );
+    expect(settings.find).toHaveBeenCalledWith({
+      order: { name: 'ASC', id: 'ASC' },
+      take: 1,
+    });
   });
   it('uses the same format for generation and preview without advancing on preview', async () => {
     const { service, sequence } = setup('{NNNNN}');

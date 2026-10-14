@@ -36,7 +36,7 @@ export class NumberingService {
 
   async loadConfig(): Promise<WorkOrderNumberingConfig> {
     const settings = await this.settingsRepo.find({
-      order: { createdAt: 'ASC' },
+      order: { name: 'ASC', id: 'ASC' },
       take: 1,
     });
     if (settings.length === 0) return { ...DEFAULT_WORK_ORDER_NUMBERING };

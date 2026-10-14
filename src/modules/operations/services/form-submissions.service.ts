@@ -1714,15 +1714,16 @@ export function buildWorkOrderPdf(
     .filter((value) => String(value ?? '').trim())
     .join(' | ');
   const notes = mappedPdfValue(data, builderConfig, 'notes', defaultNotes);
-  const displayNumber = mappedPdfValue(
-    data,
-    builderConfig,
-    'workOrderNumber',
+  const displayNumber =
     workOrder?.orderNumber ||
+    mappedPdfValue(
+      data,
+      builderConfig,
+      'workOrderNumber',
       fieldValue(data, ['work_order_number', 'workOrderNumber']) ||
-      submission.workOrderId ||
-      compactId(submission.id, 16),
-  );
+        submission.workOrderId ||
+        compactId(submission.id, 16),
+    );
   const left = 17.64;
   const width = 576.72;
   const accent = pdfColorFromHex(builderConfig?.layout?.accentColor);

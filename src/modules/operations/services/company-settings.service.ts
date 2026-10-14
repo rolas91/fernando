@@ -15,7 +15,7 @@ export class CompanySettingsService {
   ) {}
 
   findAll() {
-    return this.repo.find({ order: { name: 'ASC' } });
+    return this.repo.find({ order: { name: 'ASC', id: 'ASC' } });
   }
 
   async findOne(id: string) {

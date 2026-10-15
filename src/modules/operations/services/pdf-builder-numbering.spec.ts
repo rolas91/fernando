@@ -14,7 +14,13 @@ describe('PDF Builder numbering preview', () => {
       const pdf = buildWorkOrderPdf(
         { id: 'submission-1', data: { custom_number: mappedNumber } } as any,
         null,
-        { workOrder: { orderNumber: '000042' } } as any,
+        {
+          workOrder: { orderNumber: '000042' },
+          workers: [],
+          equipment: [],
+          materials: [],
+          workOrderTypes: [],
+        } as any,
         { fields: { workOrderNumber: 'custom_number' } },
       ).toString();
       expect(pdf).toContain('000042');
@@ -26,7 +32,7 @@ describe('PDF Builder numbering preview', () => {
     const pdf = buildWorkOrderPdf(
       { id: 'submission-1', data: { custom_number: 'MANUAL-42' } } as any,
       null,
-      {} as any,
+      { workers: [], equipment: [], materials: [], workOrderTypes: [] } as any,
       { fields: { workOrderNumber: 'custom_number' } },
     ).toString();
     expect(pdf).toContain('MANUAL-42');

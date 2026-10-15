@@ -37,10 +37,10 @@ export class NumberingService {
   async loadConfig(): Promise<WorkOrderNumberingConfig> {
     const settings = await this.settingsRepo.find({
       order: { name: 'ASC', id: 'ASC' },
-      take: 1,
     });
     if (settings.length === 0) return { ...DEFAULT_WORK_ORDER_NUMBERING };
-    const s = settings[0];
+    const s =
+      settings.find((setting) => setting.id === 'default') ?? settings[0];
     return {
       prefix: s.workOrderNumberPrefix ?? DEFAULT_WORK_ORDER_NUMBERING.prefix,
       padding: s.workOrderNumberPadding || DEFAULT_WORK_ORDER_NUMBERING.padding,
@@ -129,13 +129,13 @@ export class NumberingService {
     return (config.template || DEFAULT_WORK_ORDER_NUMBERING.template)
       .replace(
         /\{PREFIX\}/gi,
-        config.prefix ?? DEFAULT_WORK_ORDER_NUMBERING.prefix,
+        () => config.prefix ?? DEFAULT_WORK_ORDER_NUMBERING.prefix,
       )
-      .replace(/\{YYYY\}/g, yyyy)
-      .replace(/\{YY\}/g, yy)
-      .replace(/\{MM\}/g, mm)
-      .replace(/\{DD\}/g, dd)
-      .replace(/\{N+\}/g, (match) => {
+      .replace(/\{YYYY\}/gi, yyyy)
+      .replace(/\{YY\}/gi, yy)
+      .replace(/\{MM\}/gi, mm)
+      .replace(/\{DD\}/gi, dd)
+      .replace(/\{N+\}/gi, (match) => {
         const width = match.length - 2;
         return String(value).padStart(Math.max(width, config.padding, 1), '0');
       });

@@ -7,6 +7,8 @@ import {
   IsOptional,
   IsString,
   Max,
+  Matches,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -71,6 +73,7 @@ export class CreateCompanySettingsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(16)
   workOrderNumberPrefix?: string;
 
   @IsOptional()
@@ -85,5 +88,10 @@ export class CreateCompanySettingsDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(64)
+  @Matches(/^(?=.*\{N+\})(?:[^{}]|\{(?:PREFIX|YYYY|YY|MM|DD|N+)\})+$/i, {
+    message:
+      'Numbering template must contain a sequence token and only supported tokens.',
+  })
   workOrderNumberTemplate?: string;
 }

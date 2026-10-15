@@ -27,6 +27,8 @@ describe('work order numbering', () => {
     ['{PREFIX}{NNNNN}', 5, '', '00001'],
     ['{PREFIX}-{YYYY}-{NNNN}', 4, 'ASN', 'ASN-2026-0001'],
     ['{NN}', 2, '', '01'],
+    ['{prefix}-{yyyy}-{nnnnnn}', 6, 'WO', 'WO-2026-000001'],
+    ['{PREFIX}{NN}', 2, '$&', '$&01'],
   ])(
     'formats %s with padding %s',
     async (template, padding, prefix, expected) => {
@@ -39,6 +41,24 @@ describe('work order numbering', () => {
   it('preserves an intentionally empty prefix', async () => {
     expect((await setup('{NNNNN}').service.loadConfig()).prefix).toBe('');
   });
+  it('prefers default settings over an alphabetically earlier company', async () => {
+    const { service, settings } = setup('{NNNNNN}', 6);
+    settings.find.mockResolvedValue([
+      {
+        id: 'other',
+        workOrderNumberTemplate: 'OTHER-{NNNN}',
+        workOrderNumberPadding: 4,
+      },
+      {
+        id: 'default',
+        workOrderNumberTemplate: '{NNNNNN}',
+        workOrderNumberPadding: 6,
+      },
+    ] as any);
+    expect((await service.previewNextWorkOrderNumber(date)).number).toBe(
+      '000001',
+    );
+  });
   it('selects the same settings record shown by company settings', async () => {
     const { service, settings } = setup('{NNNNNN}', 6);
     expect((await service.previewNextWorkOrderNumber(date)).number).toBe(
@@ -46,7 +66,6 @@ describe('work order numbering', () => {
     );
     expect(settings.find).toHaveBeenCalledWith({
       order: { name: 'ASC', id: 'ASC' },
-      take: 1,
     });
   });
   it('uses the same format for generation and preview without advancing on preview', async () => {

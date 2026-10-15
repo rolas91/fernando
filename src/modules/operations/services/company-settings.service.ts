@@ -14,8 +14,14 @@ export class CompanySettingsService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
-  findAll() {
-    return this.repo.find({ order: { name: 'ASC', id: 'ASC' } });
+  async findAll() {
+    const settings = await this.repo.find({
+      order: { name: 'ASC', id: 'ASC' },
+    });
+    // Settings writes target /company-settings/default. Keep reads aligned.
+    return settings.sort(
+      (a, b) => Number(b.id === 'default') - Number(a.id === 'default'),
+    );
   }
 
   async findOne(id: string) {

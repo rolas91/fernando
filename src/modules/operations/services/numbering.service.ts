@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { CompanySettings } from '../../../entities/company-settings.entity';
 import { WorkOrderSequence } from '../../../entities/work-order-sequence.entity';
+import { FormSubmission } from '../../../entities/form-submission.entity';
 
 export type WorkOrderResetMode = 'never' | 'yearly' | 'monthly';
 
@@ -24,8 +25,6 @@ const SCOPE = 'work_order';
 
 @Injectable()
 export class NumberingService {
-  private readonly logger = new Logger(NumberingService.name);
-
   constructor(
     @InjectRepository(CompanySettings)
     private readonly settingsRepo: Repository<CompanySettings>,
@@ -87,6 +86,30 @@ export class NumberingService {
       .execute();
   }
 
+  async ensureSubmissionWorkOrderNumber(submissionId: string): Promise<string> {
+    const config = await this.loadConfig();
+    const date = new Date();
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(FormSubmission);
+      const submission = await repo.findOne({
+        where: { id: submissionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!submission)
+        throw new NotFoundException(
+          `Form submission ${submissionId} not found`,
+        );
+      if (submission.workOrderNumber) return submission.workOrderNumber;
+      const value = await this.advanceSequence(
+        this.computeResetKey(config.reset, date),
+        manager,
+      );
+      const number = this.format(config, value, date);
+      await repo.update(submissionId, { workOrderNumber: number });
+      return number;
+    });
+  }
+
   private computeResetKey(mode: WorkOrderResetMode, date: Date): string {
     if (mode === 'never') return 'GLOBAL';
     const y = date.getUTCFullYear();
@@ -95,26 +118,19 @@ export class NumberingService {
     return `${y}-${m}`;
   }
 
-  private async advanceSequence(resetKey: string): Promise<number> {
-    return this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(WorkOrderSequence);
-      const existing = await repo
-        .createQueryBuilder('seq')
-        .where('seq.scope = :scope AND seq.reset_key = :resetKey', {
-          scope: SCOPE,
-          resetKey,
-        })
-        .setLock('pessimistic_write')
-        .getOne();
-      const next = (existing?.lastValue ?? 0) + 1;
-      if (existing) {
-        existing.lastValue = next;
-        await repo.save(existing);
-      } else {
-        await repo.insert({ scope: SCOPE, resetKey, lastValue: next });
-      }
-      return next;
-    });
+  private async advanceSequence(
+    resetKey: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const rows = await (manager ?? this.dataSource).query(
+      `INSERT INTO "work_order_sequences" ("scope", "reset_key", "last_value", "updated_at")
+       VALUES ($1, $2, 1, NOW())
+       ON CONFLICT ("scope", "reset_key") DO UPDATE
+       SET "last_value" = "work_order_sequences"."last_value" + 1, "updated_at" = NOW()
+       RETURNING "last_value"`,
+      [SCOPE, resetKey],
+    );
+    return Number(rows[0].last_value);
   }
 
   private format(

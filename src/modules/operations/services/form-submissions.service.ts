@@ -800,6 +800,7 @@ type WorkOrderPdfResource = {
 };
 
 type WorkOrderPdfContext = {
+  documentNumber?: string;
   company?: { name?: string; address?: string; phone?: string; email?: string };
   workOrder?: WorkOrder | null;
   project?: Project | null;
@@ -978,7 +979,8 @@ function generatedPdfFileName(
     projectNumber: context.project?.number || context.project?.id || '',
     projectName: context.project?.name || '',
     materialTypes: materialTypes.join(' - '),
-    workOrderNumber: context.workOrder?.orderNumber || '',
+    workOrderNumber:
+      context.documentNumber || context.workOrder?.orderNumber || '',
     shiftDate: String(context.shift?.date || ''),
   };
   const requestedName = filenameTemplate
@@ -998,7 +1000,7 @@ function generatedPdfFileName(
     .replace(/^[\s.-]+|[\s.-]+$/g, '')
     .slice(0, 170)
     .trim();
-  return `${safeName || safeSubmissionId}.pdf`;
+  return `${safeName ? `${safeName}-` : ''}${safeSubmissionId}.pdf`;
 }
 
 export function findWorkOrderFooterSignatures(
@@ -1715,6 +1717,8 @@ export function buildWorkOrderPdf(
     .join(' | ');
   const notes = mappedPdfValue(data, builderConfig, 'notes', defaultNotes);
   const displayNumber =
+    submission.workOrderNumber ||
+    context.documentNumber ||
     workOrder?.orderNumber ||
     mappedPdfValue(
       data,
@@ -2929,6 +2933,7 @@ export class FormSubmissionsService {
       data,
     } as FormSubmission;
     const context: WorkOrderPdfContext = {
+      documentNumber: previewNumber,
       workOrder: { orderNumber: previewNumber } as WorkOrder,
       project: {
         id: 'preview-project',
@@ -3225,7 +3230,10 @@ export class FormSubmissionsService {
       submittedAt:
         dto.submittedAt !== undefined ? new Date(dto.submittedAt) : undefined,
     });
-    const saved = await this.repo.save(item);
+    // The numbering transaction owns this field; a stale edit must not clear it.
+    const edits: Partial<FormSubmission> = { ...item };
+    delete edits.workOrderNumber;
+    const saved = await this.repo.save(edits);
     await this.syncTimesheetsFromSubmission(saved);
     await this.syncIncidentFromSubmission(saved, template);
     if (generatePdf) {
@@ -3968,6 +3976,10 @@ export class FormSubmissionsService {
     }
 
     const isWorkOrder = isWorkOrderTemplate(template);
+    if (isWorkOrder) {
+      submission.workOrderNumber =
+        await this.numbering.ensureSubmissionWorkOrderNumber(submission.id);
+    }
     const settings = isWorkOrder
       ? ((await this.companySettings.findAll())[0] ?? null)
       : null;
@@ -3982,6 +3994,8 @@ export class FormSubmissionsService {
     const workOrderContext = isWorkOrder
       ? await this.loadWorkOrderPdfContext(submission, builderConfig)
       : null;
+    if (workOrderContext)
+      workOrderContext.documentNumber = submission.workOrderNumber || undefined;
     if (workOrderContext && settings) {
       workOrderContext.company = {
         name: settings.name,

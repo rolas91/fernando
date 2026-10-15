@@ -12,10 +12,15 @@ describe('PDF Builder numbering preview', () => {
     'prints the persisted WO number instead of a stale mapped value %p',
     (mappedNumber) => {
       const pdf = buildWorkOrderPdf(
-        { id: 'submission-1', data: { custom_number: mappedNumber } } as any,
+        {
+          id: 'submission-1',
+          workOrderNumber: '000042',
+          data: { custom_number: mappedNumber },
+        } as any,
         null,
         {
-          workOrder: { orderNumber: '000042' },
+          workOrder: { orderNumber: 'ASN-2026-001' },
+          project: { number: 'QA-PROJECT' },
           workers: [],
           equipment: [],
           materials: [],

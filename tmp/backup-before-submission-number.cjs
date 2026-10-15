@@ -1,0 +1,12 @@
+const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
+require('dotenv').config({quiet:true});
+if(process.env.DB_HOST!=='127.0.0.1'||process.env.DB_NAME!=='fernando') throw new Error('Expected local fernando only');
+const name='fernando-before-submission-number-'+Date.now()+'.sql';
+const output=path.resolve('tmp',name);
+execFileSync('docker',['exec','postgres_db','pg_dump','-U',process.env.DB_USER,'-d','fernando','--no-owner','--no-privileges','--file=/tmp/'+name],{windowsHide:true,stdio:'pipe'});
+execFileSync('docker',['cp','postgres_db:/tmp/'+name,output],{windowsHide:true,stdio:'pipe'});
+if(fs.statSync(output).size<100||!fs.readFileSync(output,'utf8').includes('PostgreSQL database dump')) throw new Error('Backup validation failed');
+fs.writeFileSync('tmp/submission-number-backup.json',JSON.stringify({path:output,bytes:fs.statSync(output).size}));
+console.log('Backup verified',output,fs.statSync(output).size);

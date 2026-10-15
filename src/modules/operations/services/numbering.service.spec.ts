@@ -81,4 +81,44 @@ describe('work order numbering', () => {
     expect(await service.nextWorkOrderNumber(date)).toBe('00042');
     expect(advance).toHaveBeenCalledWith('GLOBAL');
   });
+
+  it('persists a distinct number for each submission and reuses it after settings change', async () => {
+    const { service, settings } = setup('{NNNNNN}', 6);
+    const rows = new Map([
+      ['first', { id: 'first', workOrderNumber: null as string | null }],
+      ['second', { id: 'second', workOrderNumber: null as string | null }],
+    ]);
+    let counter = 40;
+    const repo = {
+      findOne: jest.fn(async ({ where }) => rows.get(where.id)),
+      update: jest.fn(async (id, patch) => Object.assign(rows.get(id)!, patch)),
+    };
+    const manager = {
+      getRepository: () => repo,
+      query: jest.fn(async () => [{ last_value: ++counter }]),
+    };
+    Object.assign(service, {
+      dataSource: { transaction: async (fn) => fn(manager) },
+    });
+    expect(await service.ensureSubmissionWorkOrderNumber('first')).toBe(
+      '000041',
+    );
+    expect(await service.ensureSubmissionWorkOrderNumber('second')).toBe(
+      '000042',
+    );
+    settings.find.mockResolvedValue([
+      { workOrderNumberTemplate: 'NEW-{NNNN}', workOrderNumberPadding: 4 },
+    ] as any);
+    expect(await service.ensureSubmissionWorkOrderNumber('first')).toBe(
+      '000041',
+    );
+    expect(await service.ensureSubmissionWorkOrderNumber('second')).toBe(
+      '000042',
+    );
+    expect(manager.query).toHaveBeenCalledTimes(2);
+    await expect(
+      service.ensureSubmissionWorkOrderNumber('missing'),
+    ).rejects.toThrow('not found');
+    expect(manager.query).toHaveBeenCalledTimes(2);
+  });
 });

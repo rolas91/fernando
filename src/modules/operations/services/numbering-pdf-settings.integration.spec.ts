@@ -57,6 +57,14 @@ describe('Settings to assignment numbering to PDF Builder', () => {
     );
 
     const service: any = Object.create(FormSubmissionsService.prototype);
+    const persistedNumbers = new Map<string, string>();
+    jest
+      .spyOn(numbering, 'ensureSubmissionWorkOrderNumber')
+      .mockImplementation(async (id) => {
+        if (!persistedNumbers.has(id))
+          persistedNumbers.set(id, await numbering.nextWorkOrderNumber());
+        return persistedNumbers.get(id)!;
+      });
     const upload = jest.fn(async () => ({ url: '/generated.pdf' }));
     Object.assign(service, {
       numbering,
@@ -71,11 +79,9 @@ describe('Settings to assignment numbering to PDF Builder', () => {
     );
     expect(preview.toString()).toContain('000042');
     expect(advance).not.toHaveBeenCalled();
-    const newNumber = await numbering.nextWorkOrderNumber();
-    expect(newNumber).toBe('000042');
-
     const context: any = {
-      workOrder: { orderNumber: newNumber },
+      workOrder: { orderNumber: 'ASN-2026-001' },
+      project: { number: 'QA-PROJECT' },
       workers: [],
       equipment: [],
       materials: [],
@@ -98,7 +104,8 @@ describe('Settings to assignment numbering to PDF Builder', () => {
     context.workOrder.orderNumber = 'ASN-2026-001';
     await service.generatePdf(submission, template);
     file = (upload.mock.calls as any)[1][0];
-    expect(file.buffer.toString()).toContain('ASN-2026-001');
+    expect(file.buffer.toString()).toContain('000042');
+    expect(file.buffer.toString()).not.toContain('ASN-2026-001');
     expect(advance).toHaveBeenCalledTimes(1);
 
     await service.generatePdf(submission, {
@@ -107,7 +114,7 @@ describe('Settings to assignment numbering to PDF Builder', () => {
     });
     file = (upload.mock.calls as any)[2][0];
     expect(file.buffer.toString()).not.toContain('SAVED BUILDER');
-    expect(file.buffer.toString()).toContain('ASN-2026-001');
+    expect(file.buffer.toString()).toContain('000042');
   });
 
   it.each(['fixed-number', '{UNKNOWN}-{NNNN}', '', '{NNNN'])(

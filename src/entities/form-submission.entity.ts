@@ -38,6 +38,14 @@ export class FormSubmission {
   @Column({ name: 'pdf_url', type: 'text', default: '' })
   pdfUrl: string;
 
+  @Column({
+    name: 'work_order_number',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
+  workOrderNumber: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { basename, resolve } from 'path';
 import { deflateSync, inflateSync } from 'zlib';
+import { StandardFontEmbedder } from 'pdf-lib';
 import { In, Repository } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
@@ -1622,6 +1623,51 @@ export function buildWorkOrderPdf(
   context: WorkOrderPdfContext,
   builderConfig?: WorkOrderPdfBuilderConfig,
 ): Buffer {
+  const fullTextDetails: string[] = [];
+  const textFont = StandardFontEmbedder.for(
+    'Helvetica' as Parameters<typeof StandardFontEmbedder.for>[0],
+  );
+  const textWidth = (text: string, size: number) =>
+    textFont.widthOfTextAtSize(text.replace(/[^\x20-\x7E]/g, '?'), size);
+  const detailReference = (text: string) => {
+    let index = fullTextDetails.indexOf(text);
+    if (index < 0) index = fullTextDetails.push(text) - 1;
+    return `[${index + 1}]`;
+  };
+  const fitText = (value: unknown, max = 34) => {
+    const text = stringifyFieldValue(value).replace(/\s+/g, ' ').trim();
+    if (text === '-') return '';
+    return text.length <= max ? text : detailReference(text);
+  };
+  const compactId = (value: unknown, max = 18) =>
+    fitText(String(value ?? '').replace(/^fs_mobile_?/i, ''), max) || '-';
+  const fitWorkOrderText = (
+    value: unknown,
+    maxWidth: number,
+    size: number,
+    minimumSize = 4,
+  ) => {
+    const text = stringifyFieldValue(value).replace(/\s+/g, ' ').trim();
+    if (!text || text === '-') return { text: '', size };
+    const measuredWidth = textWidth(text, size);
+    const fittedSize = Math.min(
+      size,
+      Math.floor(((size * maxWidth) / Math.max(1, measuredWidth)) * 10) / 10,
+    );
+    return fittedSize >= minimumSize
+      ? { text, size: fittedSize }
+      : { text: detailReference(text), size };
+  };
+  const cellText = (
+    value: unknown,
+    x: number,
+    y: number,
+    size: number,
+    cellWidth: number,
+  ) => {
+    const fitted = fitWorkOrderText(value, cellWidth, size);
+    return pdfText(fitted.text, x, y, fitted.size);
+  };
   const data = submission.data ?? {};
   const images: PdfImage[] = [];
   const logo = loadCommercialPdfLogoImage(
@@ -1811,8 +1857,9 @@ export function buildWorkOrderPdf(
   ) => {
     ops.push(pdfRect(x, y - h, w, h));
     ops.push(pdfText(label, x + 2, y - 5.5, 5.25, 'F2'));
-    const text = fitText(value, max);
-    if (text) ops.push(pdfText(text, x + 2, y - h + 3.5, 6));
+    const fitted = fitWorkOrderText(value, w - 5, 6);
+    if (fitted.text)
+      ops.push(pdfText(fitted.text, x + 2, y - h + 3.5, fitted.size));
   };
 
   drawTopCell(
@@ -2310,11 +2357,12 @@ export function buildWorkOrderPdf(
         ),
       );
       ops.push(
-        pdfText(
-          stringifyFieldValue(equipment.description),
+        cellText(
+          equipment.description,
           workXs[7] + 2,
           baseline,
           5.2,
+          workCols[7] - 4,
         ),
       );
     };
@@ -2450,17 +2498,18 @@ export function buildWorkOrderPdf(
       );
     });
     if (showMaterials && material) {
-      const materialType = fitPdfTextToWidth(
+      const materialType = fitWorkOrderText(
         material.type || '',
         materialCols[1] - 4,
         5.2,
       );
       ops.push(
-        pdfText(
-          stringifyFieldValue(material.description),
+        cellText(
+          material.description,
           materialXs[0] + 2,
           top - 8.7,
           5.2,
+          materialCols[0] - 4,
         ),
       );
       ops.push(
@@ -2711,20 +2760,15 @@ export function buildWorkOrderPdf(
           equipmentLines.forEach((item, lineIndex) => {
             const lineY = rowTop - 11 - lineIndex * 22;
             pageOps.push(
-              pdfText(
-                stringifyFieldValue(item.identifier),
-                xs[7] + 3,
-                lineY,
-                5.2,
-                'F2',
-              ),
+              cellText(item.identifier, xs[7] + 3, lineY, 5.2, widths[7] - 6),
             );
             pageOps.push(
-              pdfText(
-                stringifyFieldValue(item.description),
+              cellText(
+                item.description,
                 xs[7] + 3,
                 lineY - 8,
                 5,
+                widths[7] - 6,
               ),
             );
           });
@@ -2764,7 +2808,7 @@ export function buildWorkOrderPdf(
         .slice(offset, offset + rowsPerPage)
         .forEach((material) => {
           const rowHeight = 18;
-          const materialType = fitPdfTextToWidth(
+          const materialType = fitWorkOrderText(
             material.type || '',
             widths[1] - 8,
             6,
@@ -2775,11 +2819,12 @@ export function buildWorkOrderPdf(
             ),
           );
           pageOps.push(
-            pdfText(
-              stringifyFieldValue(material.description),
+            cellText(
+              material.description,
               xs[0] + 4,
               rowTop - 12,
               6,
+              widths[0] - 8,
             ),
           );
           pageOps.push(
@@ -2836,6 +2881,46 @@ export function buildWorkOrderPdf(
     }
   }
 
+  if (fullTextDetails.length > 0) {
+    let detailOps: string[] = [];
+    let detailY = 0;
+    const nextDetailPage = () => {
+      if (detailOps.length) continuationPages.push(detailOps.join('\n'));
+      detailOps = [
+        pdfText('WORK ORDER - FULL TEXT DETAILS', left, 750, 12, 'F2'),
+      ];
+      detailY = 725;
+    };
+    nextDetailPage();
+    fullTextDetails.forEach((text, index) => {
+      const words = `[${index + 1}] ${text}`.split(' ');
+      let line = '';
+      const writeLine = () => {
+        if (detailY < 40) nextDetailPage();
+        detailOps.push(pdfText(line, left, detailY, 9));
+        detailY -= 13;
+        line = '';
+      };
+      for (const word of words) {
+        if (line && textWidth(`${line} ${word}`, 9) > width - 8) writeLine();
+        for (const character of `${line ? ' ' : ''}${word}`) {
+          if (textWidth(line + character, 9) > width - 8) writeLine();
+          line += character;
+        }
+      }
+      if (line) writeLine();
+      detailY -= 8;
+    });
+    if (detailOps.length) continuationPages.push(detailOps.join('\n'));
+    ops.push(
+      pdfText(
+        'Numbered references [n]: complete text on FULL TEXT DETAILS pages.',
+        left,
+        18,
+        6,
+      ),
+    );
+  }
   return buildPdfContentPages([ops.join('\n'), ...continuationPages], images);
 }
 

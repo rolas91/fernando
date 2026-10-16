@@ -1,4 +1,15 @@
-import { FormContextResolutionService } from './form-context-resolution.service';
+import {
+  FormContextResolutionService,
+  validExistingClockIn,
+} from './form-context-resolution.service';
+
+describe('saved timesheet start times', () => {
+  it('preserves an early start on reopening only when enabled', () => {
+    expect(validExistingClockIn('14:00', '16:00', '08:00', true)).toBe(true);
+    expect(validExistingClockIn('14:00', '16:00', '08:00', false)).toBe(false);
+    expect(validExistingClockIn('invalid', '16:00', '08:00', true)).toBe(false);
+  });
+});
 
 jest.mock('./work-orders.service', () => ({
   WorkOrdersService: jest.fn(),
@@ -23,6 +34,7 @@ describe('FormContextResolutionService material options', () => {
     {} as never,
     { find: jest.fn().mockResolvedValue([]) } as never,
     materialRepo as never,
+    {} as never,
     {} as never,
     {} as never,
   );

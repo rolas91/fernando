@@ -246,6 +246,7 @@ export class TimesheetsService {
           clockIn,
           scheduledTimes.startTime,
           scheduledTimes.endTime,
+          calculationRules.allowEarlyStart,
         );
         const lunchTaken = booleanValue(
           row.lunchTaken,
@@ -331,14 +332,16 @@ export class TimesheetsService {
       scheduledTimes.startTime || stringValue(row.scheduledStartTime);
     const scheduledEndTime =
       scheduledTimes.endTime || stringValue(row.scheduledEndTime);
+    const calculationRules = await this.getCalculationRules();
     const normalized = normalizeTimesheetSubmissionRow(
       { ...row, scheduledStartTime, scheduledEndTime },
-      await this.getCalculationRules(),
+      calculationRules,
     );
     validateTimesheetStartTime(
       stringValue(normalized.startTime),
       scheduledStartTime,
       scheduledEndTime,
+      calculationRules.allowEarlyStart,
     );
     return {
       ...normalized,
@@ -455,10 +458,12 @@ export class TimesheetsService {
         item.shiftId,
         item.workerId,
       );
+      const calculationRules = await this.getCalculationRules();
       validateTimesheetStartTime(
         clockIn,
         scheduled.startTime,
         scheduled.endTime,
+        calculationRules.allowEarlyStart,
       );
       const hours = calculateTimesheetHours(
         {
@@ -470,7 +475,7 @@ export class TimesheetsService {
           lunchTaken,
           breakMinutes,
         },
-        await this.getCalculationRules(),
+        calculationRules,
       );
       calculatedHours = {
         regularHours: String(hours.st),
@@ -689,6 +694,7 @@ function timeToMinutes(value: string) {
 }
 
 export type TimesheetCalculationRules = {
+  allowEarlyStart: boolean;
   regularHoursLimit: number;
   doubleTimeThreshold: number;
   saturdayAllOvertime: boolean;
@@ -708,6 +714,7 @@ export function timesheetCalculationRules(
   rules?: Record<string, unknown> | null,
 ): TimesheetCalculationRules {
   return {
+    allowEarlyStart: booleanValue(rules?.allowEarlyStart, false),
     regularHoursLimit: positiveNumber(rules?.regularHoursLimit, 8),
     doubleTimeThreshold: positiveNumber(rules?.doubleTimeThreshold, 12),
     saturdayAllOvertime: booleanValue(rules?.saturdayAllOvertime, true),
@@ -852,6 +859,7 @@ export function validateTimesheetStartTime(
   startTime: string,
   scheduledStartTime: string,
   scheduledEndTime = '',
+  allowEarlyStart = false,
 ) {
   if (!scheduledStartTime) return;
   const timeline = timesheetTimeline(
@@ -867,7 +875,7 @@ export function validateTimesheetStartTime(
       'Timesheet Start Time and scheduled shift start must use HH:mm format.',
     );
   }
-  if (start < scheduledStart) {
+  if (!allowEarlyStart && start < scheduledStart) {
     throw new BadRequestException(
       `Timesheet Start Time cannot be earlier than the scheduled shift start (${scheduledStartTime}).`,
     );

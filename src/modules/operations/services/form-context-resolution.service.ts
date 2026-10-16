@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Client } from '../../../entities/client.entity';
+import { CompanySettings } from '../../../entities/company-settings.entity';
 import { FormTemplate } from '../../../entities/form-template.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { Material } from '../../../entities/material.entity';
@@ -174,13 +175,15 @@ function clockMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
-function validExistingClockIn(
+export function validExistingClockIn(
   value: string | null | undefined,
   scheduledStartTime: string,
   scheduledEndTime: string,
+  allowEarlyStart = false,
 ) {
   if (!value) return false;
   const start = clockMinutes(value);
+  if (allowEarlyStart) return start !== null;
   const scheduledStart = clockMinutes(scheduledStartTime);
   const scheduledEnd = clockMinutes(scheduledEndTime);
   if (start === null || scheduledStart === null) return false;
@@ -310,6 +313,8 @@ export class FormContextResolutionService {
     private readonly timesheetRepo: Repository<Timesheet>,
     @InjectRepository(ShiftCatalog)
     private readonly shiftCatalogRepo: Repository<ShiftCatalog>,
+    @InjectRepository(CompanySettings)
+    private readonly companySettingsRepo: Repository<CompanySettings>,
   ) {}
 
   async previewTemplateForWorkOrder(
@@ -803,6 +808,11 @@ export class FormContextResolutionService {
         ) ?? null;
     }
     const durationMinutes = shiftDurationMinutes(shiftTemplate);
+    const companySettings = await this.companySettingsRepo.findOne({
+      where: { id: 'default' },
+    });
+    const allowEarlyStart =
+      companySettings?.overtimeRules?.allowEarlyStart === true;
     return workerIds.map((workerId, index) => {
       const worker = workerById.get(workerId);
       const timesheet = timesheetByWorkerId.get(workerId);
@@ -826,6 +836,7 @@ export class FormContextResolutionService {
         timesheet?.clockIn,
         scheduledStartTime,
         scheduledEndTime,
+        allowEarlyStart,
       )
         ? timesheet?.clockIn
         : '';

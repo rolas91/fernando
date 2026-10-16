@@ -3,6 +3,7 @@ import {
   deterministicTimesheetId,
   timesheetCalculationRules,
   validateTimesheetStartTime,
+  normalizeTimesheetSubmissionRow,
 } from './timesheets.service';
 
 describe('deterministicTimesheetId', () => {
@@ -231,6 +232,51 @@ describe('calculateTimesheetHours', () => {
 });
 
 describe('validateTimesheetStartTime', () => {
+  it('keeps early starts disabled unless configured', () => {
+    expect(timesheetCalculationRules().allowEarlyStart).toBe(false);
+    expect(
+      timesheetCalculationRules({ allowEarlyStart: true }).allowEarlyStart,
+    ).toBe(true);
+  });
+
+  it('accepts an earlier start when enabled and recalculates overnight hours', () => {
+    expect(() =>
+      validateTimesheetStartTime('02:00 PM', '16:00', '08:00', true),
+    ).not.toThrow();
+    const result = normalizeTimesheetSubmissionRow(
+      {
+        startTime: '02:00 PM',
+        endTime: '08:00 AM',
+        scheduledStartTime: '16:00',
+        scheduledEndTime: '08:00',
+        shiftDate: '2026-10-15',
+        lunchTaken: true,
+        st: 0,
+        ot: 0,
+        dt: 0,
+        total: 0,
+      },
+      timesheetCalculationRules({
+        allowEarlyStart: true,
+        yesLunchDeductionEnabled: true,
+        yesLunchDeductionMinimumHours: 7,
+        yesLunchDeductionHours: 0.5,
+      }),
+    );
+    expect(result).toMatchObject({
+      startTime: '02:00 PM',
+      st: 8,
+      ot: 4,
+      dt: 5.5,
+      total: 17.5,
+    });
+  });
+
+  it('still rejects malformed start times when early starts are enabled', () => {
+    expect(() =>
+      validateTimesheetStartTime('invalid', '16:00', '08:00', true),
+    ).toThrow('format');
+  });
   it('allows the scheduled start time', () => {
     expect(() => validateTimesheetStartTime('07:00 AM', '07:00')).not.toThrow();
   });

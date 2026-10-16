@@ -61,18 +61,21 @@ export class WorkOrdersController {
     required: true,
     enum: ['all', 'completed', 'pm_approved'],
   })
-  @ApiQuery({ name: 'from', required: true, type: String })
-  @ApiQuery({ name: 'to', required: true, type: String })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  @ApiQuery({ name: 'projectId', required: false, type: String })
   async exportPdf(
     @Query('status') status: WorkOrderPdfExportStatus,
     @Query('from') from: string,
     @Query('to') to: string,
     @Res() res: Response,
+    @Query('projectId') projectId?: string,
   ) {
     const result = await this.workOrdersService.exportGeneratedWorkOrderPdfs({
       status,
       from,
       to,
+      projectId,
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(

@@ -37,6 +37,14 @@ describe('WorkOrdersService PDF export', () => {
             status: 'submitted',
             pdfUrl: 'https://files.example/approved.pdf',
           },
+          {
+            id: 'submission-other-project',
+            workOrderId: 'wo-2',
+            shiftId: 'other-shift',
+            templateId: 'work-order-template',
+            status: 'submitted',
+            pdfUrl: 'https://files.example/other.pdf',
+          },
         ]),
       },
       formTemplatesRepo: {
@@ -53,6 +61,7 @@ describe('WorkOrdersService PDF export', () => {
     jest.spyOn(service, 'findShiftOverview').mockResolvedValue([
       {
         id: 'wo-1',
+        projectId: 'project-1',
         orderNumber: 'WO-1',
         shifts: [
           {
@@ -68,6 +77,20 @@ describe('WorkOrdersService PDF export', () => {
             startTime: '10:00',
             status: 'ready_to_notify',
             pmApprovedAt: '2026-08-05T18:00:00.000Z',
+            roles: [],
+          },
+        ],
+      },
+      {
+        id: 'wo-2',
+        projectId: 'project-2',
+        orderNumber: 'WO-2',
+        shifts: [
+          {
+            id: 'other-shift',
+            date: '2025-01-01',
+            startTime: '08:00',
+            status: 'ready_to_notify',
             roles: [],
           },
         ],
@@ -91,5 +114,58 @@ describe('WorkOrdersService PDF export', () => {
     const allDocument = await PDFDocument.load(all.pdf);
     expect(all.count).toBe(2);
     expect(allDocument.getPageCount()).toBe(2);
+
+    const project = await service.exportGeneratedWorkOrderPdfs({
+      status: 'all',
+      projectId: 'project-2',
+    });
+    expect(project.count).toBe(1);
+    expect((await PDFDocument.load(project.pdf)).getPageCount()).toBe(1);
+    expect(project.fileName).toBe('work-orders-project-project-2.pdf');
+
+    const approved = await service.exportGeneratedWorkOrderPdfs({
+      status: 'pm_approved',
+      projectId: 'project-1',
+    });
+    expect(approved.count).toBe(1);
+    await expect(
+      service.exportGeneratedWorkOrderPdfs({
+        status: 'all',
+        projectId: 'project-2',
+        from: '2026-08-05',
+        to: '2026-08-05',
+      }),
+    ).rejects.toThrow('No completed or PM-approved');
+    await expect(
+      service.exportGeneratedWorkOrderPdfs({
+        status: 'all',
+        projectId: 'unknown',
+      }),
+    ).rejects.toThrow('No completed or PM-approved');
+  });
+
+  it('requires a project or complete valid date range', async () => {
+    const service = Object.create(
+      WorkOrdersService.prototype,
+    ) as WorkOrdersService;
+    await expect(
+      service.exportGeneratedWorkOrderPdfs({ status: 'all' }),
+    ).rejects.toThrow('Select a project');
+    await expect(
+      service.exportGeneratedWorkOrderPdfs({ status: 'all', projectId: ' ' }),
+    ).rejects.toThrow('Select a project');
+    await expect(
+      service.exportGeneratedWorkOrderPdfs({
+        status: 'all',
+        from: '2026-01-01',
+      }),
+    ).rejects.toThrow('YYYY-MM-DD');
+    await expect(
+      service.exportGeneratedWorkOrderPdfs({
+        status: 'all',
+        from: '2026-02-01',
+        to: '2026-01-01',
+      }),
+    ).rejects.toThrow('start date');
   });
 });

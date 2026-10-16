@@ -75,8 +75,9 @@ export type WorkOrderPdfExportStatus = 'all' | 'completed' | 'pm_approved';
 
 type WorkOrderPdfExportQuery = {
   status: WorkOrderPdfExportStatus;
-  from: string;
-  to: string;
+  from?: string;
+  to?: string;
+  projectId?: string;
 };
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -368,21 +369,34 @@ export class WorkOrdersService {
 
   async exportGeneratedWorkOrderPdfs(query: WorkOrderPdfExportQuery) {
     const { status, from, to } = query;
+    const projectId = query.projectId?.trim();
     if (!['all', 'completed', 'pm_approved'].includes(status)) {
       throw new BadRequestException(
         'Status must be all, completed, or pm_approved.',
       );
     }
-    if (!ISO_DATE_PATTERN.test(from) || !ISO_DATE_PATTERN.test(to)) {
+    const hasDates = from !== undefined || to !== undefined;
+    if (!projectId && !hasDates) {
+      throw new BadRequestException('Select a project or a date period.');
+    }
+    if (
+      hasDates &&
+      (!from ||
+        !to ||
+        !ISO_DATE_PATTERN.test(from) ||
+        !ISO_DATE_PATTERN.test(to))
+    ) {
       throw new BadRequestException('From and to must use YYYY-MM-DD format.');
     }
-    if (from > to) {
+    if (from && to && from > to) {
       throw new BadRequestException(
         'The start date cannot be after the end date.',
       );
     }
 
-    const workOrders = await this.findShiftOverview();
+    const workOrders = (await this.findShiftOverview()).filter(
+      (workOrder) => !projectId || workOrder.projectId === projectId,
+    );
     const workOrderIds = workOrders.map((workOrder) => workOrder.id);
     const [submissions, templates] = await Promise.all([
       workOrderIds.length > 0
@@ -407,7 +421,8 @@ export class WorkOrdersService {
         const shiftId = typeof shift.id === 'string' ? shift.id : '';
         const date =
           typeof shift.date === 'string' ? shift.date.slice(0, 10) : '';
-        if (!shiftId || date < from || date > to) return false;
+        if (!shiftId || (from && date < from) || (to && date > to))
+          return false;
         const computed = computeShiftStatus({
           workOrderId: workOrder.id,
           shift: shift as never,
@@ -436,7 +451,7 @@ export class WorkOrdersService {
 
     if (eligible.length === 0) {
       throw new NotFoundException(
-        'No completed or PM-approved Work Orders match the selected dates.',
+        'No completed or PM-approved Work Orders match the selected filters.',
       );
     }
 
@@ -495,7 +510,9 @@ export class WorkOrdersService {
     return {
       pdf: Buffer.from(await merged.save()),
       count: selected.length,
-      fileName: `work-orders-${from}-to-${to}.pdf`,
+      fileName: projectId
+        ? `work-orders-project-${projectId.replace(/[^a-zA-Z0-9_-]/g, '_')}${from && to ? `-${from}-to-${to}` : ''}.pdf`
+        : `work-orders-${from}-to-${to}.pdf`,
     };
   }
 

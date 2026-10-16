@@ -545,8 +545,7 @@ export class FormContextResolutionService {
           .filter(
             (item) =>
               normalizedType(item.type) === normalizedType(row.type) &&
-              item.status !== 'retired' &&
-              (configuredIds === null || configuredIds.has(item.id)),
+              item.status !== 'retired',
           )
           .map((item) => ({
             id: item.id,
@@ -562,7 +561,11 @@ export class FormContextResolutionService {
           estimatedQuantity: quantity(row),
           items,
           materialIds:
-            configuredIds === null ? undefined : items.map((item) => item.id),
+            configuredIds === null
+              ? undefined
+              : items
+                  .filter((item) => configuredIds.has(item.id))
+                  .map((item) => item.id),
         };
       }),
       additionalEquipment: equipment

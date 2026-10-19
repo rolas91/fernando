@@ -14,6 +14,7 @@ import { WorkOrder } from '../../../entities/work-order.entity';
 import { FORM_DATA_BINDING_PATHS } from '../utils/form-data-binding.registry';
 import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
 import type { UserAccessContext } from '../../access/ports/access.port';
+import { isOnlyShiftForDay } from '../utils/single-shift-day.util';
 import {
   DynamicFormField,
   FORM_CONTRACT_VERSION,
@@ -813,72 +814,80 @@ export class FormContextResolutionService {
     });
     const allowEarlyStart =
       companySettings?.overtimeRules?.allowEarlyStart === true;
-    return workerIds.map((workerId, index) => {
-      const worker = workerById.get(workerId);
-      const timesheet = timesheetByWorkerId.get(workerId);
-      const workerName = worker
-        ? `${worker.firstName} ${worker.lastName}`.trim() ||
-          worker.email ||
-          worker.id
-        : workerId;
-      const scheduledStartTime = formatTimesheetClockLabel(
-        workerRoleStartTime(shift, workerId),
-      );
-      const scheduledEndTime = formatTimesheetClockLabel(
-        durationMinutes !== null
-          ? addMinutesToClock(
-              workerRoleStartTime(shift, workerId),
-              durationMinutes,
-            )
-          : shiftString(shift, 'endTime'),
-      );
-      const existingClockIn = validExistingClockIn(
-        timesheet?.clockIn,
-        scheduledStartTime,
-        scheduledEndTime,
-        allowEarlyStart,
-      )
-        ? timesheet?.clockIn
-        : '';
-      return {
-        workerId,
-        workerName,
-        employeeLabel: `Employee #${index + 1}`,
-        roleNames: workerRoleNames(shift, workerId),
-        workOrderId: workOrder.id,
-        projectId: workOrder.projectId ?? '',
-        workOrderNumber: workOrder.orderNumber ?? '',
-        workOrderTitle: workOrder.title ?? '',
-        shiftId,
-        shiftDate: timesheet?.date || shiftString(shift, 'date'),
-        scheduledStartTime,
-        scheduledEndTime,
-        startTime: existingClockIn || scheduledStartTime,
-        endTime:
-          timesheet?.status === 'completed' && timesheet.clockOut
-            ? timesheet.clockOut
-            : scheduledEndTime,
-        st: Number(timesheet?.regularHours ?? 0),
-        ot: Number(timesheet?.overtimeHours ?? 0),
-        dt: Number(timesheet?.doubleTimeHours ?? 0),
-        total:
-          Number(timesheet?.regularHours ?? 0) +
-          Number(timesheet?.overtimeHours ?? 0) +
-          Number(timesheet?.doubleTimeHours ?? 0),
-        lunchTaken:
-          timesheet?.status === 'completed'
-            ? timesheet.lunchTaken
-            : typeof configuredLunchDefault === 'boolean'
-              ? configuredLunchDefault
-              : (timesheet?.lunchTaken ?? false),
-        hasExistingTimesheet: Boolean(timesheet),
-        employeeNote: timesheet?.employeeNote ?? '',
-        signature: timesheet?.signature
-          ? parseJsonValue(timesheet.signature)
-          : '',
-        status: timesheet?.status || 'pending',
-      };
-    });
+    return Promise.all(
+      workerIds.map(async (workerId, index) => {
+        const worker = workerById.get(workerId);
+        const timesheet = timesheetByWorkerId.get(workerId);
+        const workerName = worker
+          ? `${worker.firstName} ${worker.lastName}`.trim() ||
+            worker.email ||
+            worker.id
+          : workerId;
+        const scheduledStartTime = formatTimesheetClockLabel(
+          workerRoleStartTime(shift, workerId),
+        );
+        const scheduledEndTime = formatTimesheetClockLabel(
+          durationMinutes !== null
+            ? addMinutesToClock(
+                workerRoleStartTime(shift, workerId),
+                durationMinutes,
+              )
+            : shiftString(shift, 'endTime'),
+        );
+        const existingClockIn = validExistingClockIn(
+          timesheet?.clockIn,
+          scheduledStartTime,
+          scheduledEndTime,
+          allowEarlyStart,
+        )
+          ? timesheet?.clockIn
+          : '';
+        return {
+          workerId,
+          workerName,
+          employeeLabel: `Employee #${index + 1}`,
+          roleNames: workerRoleNames(shift, workerId),
+          workOrderId: workOrder.id,
+          projectId: workOrder.projectId ?? '',
+          workOrderNumber: workOrder.orderNumber ?? '',
+          workOrderTitle: workOrder.title ?? '',
+          shiftId,
+          shiftDate: timesheet?.date || shiftString(shift, 'date'),
+          singleShiftDay: await isOnlyShiftForDay(
+            this.timesheetRepo.manager,
+            workerId,
+            shiftId,
+            timesheet?.date || shiftString(shift, 'date'),
+          ),
+          scheduledStartTime,
+          scheduledEndTime,
+          startTime: existingClockIn || scheduledStartTime,
+          endTime:
+            timesheet?.status === 'completed' && timesheet.clockOut
+              ? timesheet.clockOut
+              : scheduledEndTime,
+          st: Number(timesheet?.regularHours ?? 0),
+          ot: Number(timesheet?.overtimeHours ?? 0),
+          dt: Number(timesheet?.doubleTimeHours ?? 0),
+          total:
+            Number(timesheet?.regularHours ?? 0) +
+            Number(timesheet?.overtimeHours ?? 0) +
+            Number(timesheet?.doubleTimeHours ?? 0),
+          lunchTaken:
+            timesheet?.status === 'completed'
+              ? timesheet.lunchTaken
+              : typeof configuredLunchDefault === 'boolean'
+                ? configuredLunchDefault
+                : (timesheet?.lunchTaken ?? false),
+          hasExistingTimesheet: Boolean(timesheet),
+          employeeNote: timesheet?.employeeNote ?? '',
+          signature: timesheet?.signature
+            ? parseJsonValue(timesheet.signature)
+            : '',
+          status: timesheet?.status || 'pending',
+        };
+      }),
+    );
   }
 
   private async resolveWorkerIdForActor(actor?: UserAccessContext) {

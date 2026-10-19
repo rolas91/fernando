@@ -38,6 +38,7 @@ import {
 } from '../utils/form-contract.util';
 import { loadCommercialPdfLogoImage } from '../utils/commercial-pdf.util';
 import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
+import { isFutureShift } from '../utils/shift-date.util';
 
 function pdfEscape(value: string): string {
   return value
@@ -1856,8 +1857,8 @@ export function buildWorkOrderPdf(
     max: number,
   ) => {
     ops.push(pdfRect(x, y - h, w, h));
-    ops.push(pdfText(label, x + 2, y - 5.5, 5.25, 'F2'));
-    const fitted = fitWorkOrderText(value, w - 5, 6);
+    ops.push(pdfText(label, x + 2, y - 5.5, 5.75, 'F2'));
+    const fitted = fitWorkOrderText(value, w - 5, 7);
     if (fitted.text)
       ops.push(pdfText(fitted.text, x + 2, y - h + 3.5, fitted.size));
   };
@@ -2252,12 +2253,12 @@ export function buildWorkOrderPdf(
 
     if (showLabor && worker) {
       ops.push(
-        pdfText(
-          fitText(worker.workerName, 34),
+        cellText(
+          worker.workerName,
           left + 31,
           personBaseline,
-          5.1,
-          'F2',
+          Math.min(7, workerSubRowHeight - 3),
+          firstColumnSplit - 34,
         ),
       );
       ops.push(
@@ -2265,7 +2266,7 @@ export function buildWorkOrderPdf(
           formatPdfClock(worker.startTime),
           workXs[1] + 2,
           personBaseline,
-          5.2,
+          Math.min(6.5, workerSubRowHeight - 3),
         ),
       );
       ops.push(
@@ -2273,7 +2274,7 @@ export function buildWorkOrderPdf(
           formatPdfClock(worker.endTime),
           workXs[2] + 2,
           personBaseline,
-          5.2,
+          Math.min(6.5, workerSubRowHeight - 3),
         ),
       );
       ops.push(
@@ -2281,7 +2282,7 @@ export function buildWorkOrderPdf(
           String(worker.regularHours),
           workXs[3] + 8,
           personBaseline,
-          5.5,
+          Math.min(7, workerSubRowHeight - 3),
         ),
       );
       ops.push(
@@ -2289,7 +2290,7 @@ export function buildWorkOrderPdf(
           String(worker.overtimeHours),
           workXs[4] + 8,
           personBaseline,
-          5.5,
+          Math.min(7, workerSubRowHeight - 3),
         ),
       );
       ops.push(
@@ -2297,7 +2298,7 @@ export function buildWorkOrderPdf(
           String(worker.doubleTimeHours),
           workXs[5] + 8,
           personBaseline,
-          5.5,
+          Math.min(7, workerSubRowHeight - 3),
         ),
       );
       if (worker.lunchTaken) {
@@ -3196,6 +3197,12 @@ export class FormSubmissionsService {
           dto.shiftId,
         );
     }
+    await this.assertSubmissionDate(
+      dto.status,
+      template,
+      dto.workOrderId,
+      dto.shiftId,
+    );
     const data = await this.prepareTimesheetData(
       normalizeSubmissionData(dto.data),
       template,
@@ -3274,6 +3281,12 @@ export class FormSubmissionsService {
           dto.shiftId || item.shiftId,
         );
     }
+    await this.assertSubmissionDate(
+      dto.status ?? item.status,
+      template,
+      dto.workOrderId || item.workOrderId,
+      dto.shiftId || item.shiftId,
+    );
     const data =
       dto.data !== undefined
         ? await this.prepareTimesheetData(
@@ -3331,6 +3344,28 @@ export class FormSubmissionsService {
     this.realtime.emitTableUpdated('form_submissions');
     this.realtime.emitTableUpdated('work_orders');
     return saved;
+  }
+
+  private async assertSubmissionDate(
+    status: string | undefined,
+    template: FormTemplate | null,
+    workOrderId?: string,
+    shiftId?: string,
+  ) {
+    if (
+      status !== 'submitted' ||
+      !isWorkOrderTemplate(template) ||
+      !workOrderId ||
+      !shiftId
+    )
+      return;
+    const shifts = await this.shiftsQuery.loadShiftsForWorkOrder(workOrderId);
+    const shift = shifts?.find((entry) => entry.id === shiftId);
+    if (isFutureShift(shift?.date)) {
+      throw new BadRequestException(
+        'A future shift cannot be completed before its scheduled date. Save a draft instead.',
+      );
+    }
   }
 
   private async prepareTimesheetData(

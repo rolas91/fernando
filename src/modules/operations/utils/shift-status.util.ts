@@ -1,7 +1,7 @@
+import { isFutureShift } from './shift-date.util';
+
 export type ManualShiftStatus =
-  | 'customer_pending'
-  | 'dispatch_pending'
-  | 'ready_to_notify';
+  'customer_pending' | 'dispatch_pending' | 'ready_to_notify';
 
 export type AutomaticShiftStatus =
   | 'awaiting_response'
@@ -38,9 +38,7 @@ export const AUTOMATIC_SHIFT_STATUSES: AutomaticShiftStatus[] = [
 ];
 
 export type ShiftWorkerConfirmationStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'declined';
+  'pending' | 'confirmed' | 'declined';
 
 export interface ShiftWorkerConfirmationLike {
   workerId?: unknown;
@@ -196,6 +194,7 @@ export function computeShiftStatus(
   }
 
   if (
+    !isFutureShift(shift.date) &&
     typeof shift.pmApprovedAt === 'string' &&
     Boolean(shift.pmApprovedAt.trim())
   ) {
@@ -207,6 +206,7 @@ export function computeShiftStatus(
   }
 
   if (
+    !isFutureShift(shift.date) &&
     automaticLifecycleEnabled &&
     shiftId &&
     completion.isShiftCompleted(workOrderId, shiftId)

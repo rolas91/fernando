@@ -1073,6 +1073,48 @@ export class IntegrationsService {
     };
   }
 
+  async sendWorkOrderDocument(email: string, fileName: string, pdf: Buffer) {
+    const {
+      SMTP_HOST: host,
+      SMTP_USER: user,
+      SMTP_PASS: pass,
+      SMTP_FROM: from,
+    } = process.env;
+    if (
+      !host ||
+      !user ||
+      !pass ||
+      !from ||
+      host.includes('placeholder') ||
+      user.includes('placeholder')
+    ) {
+      throw new Error(
+        'Email delivery is not configured. Configure SMTP before sending Work Orders.',
+      );
+    }
+    const port = Number(process.env.SMTP_PORT || 587);
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass },
+      connectionTimeout: 15000,
+      socketTimeout: 30000,
+    });
+    const result = await transporter.sendMail({
+      from,
+      to: email,
+      subject: 'Your Work Order',
+      text: 'Please find your Work Order attached.',
+      attachments: [
+        { filename: fileName, content: pdf, contentType: 'application/pdf' },
+      ],
+    });
+    if (!result.accepted?.length)
+      throw new Error('The email server did not accept the recipient.');
+    return { success: true, recipient: email, messageId: result.messageId };
+  }
+
   private async sendEmail(body: NotificationBody) {
     const host = process.env.SMTP_HOST || '';
     const port = Number(process.env.SMTP_PORT || 587);

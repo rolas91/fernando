@@ -516,6 +516,65 @@ export class WorkOrdersService {
     };
   }
 
+  async emailWorkOrderPdf(
+    workOrderId: string,
+    submissionId: string,
+    expectedEmail: unknown,
+  ) {
+    const order = await this.workOrdersRepo.findOne({
+      where: { id: workOrderId },
+    });
+    if (!order) throw new NotFoundException('Assignment not found.');
+    const project = await this.projectsRepo.findOne({
+      where: { id: order.projectId },
+    });
+    const client = project?.clientId
+      ? await this.clientsRepo.findOne({ where: { id: project.clientId } })
+      : null;
+    const email = client?.email?.trim();
+    if (!email || !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email)) {
+      throw new BadRequestException(
+        'The project client needs a valid email address.',
+      );
+    }
+    if (expectedEmail !== email)
+      throw new BadRequestException(
+        'The client email changed. Refresh and confirm the recipient again.',
+      );
+    const submission = await this.formSubmissionsRepo.findOne({
+      where: { id: submissionId, workOrderId, status: 'submitted' },
+    });
+    const template = submission
+      ? await this.formTemplatesRepo.findOne({
+          where: { id: submission.templateId },
+        })
+      : null;
+    const category = `${template?.category || ''} ${template?.name || ''}`
+      .toLowerCase()
+      .replace(/[_\s-]+/g, '');
+    if (!submission?.pdfUrl || !category.includes('workorder'))
+      throw new BadRequestException('A submitted Work Order PDF is required.');
+    const pdf = Buffer.from(await this.readGeneratedPdf(submission.pdfUrl));
+    if (pdf.length > 20 * 1024 * 1024)
+      throw new BadRequestException(
+        'The PDF exceeds the 20 MB email attachment limit.',
+      );
+    try {
+      return await this.integrations.sendWorkOrderDocument(
+        email,
+        `work-order-${submission.id.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+        pdf,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Work Order email failed for submission ${submission.id}`,
+      );
+      throw new BadRequestException(
+        'Could not send the Work Order. Check the SMTP configuration and delivery status before retrying.',
+      );
+    }
+  }
+
   private async readGeneratedPdf(pdfUrl: string): Promise<Uint8Array> {
     const value = pdfUrl.trim();
     if (value.startsWith('/files/')) {

@@ -50,6 +50,19 @@ export class WorkOrdersController {
     return this.workOrdersService.findTrash();
   }
 
+  @Post(':id/submissions/:submissionId/email')
+  emailPdf(
+    @Param('id') id: string,
+    @Param('submissionId') submissionId: string,
+    @Body('expectedEmail') expectedEmail: unknown,
+  ) {
+    return this.workOrdersService.emailWorkOrderPdf(
+      id,
+      submissionId,
+      expectedEmail,
+    );
+  }
+
   @Get('shifts/overview')
   getShiftOverview() {
     return this.workOrdersService.findShiftOverview();

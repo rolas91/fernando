@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
+import { isFutureShift } from '../utils/shift-date.util';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import {
   WorkOrderShiftRoleWorker,
@@ -372,6 +373,11 @@ export class WorkOrderShiftsWriteService {
       where: { id: input.shiftId, workOrderId: input.workOrderId },
     });
     if (!shift) return null;
+    if (isFutureShift(shift.date)) {
+      throw new BadRequestException(
+        'A future shift cannot be approved before its scheduled date.',
+      );
+    }
     shift.pmApprovedAt = new Date();
     shift.pmApprovedByUserId = input.userId;
     return this.shiftsRepo.save(shift);

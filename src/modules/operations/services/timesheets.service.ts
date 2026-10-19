@@ -20,6 +20,7 @@ import { ShiftsQueryService } from './shifts-query.service';
 import { CreateTimesheetDto } from '../dto/create-timesheet.dto';
 import { UpdateTimesheetDto } from '../dto/update-timesheet.dto';
 import { WorkOrderShiftsWriteService } from './work-order-shifts-write.service';
+import { isOnlyShiftForDay } from '../utils/single-shift-day.util';
 
 @Injectable()
 export class TimesheetsService {
@@ -229,7 +230,8 @@ export class TimesheetsService {
         const existing = await this.timesheetsRepo.findOne({
           where: { workOrderId, shiftId, workerId, variant },
         });
-        if (existing?.manuallyEdited) continue;
+        if (existing?.manuallyEdited || (existing && scheduledTimes.pmApproved))
+          continue;
 
         const status = operationalTimesheetStatus(row.status, existing?.status);
         const clockIn =
@@ -263,6 +265,11 @@ export class TimesheetsService {
           new Date().toISOString().slice(0, 10);
         const hours = calculateTimesheetHours(
           {
+            singleShiftDay: await this.isOnlyShiftForDay(
+              workerId,
+              shiftId,
+              timesheetDate,
+            ),
             startTime: clockIn,
             endTime: clockOut,
             scheduledStartTime: scheduledTimes.startTime,
@@ -334,7 +341,16 @@ export class TimesheetsService {
       scheduledTimes.endTime || stringValue(row.scheduledEndTime);
     const calculationRules = await this.getCalculationRules();
     const normalized = normalizeTimesheetSubmissionRow(
-      { ...row, scheduledStartTime, scheduledEndTime },
+      {
+        ...row,
+        scheduledStartTime,
+        scheduledEndTime,
+        singleShiftDay: await this.isOnlyShiftForDay(
+          workerId,
+          shiftId,
+          stringValue(row.shiftDate) || stringValue(row.date),
+        ),
+      },
       calculationRules,
     );
     validateTimesheetStartTime(
@@ -348,6 +364,19 @@ export class TimesheetsService {
       scheduledStartTime,
       scheduledEndTime,
     };
+  }
+
+  private async isOnlyShiftForDay(
+    workerId: string,
+    shiftId: string,
+    date: string,
+  ): Promise<boolean> {
+    return isOnlyShiftForDay(
+      this.workOrdersRepo.manager,
+      workerId,
+      shiftId,
+      date,
+    );
   }
 
   private async getCalculationRules(): Promise<TimesheetCalculationRules> {
@@ -398,6 +427,7 @@ export class TimesheetsService {
     const durationMinutes = shiftCatalogDurationMinutes(shiftTemplate);
     return {
       startTime,
+      pmApproved: Boolean(shift?.pmApprovedAt),
       endTime:
         durationMinutes !== null
           ? addMinutesToClock(startTime, durationMinutes)
@@ -467,6 +497,11 @@ export class TimesheetsService {
       );
       const hours = calculateTimesheetHours(
         {
+          singleShiftDay: await this.isOnlyShiftForDay(
+            item.workerId,
+            item.shiftId || '',
+            date,
+          ),
           clockIn,
           clockOut,
           scheduledStartTime: scheduled.startTime,
@@ -748,6 +783,7 @@ export function timesheetCalculationRules(
 
 export function calculateTimesheetHours(
   row: {
+    singleShiftDay?: boolean;
     startTime?: string;
     endTime?: string;
     clockIn?: string;
@@ -835,6 +871,8 @@ export function calculateTimesheetHours(
     creditedOt = ot + (target === 'ot' ? lunchCredit : 0);
   }
 
+  if (row.singleShiftDay && st > 0 && st < 8) st = 8;
+
   return {
     st: roundHours(st),
     ot: roundHours(creditedOt),
@@ -891,6 +929,7 @@ export function normalizeTimesheetSubmissionRow(
   const lunchTaken = booleanValue(row.lunchTaken, false);
   const hours = calculateTimesheetHours(
     {
+      singleShiftDay: row.singleShiftDay === true,
       startTime: clockIn,
       endTime: clockOut,
       scheduledStartTime: stringValue(row.scheduledStartTime),

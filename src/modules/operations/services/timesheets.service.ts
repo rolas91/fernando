@@ -205,6 +205,12 @@ export class TimesheetsService {
       emitRealtime?: boolean;
       sourceSubmissionId?: string;
       variants?: TimesheetVariant[];
+      /**
+       * A Work Order manager resubmitting the same Work Order submission owns
+       * its timesheet rows, so the resubmit may replace rows previously marked
+       * as manually edited. Other callers keep the protection.
+       */
+      overwriteManualEdits?: boolean;
     },
   ) {
     const saved: Timesheet[] = [];
@@ -230,7 +236,10 @@ export class TimesheetsService {
         const existing = await this.timesheetsRepo.findOne({
           where: { workOrderId, shiftId, workerId, variant },
         });
-        if (existing?.manuallyEdited || (existing && scheduledTimes.pmApproved))
+        if (
+          (existing?.manuallyEdited && !opts?.overwriteManualEdits) ||
+          (existing && scheduledTimes.pmApproved)
+        )
           continue;
 
         const status = operationalTimesheetStatus(row.status, existing?.status);

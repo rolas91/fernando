@@ -116,6 +116,12 @@ export class FormTemplatesController {
           w,
           shiftId,
         ),
+      canEditSubmittedWorkOrder:
+        await this.shiftWorkOrderAccess.canEditSubmittedShiftWorkOrder(
+          req?.user,
+          w,
+          shiftId,
+        ),
     };
   }
 

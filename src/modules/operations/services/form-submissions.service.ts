@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -3118,6 +3119,45 @@ export class FormSubmissionsService {
     return item;
   }
 
+  /**
+   * Preflight used by the mobile app before it unlocks a submitted Work Order.
+   * It performs no writes: the same submission is updated when the user
+   * resubmits, so no duplicate record is created.
+   */
+  async reopenForEdit(id: string, actor?: UserAccessContext) {
+    const item = await this.findOne(id);
+    const template = item.templateId
+      ? await this.templatesRepo.findOne({ where: { id: item.templateId } })
+      : null;
+    if (!isWorkOrderTemplate(template)) {
+      throw new BadRequestException(
+        'Only Work Order forms can be reopened for editing.',
+      );
+    }
+    if (item.status !== 'submitted') {
+      throw new BadRequestException(
+        'Only a submitted Work Order can be reopened for editing.',
+      );
+    }
+    await this.shiftsWrite.assertShiftNotPmApproved(
+      item.workOrderId,
+      item.shiftId,
+    );
+    await this.shiftWorkOrderAccess.assertCanEditSubmittedShiftWorkOrder(
+      actor,
+      item.workOrderId,
+      item.shiftId,
+    );
+    return {
+      id: item.id,
+      templateId: item.templateId,
+      workOrderId: item.workOrderId,
+      shiftId: item.shiftId,
+      status: item.status,
+      canEdit: true,
+    };
+  }
+
   async regeneratePdf(id: string, actor?: UserAccessContext) {
     const submission = await this.findOne(id);
     await this.shiftsWrite.assertShiftNotPmApproved(
@@ -3181,6 +3221,12 @@ export class FormSubmissionsService {
     const template = dto.templateId
       ? await this.templatesRepo.findOne({ where: { id: dto.templateId } })
       : null;
+    await this.assertTimesheetEntryAllowed(
+      template,
+      actor,
+      dto.workOrderId,
+      dto.shiftId,
+    );
     let canManageShiftWorkOrder = false;
     if (isWorkOrderTemplate(template)) {
       await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
@@ -3265,6 +3311,21 @@ export class FormSubmissionsService {
     const template = templateId
       ? await this.templatesRepo.findOne({ where: { id: templateId } })
       : null;
+    await this.assertTimesheetEntryAllowed(
+      template,
+      actor,
+      dto.workOrderId || item.workOrderId,
+      dto.shiftId || item.shiftId,
+    );
+    const editingSubmittedWorkOrder =
+      item.status === 'submitted' && isWorkOrderTemplate(template);
+    if (editingSubmittedWorkOrder && dto.status !== undefined) {
+      await this.shiftWorkOrderAccess.assertCanEditSubmittedShiftWorkOrder(
+        actor,
+        dto.workOrderId || item.workOrderId,
+        dto.shiftId || item.shiftId,
+      );
+    }
     let canManageShiftWorkOrder = false;
     if (isWorkOrderTemplate(template)) {
       await this.shiftWorkOrderAccess.assertCanManageShiftWorkOrder(
@@ -3332,7 +3393,10 @@ export class FormSubmissionsService {
     const edits: Partial<FormSubmission> = { ...item };
     delete edits.workOrderNumber;
     const saved = await this.repo.save(edits);
-    await this.syncTimesheetsFromSubmission(saved);
+    await this.syncTimesheetsFromSubmission(saved, {
+      overwriteManualEdits:
+        editingSubmittedWorkOrder && dto.status === 'submitted',
+    });
     await this.syncIncidentFromSubmission(saved, template);
     if (generatePdf) {
       await this.deleteGeneratedPdf(previousPdfUrl);
@@ -3418,6 +3482,29 @@ export class FormSubmissionsService {
     );
   }
 
+  private async assertTimesheetEntryAllowed(
+    template: FormTemplate | null,
+    actor: UserAccessContext | undefined,
+    workOrderId?: string,
+    shiftId?: string,
+  ) {
+    if (!template || !isTimesheetTemplate(template) || !isViewerRole(actor)) {
+      return;
+    }
+    if (
+      await this.shiftWorkOrderAccess.canManageShiftWorkOrderAsOwner(
+        actor,
+        workOrderId,
+        shiftId,
+      )
+    ) {
+      return;
+    }
+    throw new ForbiddenException(
+      'Only the Work Order manager or an administrator can enter timesheet hours.',
+    );
+  }
+
   private async isMobileSelfTimesheetSubmission(
     template: FormTemplate | null,
     actor?: UserAccessContext,
@@ -3449,7 +3536,10 @@ export class FormSubmissionsService {
     return worker?.id || actor?.id || '';
   }
 
-  private async syncTimesheetsFromSubmission(submission: FormSubmission) {
+  private async syncTimesheetsFromSubmission(
+    submission: FormSubmission,
+    options?: { overwriteManualEdits?: boolean },
+  ) {
     const data = submission.data ?? {};
     const rows = findTimesheetRows(data);
     if (rows.length === 0) return;
@@ -3459,6 +3549,7 @@ export class FormSubmissionsService {
       projectId: submission.projectId,
       sourceSubmissionId: submission.id,
       variants: ['client', 'internal'],
+      overwriteManualEdits: options?.overwriteManualEdits,
     });
   }
 

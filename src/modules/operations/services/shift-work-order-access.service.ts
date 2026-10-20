@@ -28,6 +28,31 @@ export class ShiftWorkOrderAccessService {
     );
   }
 
+  isAdmin(actor?: UserAccessContext): boolean {
+    return Boolean(
+      actor &&
+      (actor.role === 'admin' || (actor.roles ?? []).includes('admin')),
+    );
+  }
+
+  async isShiftPmApproved(
+    workOrderId?: string,
+    shiftId?: string,
+  ): Promise<boolean> {
+    const normalizedWorkOrderId = workOrderId?.trim();
+    const normalizedShiftId = shiftId?.trim();
+    if (!normalizedWorkOrderId || !normalizedShiftId) return false;
+
+    const shift = await this.shiftsRepo.findOne({
+      where: {
+        id: normalizedShiftId,
+        workOrderId: normalizedWorkOrderId,
+      },
+      select: { id: true, pmApprovedAt: true },
+    });
+    return Boolean(shift?.pmApprovedAt);
+  }
+
   async canManageShiftWorkOrder(
     actor: UserAccessContext | undefined,
     workOrderId: string | undefined,
@@ -35,7 +60,58 @@ export class ShiftWorkOrderAccessService {
   ): Promise<boolean> {
     if (!actor) return false;
     if (this.hasGlobalAccess(actor)) return true;
+    return this.hasShiftWorkOrderAssignment(actor, workOrderId, shiftId);
+  }
 
+  /**
+   * Strict Work Order ownership: the designated shift manager or an admin.
+   * Global mobile Work Order permissions are intentionally ignored.
+   */
+  async canManageShiftWorkOrderAsOwner(
+    actor: UserAccessContext | undefined,
+    workOrderId: string | undefined,
+    shiftId: string | undefined,
+  ): Promise<boolean> {
+    if (!actor) return false;
+    if (this.isAdmin(actor)) return true;
+    return this.hasShiftWorkOrderAssignment(actor, workOrderId, shiftId);
+  }
+
+  /**
+   * Editing an already submitted Work Order is stricter than submitting it:
+   * only the worker designated as the shift Work Order manager or an admin may
+   * reopen it. Global mobile Work Order permissions are intentionally ignored.
+   */
+  async canEditSubmittedShiftWorkOrder(
+    actor: UserAccessContext | undefined,
+    workOrderId: string | undefined,
+    shiftId: string | undefined,
+  ): Promise<boolean> {
+    if (!actor) return false;
+    if (await this.isShiftPmApproved(workOrderId, shiftId)) return false;
+    return this.canManageShiftWorkOrderAsOwner(actor, workOrderId, shiftId);
+  }
+
+  async assertCanEditSubmittedShiftWorkOrder(
+    actor: UserAccessContext | undefined,
+    workOrderId: string | undefined,
+    shiftId: string | undefined,
+  ): Promise<void> {
+    if (
+      await this.canEditSubmittedShiftWorkOrder(actor, workOrderId, shiftId)
+    ) {
+      return;
+    }
+    throw new ForbiddenException(
+      'Only the Work Order manager or an administrator can edit a submitted Work Order.',
+    );
+  }
+
+  private async hasShiftWorkOrderAssignment(
+    actor: UserAccessContext,
+    workOrderId: string | undefined,
+    shiftId: string | undefined,
+  ): Promise<boolean> {
     const normalizedWorkOrderId = workOrderId?.trim();
     const normalizedShiftId = shiftId?.trim();
     const email = actor.email?.trim();

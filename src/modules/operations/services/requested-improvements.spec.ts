@@ -127,6 +127,163 @@ describe('requested improvements', () => {
       ),
     ).resolves.toBeUndefined();
   });
+  it('opens a submitted Work Order for editing only through the edit guard', async () => {
+    const service: any = Object.create(FormSubmissionsService.prototype);
+    const actor = {
+      id: 'u',
+      role: 'viewer',
+      roles: ['viewer'],
+      permissions: [],
+    };
+    service.findOne = async () => ({
+      id: 'sub',
+      templateId: 't',
+      workOrderId: 'w',
+      shiftId: 's',
+      status: 'submitted',
+    });
+    service.templatesRepo = {
+      findOne: async () => ({
+        category: 'Work Order',
+        name: 'Work Order Form',
+      }),
+    };
+    service.shiftsWrite = {
+      assertShiftNotPmApproved: jest.fn(async () => undefined),
+    };
+    service.shiftWorkOrderAccess = {
+      assertCanEditSubmittedShiftWorkOrder: jest.fn(async () => undefined),
+    };
+
+    await expect(service.reopenForEdit('sub', actor)).resolves.toMatchObject({
+      id: 'sub',
+      canEdit: true,
+    });
+    expect(
+      service.shiftWorkOrderAccess.assertCanEditSubmittedShiftWorkOrder,
+    ).toHaveBeenCalledWith(actor, 'w', 's');
+  });
+  it('blocks resubmitting a submitted Work Order without edit rights', async () => {
+    const service: any = Object.create(FormSubmissionsService.prototype);
+    service.findOne = async () => ({
+      id: 'sub',
+      templateId: 't',
+      workOrderId: 'w',
+      shiftId: 's',
+      status: 'submitted',
+      data: {},
+    });
+    service.shiftsWrite = {
+      assertShiftNotPmApproved: jest.fn(async () => undefined),
+    };
+    service.templatesRepo = {
+      findOne: async () => ({
+        category: 'Work Order',
+        name: 'Work Order Form',
+      }),
+    };
+    service.shiftWorkOrderAccess = {
+      assertCanEditSubmittedShiftWorkOrder: jest.fn(async () => {
+        throw new Error('not the Work Order manager');
+      }),
+      canManageShiftWorkOrder: jest.fn(async () => true),
+      assertCanManageShiftWorkOrder: jest.fn(async () => undefined),
+    };
+
+    await expect(
+      service.update(
+        'sub',
+        { status: 'submitted', data: {} },
+        { id: 'u', role: 'scheduler', roles: ['scheduler'], permissions: [] },
+      ),
+    ).rejects.toThrow('not the Work Order manager');
+  });
+  describe('viewer own-timesheet entry', () => {
+    const timesheetTemplate = { category: 'Timesheet', name: 'TimeSheet' };
+    const viewer = {
+      id: 'u',
+      role: 'viewer',
+      roles: ['viewer'],
+      permissions: ['mobile.timesheets.submit'],
+    };
+
+    it('blocks a viewer who is not the Work Order manager', async () => {
+      const service: any = Object.create(FormSubmissionsService.prototype);
+      service.shiftWorkOrderAccess = {
+        canManageShiftWorkOrderAsOwner: jest.fn(async () => false),
+      };
+
+      await expect(
+        service.assertTimesheetEntryAllowed(
+          timesheetTemplate,
+          viewer,
+          'w',
+          's',
+        ),
+      ).rejects.toThrow('Work Order manager');
+    });
+
+    it('allows the viewer designated as the Work Order manager', async () => {
+      const service: any = Object.create(FormSubmissionsService.prototype);
+      service.shiftWorkOrderAccess = {
+        canManageShiftWorkOrderAsOwner: jest.fn(async () => true),
+      };
+
+      await expect(
+        service.assertTimesheetEntryAllowed(
+          timesheetTemplate,
+          viewer,
+          'w',
+          's',
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('allows admins and non-viewer roles', async () => {
+      const adminService: any = Object.create(FormSubmissionsService.prototype);
+      adminService.shiftWorkOrderAccess = {
+        canManageShiftWorkOrderAsOwner: jest.fn(async () => true),
+      };
+      await expect(
+        adminService.assertTimesheetEntryAllowed(
+          timesheetTemplate,
+          { ...viewer, role: 'admin', roles: ['admin'] },
+          'w',
+          's',
+        ),
+      ).resolves.toBeUndefined();
+
+      const schedulerService: any = Object.create(
+        FormSubmissionsService.prototype,
+      );
+      schedulerService.shiftWorkOrderAccess = {
+        canManageShiftWorkOrderAsOwner: jest.fn(async () => false),
+      };
+      await expect(
+        schedulerService.assertTimesheetEntryAllowed(
+          timesheetTemplate,
+          { id: 'u', role: 'scheduler', roles: ['scheduler'], permissions: [] },
+          'w',
+          's',
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('does not affect Work Order forms', async () => {
+      const service: any = Object.create(FormSubmissionsService.prototype);
+      service.shiftWorkOrderAccess = {
+        canManageShiftWorkOrderAsOwner: jest.fn(async () => false),
+      };
+      await expect(
+        service.assertTimesheetEntryAllowed(
+          { category: 'Work Order', name: 'Work Order Form' },
+          viewer,
+          'w',
+          's',
+        ),
+      ).resolves.toBeUndefined();
+    });
+  });
   function emailService() {
     const service: any = Object.create(WorkOrdersService.prototype);
     Object.assign(service, {

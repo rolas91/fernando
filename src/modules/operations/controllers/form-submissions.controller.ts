@@ -47,6 +47,11 @@ export class FormSubmissionsController {
     return this.service.regeneratePdf(id, req.user);
   }
 
+  @Post(':id/reopen')
+  reopenForEdit(@Param('id') id: string, @Req() req: ReqWithOpsUser) {
+    return this.service.reopenForEdit(id, req.user);
+  }
+
   @Get()
   findAll(
     @Query('projectId') projectId?: string,

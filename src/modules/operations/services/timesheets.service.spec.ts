@@ -2,6 +2,7 @@ import {
   calculateTimesheetHours,
   deterministicTimesheetId,
   timesheetCalculationRules,
+  TimesheetsService,
   validateTimesheetStartTime,
   normalizeTimesheetSubmissionRow,
 } from './timesheets.service';
@@ -295,5 +296,103 @@ describe('validateTimesheetStartTime', () => {
     expect(() =>
       validateTimesheetStartTime('07:00 PM', '19:00', '04:00'),
     ).not.toThrow();
+  });
+});
+
+describe('TimesheetsService.upsertShiftRows manual edit protection', () => {
+  const existing = {
+    id: 'ts-1',
+    workerId: 'worker-1',
+    workOrderId: 'wo-1',
+    shiftId: 'shift-1',
+    variant: 'internal',
+    projectId: 'project-1',
+    sourceSubmissionId: 'submission-1',
+    date: '2026-10-19',
+    clockIn: '07:00',
+    clockOut: '16:00',
+    breakMinutes: 0,
+    regularHours: '8',
+    overtimeHours: '0',
+    doubleTimeHours: '0',
+    lunchTaken: false,
+    employeeNote: '',
+    signature: '',
+    status: 'completed',
+    manuallyEdited: true,
+    approvedBy: '',
+    rejectedReason: '',
+    notes: '',
+  };
+
+  const row = {
+    workerId: 'worker-1',
+    workOrderId: 'wo-1',
+    shiftId: 'shift-1',
+    projectId: 'project-1',
+    shiftDate: '2026-10-19',
+    startTime: '07:00',
+    endTime: '17:00',
+    status: 'completed',
+    lunchTaken: false,
+    breakMinutes: 0,
+  };
+
+  function createService() {
+    const save = jest.fn(async (value) => value);
+    const service: any = Object.create(TimesheetsService.prototype);
+    service.timesheetsRepo = {
+      findOne: jest.fn(async () => ({ ...existing })),
+      create: jest.fn((value) => value),
+      save,
+    };
+    service.companySettingsRepo = {
+      findOne: async () => ({ overtimeRules: {} }),
+    };
+    service.shiftsQuery = {
+      loadShiftsForWorkOrder: async () => [
+        {
+          id: 'shift-1',
+          date: '2026-10-19',
+          startTime: '07:00',
+          endTime: '16:00',
+          roles: [{ assignedWorkers: ['worker-1'], startTime: '07:00' }],
+        },
+      ],
+    };
+    service.shiftCatalogRepo = {
+      findOne: async () => null,
+      find: async () => [],
+    };
+    service.workOrdersRepo = { manager: {} };
+    service.realtime = { emitTableUpdated: jest.fn() };
+    service.isOnlyShiftForDay = async () => false;
+    return { service, save };
+  }
+
+  it('keeps manually edited rows protected by default', async () => {
+    const { service, save } = createService();
+    await service.upsertShiftRows([row], {
+      workOrderId: 'wo-1',
+      shiftId: 'shift-1',
+      sourceSubmissionId: 'submission-1',
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('updates the same rows when a Work Order resubmit owns them', async () => {
+    const { service, save } = createService();
+    await service.upsertShiftRows([row], {
+      workOrderId: 'wo-1',
+      shiftId: 'shift-1',
+      sourceSubmissionId: 'submission-1',
+      overwriteManualEdits: true,
+    });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0][0]).toMatchObject({
+      id: 'ts-1',
+      clockOut: '17:00',
+      manuallyEdited: false,
+    });
   });
 });

@@ -1464,6 +1464,14 @@ export class WorkOrdersService {
             (typeof confirmation?.notificationChannel === 'string' &&
               confirmation.notificationChannel.trim()),
           ),
+          cancellationAcknowledgedAt:
+            typeof confirmation?.cancellationAcknowledgedAt === 'string'
+              ? confirmation.cancellationAcknowledgedAt
+              : undefined,
+          cancellationNotificationId:
+            typeof confirmation?.cancellationNotificationId === 'string'
+              ? confirmation.cancellationNotificationId
+              : undefined,
           effectiveStatus,
           completed: completedShiftKeys.has(
             `${workOrder.id}:${typeof record.id === 'string' ? record.id : ''}`,

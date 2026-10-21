@@ -30,72 +30,75 @@ describe('shift cancellation lifecycle', () => {
     expect(receipts.delete).toHaveBeenCalledTimes(2);
   });
 
-  it('exposes cancellation receipts in both scheduler query paths, including multiple roles', async () => {
-    const acknowledgedAt = new Date('2026-10-21T01:00:00Z');
-    const shift = { id: 's1', workOrderId: 'wo1', cancelled: true };
-    const receiptRepo = {
-      find: jest.fn(async () => [
-        { shiftId: 's1', workerId: 'w1', acknowledgedAt },
-      ]),
-    };
-    const shifts = {
-      find: jest.fn(async () => [shift]),
-      manager: { getRepository: () => receiptRepo },
-    };
-    const query = (rows: unknown[]) => {
-      const q = {
-        innerJoin: jest.fn(),
-        where: jest.fn(),
-        orderBy: jest.fn(),
-        getMany: jest.fn(async () => rows),
+  it.each(['pending', 'confirmed'])(
+    'exposes cancellation receipts with assignment status %s in both scheduler query paths',
+    async (status) => {
+      const acknowledgedAt = new Date('2026-10-21T01:00:00Z');
+      const shift = { id: 's1', workOrderId: 'wo1', cancelled: true };
+      const receiptRepo = {
+        find: jest.fn(async () => [
+          { shiftId: 's1', workerId: 'w1', acknowledgedAt },
+        ]),
       };
-      q.innerJoin.mockReturnValue(q);
-      q.where.mockReturnValue(q);
-      q.orderBy.mockReturnValue(q);
-      return { createQueryBuilder: () => q };
-    };
-    const roles = query(
-      ['r1', 'r2'].map((id) => ({
-        id,
-        shiftId: 's1',
-        requiredCertificationIds: [],
-        requiredSkillIds: [],
-      })),
-    );
-    const workers = query(
-      ['r1', 'r2'].map((roleId) => ({
-        roleId,
-        workerId: 'w1',
-        confirmationStatus: 'confirmed',
-      })),
-    );
-    const service = new ShiftsQueryService(
-      shifts as never,
-      roles as never,
-      workers as never,
-    );
-    const single = await service.loadShiftsForWorkOrder('wo1');
-    const batch = await service.loadShiftsForWorkOrders(['wo1']);
-    for (const result of [single, batch.get('wo1')]) {
-      expect(result).toEqual([
-        expect.objectContaining({
-          roles: [1, 2].map(() =>
-            expect.objectContaining({
-              workerConfirmations: [
-                expect.objectContaining({
-                  status: 'confirmed',
-                  cancellationAcknowledgedAt: acknowledgedAt.toISOString(),
-                }),
-              ],
-            }),
-          ),
-        }),
-      ]);
-    }
-    shift.cancelled = false;
-    const restored = await service.loadShiftsForWorkOrder('wo1');
-    expect(JSON.stringify(restored)).not.toContain(
-      'cancellationAcknowledgedAt',
-    );
-  });
+      const shifts = {
+        find: jest.fn(async () => [shift]),
+        manager: { getRepository: () => receiptRepo },
+      };
+      const query = (rows: unknown[]) => {
+        const q = {
+          innerJoin: jest.fn(),
+          where: jest.fn(),
+          orderBy: jest.fn(),
+          getMany: jest.fn(async () => rows),
+        };
+        q.innerJoin.mockReturnValue(q);
+        q.where.mockReturnValue(q);
+        q.orderBy.mockReturnValue(q);
+        return { createQueryBuilder: () => q };
+      };
+      const roles = query(
+        ['r1', 'r2'].map((id) => ({
+          id,
+          shiftId: 's1',
+          requiredCertificationIds: [],
+          requiredSkillIds: [],
+        })),
+      );
+      const workers = query(
+        ['r1', 'r2'].map((roleId) => ({
+          roleId,
+          workerId: 'w1',
+          confirmationStatus: status,
+        })),
+      );
+      const service = new ShiftsQueryService(
+        shifts as never,
+        roles as never,
+        workers as never,
+      );
+      const single = await service.loadShiftsForWorkOrder('wo1');
+      const batch = await service.loadShiftsForWorkOrders(['wo1']);
+      for (const result of [single, batch.get('wo1')]) {
+        expect(result).toEqual([
+          expect.objectContaining({
+            roles: [1, 2].map(() =>
+              expect.objectContaining({
+                workerConfirmations: [
+                  expect.objectContaining({
+                    status,
+                    cancellationAcknowledgedAt: acknowledgedAt.toISOString(),
+                  }),
+                ],
+              }),
+            ),
+          }),
+        ]);
+      }
+      shift.cancelled = false;
+      const restored = await service.loadShiftsForWorkOrder('wo1');
+      expect(JSON.stringify(restored)).not.toContain(
+        'cancellationAcknowledgedAt',
+      );
+    },
+  );
 });

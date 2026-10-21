@@ -118,17 +118,17 @@ export class ShiftsQueryService {
             requiredSkillIds: [...role.requiredSkillIds],
             assignedWorkers: workerList.map((w) => w.workerId),
             workerConfirmations: workerList.map((w) => {
+              const cancellation = shift.cancelled
+                ? cancellations.find(
+                    (c) => c.shiftId === shift.id && c.workerId === w.workerId,
+                  )
+                : undefined;
               const out: Record<string, unknown> = {
                 workerId: w.workerId,
                 status: w.confirmationStatus,
-                cancellationAcknowledgedAt: shift.cancelled
-                  ? cancellations
-                      .find(
-                        (c) =>
-                          c.shiftId === shift.id && c.workerId === w.workerId,
-                      )
-                      ?.acknowledgedAt?.toISOString()
-                  : undefined,
+                cancellationAcknowledgedAt:
+                  cancellation?.acknowledgedAt?.toISOString(),
+                cancellationNotificationId: cancellation?.notificationId,
               };
               if (w.requestedAt) out.requestedAt = w.requestedAt.toISOString();
               if (w.respondedAt) out.respondedAt = w.respondedAt.toISOString();
@@ -260,18 +260,18 @@ export class ShiftsQueryService {
                 requiredSkillIds: [...role.requiredSkillIds],
                 assignedWorkers: workerList.map((w) => w.workerId),
                 workerConfirmations: workerList.map((w) => {
+                  const cancellation = shift.cancelled
+                    ? cancellations.find(
+                        (c) =>
+                          c.shiftId === shift.id && c.workerId === w.workerId,
+                      )
+                    : undefined;
                   const conf: Record<string, unknown> = {
                     workerId: w.workerId,
                     status: w.confirmationStatus,
-                    cancellationAcknowledgedAt: shift.cancelled
-                      ? cancellations
-                          .find(
-                            (c) =>
-                              c.shiftId === shift.id &&
-                              c.workerId === w.workerId,
-                          )
-                          ?.acknowledgedAt?.toISOString()
-                      : undefined,
+                    cancellationAcknowledgedAt:
+                      cancellation?.acknowledgedAt?.toISOString(),
+                    cancellationNotificationId: cancellation?.notificationId,
                   };
                   if (w.requestedAt)
                     conf.requestedAt = w.requestedAt.toISOString();

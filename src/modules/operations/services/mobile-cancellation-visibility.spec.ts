@@ -27,6 +27,7 @@ describe('mobile cancellation visibility', () => {
                 workerId,
                 status: 'confirmed',
                 requestedAt: '2026-10-20T08:00:00Z',
+                cancellationNotificationId: `notif-${workerId}`,
                 cancellationAcknowledgedAt:
                   acknowledged && workerId === 'w1'
                     ? '2026-10-21T08:00:00Z'
@@ -43,6 +44,7 @@ describe('mobile cancellation visibility', () => {
     const result = service.serializeMobileAssignment(assignment(), 'w1');
     expect(result.shifts).toHaveLength(1);
     expect(result.shifts[0].effectiveStatus).toBe('shift_cancelled');
+    expect(result.shifts[0].cancellationNotificationId).toBe('notif-w1');
   });
 
   it('hides it only for the worker who acknowledged the cancellation', () => {

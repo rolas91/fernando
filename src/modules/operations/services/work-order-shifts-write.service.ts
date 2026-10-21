@@ -1,3 +1,4 @@
+import { ShiftCancellationConfirmation } from '../../../entities/shift-cancellation-confirmation.entity';
 import {
   BadRequestException,
   ForbiddenException,
@@ -342,26 +343,36 @@ export class WorkOrderShiftsWriteService {
     workOrderId: string;
     shiftId: string;
   }): Promise<WorkOrderShift | null> {
-    const shift = await this.shiftsRepo.findOne({
-      where: { id: input.shiftId, workOrderId: input.workOrderId },
-    });
-    if (!shift) return null;
-    shift.cancelled = true;
-    await this.shiftsRepo.save(shift);
-    return shift;
+    return this.setCancellation(input, true);
   }
 
   async restoreShift(input: {
     workOrderId: string;
     shiftId: string;
   }): Promise<WorkOrderShift | null> {
-    const shift = await this.shiftsRepo.findOne({
-      where: { id: input.shiftId, workOrderId: input.workOrderId },
+    return this.setCancellation(input, false);
+  }
+
+  private async setCancellation(
+    input: { workOrderId: string; shiftId: string },
+    cancelled: boolean,
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      const shifts = manager.getRepository(WorkOrderShift);
+      const shift = await shifts.findOne({
+        where: { id: input.shiftId, workOrderId: input.workOrderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!shift) return null;
+      if (shift.cancelled !== cancelled) {
+        await manager
+          .getRepository(ShiftCancellationConfirmation)
+          .delete(input);
+        shift.cancelled = cancelled;
+        await shifts.save(shift);
+      }
+      return shift;
     });
-    if (!shift) return null;
-    shift.cancelled = false;
-    await this.shiftsRepo.save(shift);
-    return shift;
   }
 
   async approveShift(input: {

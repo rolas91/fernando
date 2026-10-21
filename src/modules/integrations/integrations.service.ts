@@ -1,3 +1,4 @@
+import { ShiftCancellationConfirmation } from '../../entities/shift-cancellation-confirmation.entity';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as nodemailer from 'nodemailer';
@@ -23,6 +24,8 @@ type GeocodeInput = {
 };
 
 type NotificationBody = {
+  cancellation?: { workOrderId: string; shiftId: string; workerId: string };
+  notificationId?: string;
   action?: 'send_sms' | 'send_whatsapp' | 'send_email' | 'send_in_app';
   title?: string;
   phone?: string;
@@ -286,6 +289,9 @@ export class IntegrationsService {
       const result = await this.sendNotification(
         {
           action: 'send_in_app',
+          title: 'Shift Cancelled',
+          notificationId: `notif_${randomBytes(12).toString('hex')}`,
+          cancellation: { workOrderId, shiftId, workerId },
           email: worker.email,
           workerName: `${worker.firstName} ${worker.lastName}`,
           message,
@@ -813,28 +819,48 @@ export class IntegrationsService {
         : 'sent'
       : 'failed';
 
-    await this.notificationsRepo.save(
-      this.notificationsRepo.create({
-        id: `notif_${randomBytes(12).toString('hex')}`,
-        type: 'shift_assignment',
-        channel: 'in_app',
-        title: 'Shift assignment notification',
-        message: body.message || 'Notification',
-        timestamp: new Date(),
-        read: false,
-        link: body.confirmation?.workOrderId || null,
-        workerId,
-        workOrderId: body.confirmation?.workOrderId || null,
-        shiftId: body.confirmation?.shiftId || null,
-        roleId: body.confirmation?.roleId || null,
-        deliveryStatus: status,
-        providerMessageId: result.messageId || null,
-      }),
-    );
+    await this.notificationsRepo.manager.transaction(async (manager) => {
+      const notification = await manager.getRepository(Notification).save(
+        this.notificationsRepo.create({
+          id: body.notificationId || `notif_${randomBytes(12).toString('hex')}`,
+          type: body.cancellation ? 'shift_cancelled' : 'shift_assignment',
+          channel: 'in_app',
+          title: body.title || 'Shift assignment notification',
+          message: body.message || 'Notification',
+          timestamp: new Date(),
+          read: false,
+          link:
+            body.cancellation?.workOrderId ||
+            body.confirmation?.workOrderId ||
+            null,
+          workerId,
+          workOrderId:
+            body.cancellation?.workOrderId ||
+            body.confirmation?.workOrderId ||
+            null,
+          shiftId:
+            body.cancellation?.shiftId || body.confirmation?.shiftId || null,
+          roleId: body.confirmation?.roleId || null,
+          deliveryStatus: status,
+          providerMessageId: result.messageId || null,
+        }),
+      );
+      if (body.cancellation) {
+        await manager.getRepository(ShiftCancellationConfirmation).upsert(
+          {
+            ...body.cancellation,
+            notificationId: notification.id,
+            acknowledgedAt: null,
+          },
+          ['workOrderId', 'shiftId', 'workerId'],
+        );
+      }
+    });
     this.realtime.emitTableUpdated('notifications');
   }
 
   private async resolveNotificationWorkerId(body: NotificationBody) {
+    if (body.cancellation) return body.cancellation.workerId;
     if (body.confirmation?.workerId) return body.confirmation.workerId;
     if (!body.email) return null;
     const worker = await this.workersRepo.findOne({
@@ -1201,10 +1227,16 @@ export class IntegrationsService {
       body: body.message || 'Notification',
       data: {
         channel: 'in_app',
-        workOrderId: body.confirmation?.workOrderId || '',
-        shiftId: body.confirmation?.shiftId || '',
+        type: body.cancellation ? 'shift_cancelled' : 'shift_assignment',
+        notificationId: body.notificationId || '',
+        workOrderId:
+          body.cancellation?.workOrderId ||
+          body.confirmation?.workOrderId ||
+          '',
+        shiftId: body.cancellation?.shiftId || body.confirmation?.shiftId || '',
         roleId: body.confirmation?.roleId || '',
-        workerId: body.confirmation?.workerId || '',
+        workerId:
+          body.cancellation?.workerId || body.confirmation?.workerId || '',
         confirmationUrl: body.confirmationUrl || '',
       },
       channelId: 'shift_notifications',

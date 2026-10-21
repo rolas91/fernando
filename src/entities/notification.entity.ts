@@ -26,6 +26,9 @@ export class Notification {
   @Column({ type: 'timestamp', nullable: true })
   timestamp: Date | null;
 
+  @Column({ name: 'acknowledged_at', type: 'timestamp', nullable: true })
+  acknowledgedAt: Date | null;
+
   @Column({ type: 'boolean', default: false })
   read: boolean;
 

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ShiftCancellationConfirmation } from '../../../entities/shift-cancellation-confirmation.entity';
+import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Notification } from '../../../entities/notification.entity';
@@ -58,6 +64,59 @@ export class NotificationsService {
     item.read = true;
     const saved = await this.repo.save(item);
     this.realtime.emitTableUpdated('notifications');
+    return saved;
+  }
+
+  async acknowledgeCancellation(
+    id: string,
+    actor: UserAccessContext | undefined,
+  ) {
+    const worker = await this.resolveWorkerForActor(actor);
+    const saved = await this.repo.manager.transaction(async (manager) => {
+      const notifications = manager.getRepository(Notification);
+      const item = await notifications.findOne({
+        where: { id, workerId: worker.id },
+      });
+      if (!item) throw new NotFoundException('Notification not found.');
+      if (
+        item.type !== 'shift_cancelled' ||
+        !item.shiftId ||
+        !item.workOrderId
+      ) {
+        throw new BadRequestException(
+          'This notification is not a shift cancellation.',
+        );
+      }
+      const shift = await manager.getRepository(WorkOrderShift).findOne({
+        where: { id: item.shiftId, workOrderId: item.workOrderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!shift?.cancelled)
+        throw new BadRequestException('This shift is no longer cancelled.');
+      const confirmations = manager.getRepository(
+        ShiftCancellationConfirmation,
+      );
+      const confirmation = await confirmations.findOne({
+        where: {
+          workOrderId: item.workOrderId,
+          shiftId: item.shiftId,
+          workerId: worker.id,
+          notificationId: id,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!confirmation)
+        throw new BadRequestException(
+          'This cancellation notification is no longer current.',
+        );
+      confirmation.acknowledgedAt ??= new Date();
+      await confirmations.save(confirmation);
+      item.acknowledgedAt = confirmation.acknowledgedAt;
+      item.read = true;
+      return notifications.save(item);
+    });
+    this.realtime.emitTableUpdated('notifications');
+    this.realtime.emitTableUpdated('work_orders');
     return saved;
   }
 

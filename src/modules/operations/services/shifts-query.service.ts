@@ -1,3 +1,4 @@
+import { ShiftCancellationConfirmation } from '../../../entities/shift-cancellation-confirmation.entity';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -56,6 +57,9 @@ export class ShiftsQueryService {
       rolesByShift.set(role.shiftId, list);
     }
 
+    const cancellations = await this.shiftsRepo.manager
+      .getRepository(ShiftCancellationConfirmation)
+      .find({ where: { workOrderId } });
     return shiftRows.map((shift) => {
       const roleList = rolesByShift.get(shift.id) ?? [];
       return {
@@ -117,6 +121,14 @@ export class ShiftsQueryService {
               const out: Record<string, unknown> = {
                 workerId: w.workerId,
                 status: w.confirmationStatus,
+                cancellationAcknowledgedAt: shift.cancelled
+                  ? cancellations
+                      .find(
+                        (c) =>
+                          c.shiftId === shift.id && c.workerId === w.workerId,
+                      )
+                      ?.acknowledgedAt?.toISOString()
+                  : undefined,
               };
               if (w.requestedAt) out.requestedAt = w.requestedAt.toISOString();
               if (w.respondedAt) out.respondedAt = w.respondedAt.toISOString();
@@ -148,6 +160,9 @@ export class ShiftsQueryService {
     });
     if (shiftRows.length === 0) return out;
 
+    const cancellations = await this.shiftsRepo.manager
+      .getRepository(ShiftCancellationConfirmation)
+      .find({ where: { workOrderId: In(workOrderIds) } });
     const [roleRows, workerRows] = await Promise.all([
       this.rolesRepo
         .createQueryBuilder('role')
@@ -248,6 +263,15 @@ export class ShiftsQueryService {
                   const conf: Record<string, unknown> = {
                     workerId: w.workerId,
                     status: w.confirmationStatus,
+                    cancellationAcknowledgedAt: shift.cancelled
+                      ? cancellations
+                          .find(
+                            (c) =>
+                              c.shiftId === shift.id &&
+                              c.workerId === w.workerId,
+                          )
+                          ?.acknowledgedAt?.toISOString()
+                      : undefined,
                   };
                   if (w.requestedAt)
                     conf.requestedAt = w.requestedAt.toISOString();

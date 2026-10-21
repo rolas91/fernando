@@ -100,6 +100,14 @@ export class OperationsAuthGuard implements CanActivate {
   ): Promise<string | undefined> {
     const normalized = (url || '').split('?')[0].replace(/^\/+/, '');
 
+    if (
+      normalized.startsWith('notifications/mobile/') &&
+      normalized.endsWith('/acknowledge-cancellation') &&
+      method === 'PATCH'
+    ) {
+      return 'mobile.shifts.confirm';
+    }
+
     if (normalized === 'work-orders/mobile/assignments' && action === 'read') {
       return 'mobile.assignments.read';
     }

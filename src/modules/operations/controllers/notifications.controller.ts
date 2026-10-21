@@ -45,6 +45,11 @@ export class NotificationsController {
     return this.service.markMobileRead(id, req.user);
   }
 
+  @Patch('mobile/:id/acknowledge-cancellation')
+  acknowledgeCancellation(@Param('id') id: string, @Req() req: ReqWithOpsUser) {
+    return this.service.acknowledgeCancellation(id, req.user);
+  }
+
   @Delete('mobile/:id')
   removeMobile(@Param('id') id: string, @Req() req: ReqWithOpsUser) {
     return this.service.removeMobile(id, req.user);

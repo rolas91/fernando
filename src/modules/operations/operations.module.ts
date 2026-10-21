@@ -1,3 +1,4 @@
+import { ShiftCancellationConfirmation } from '../../entities/shift-cancellation-confirmation.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ActivityFeedItem } from '../../entities/activity-feed.entity';
@@ -108,6 +109,7 @@ import { PagedListsController } from './controllers/paged-lists.controller';
     IntegrationsModule,
     CatalogImportModule,
     TypeOrmModule.forFeature([
+      ShiftCancellationConfirmation,
       Worker,
       WorkerRole,
       CommercialCatalogItem,

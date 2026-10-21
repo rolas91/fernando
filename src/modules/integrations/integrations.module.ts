@@ -1,3 +1,4 @@
+import { ShiftCancellationConfirmation } from '../../entities/shift-cancellation-confirmation.entity';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WorkOrder } from '../../entities/work-order.entity';
@@ -17,6 +18,7 @@ import { WorkOrderShiftRoleWorker } from '../../entities/work-order-shift-role-w
   imports: [
     RealtimeModule,
     TypeOrmModule.forFeature([
+      ShiftCancellationConfirmation,
       WorkOrder,
       Worker,
       Notification,

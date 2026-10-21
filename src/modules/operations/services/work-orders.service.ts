@@ -697,6 +697,7 @@ export class WorkOrdersService {
         )
         .filter(({ shift }) => {
           const noResponse =
+            shift.effectiveStatus !== 'shift_cancelled' &&
             shift.confirmationStatus === 'pending' &&
             shift.confirmationRequested === true &&
             mobileShiftHasEnded(shift, localNowKey);
@@ -1422,7 +1423,11 @@ export class WorkOrdersService {
               completedShiftKeys.has(`${workOrderId}:${shiftId}`),
           },
         }).status;
-        if (effectiveStatus === 'shift_cancelled') return null;
+        if (
+          effectiveStatus === 'shift_cancelled' &&
+          confirmation?.cancellationAcknowledgedAt
+        )
+          return null;
         return {
           id: typeof record.id === 'string' ? record.id : '',
           shiftName:

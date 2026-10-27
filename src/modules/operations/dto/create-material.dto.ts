@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsNumberString, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsNumberString,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateMaterialDto {
   @IsString()
@@ -14,6 +20,11 @@ export class CreateMaterialDto {
   @IsOptional()
   @IsString()
   identifier?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  sku?: string;
 
   @IsOptional()
   @IsString()

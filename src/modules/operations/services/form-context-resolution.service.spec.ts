@@ -22,6 +22,14 @@ describe('FormContextResolutionService material options', () => {
       { id: 'extra', type: 'cone', name: 'Extra cone', status: 'active' },
       { id: 'retired', type: 'Cone', status: 'retired' },
       { id: 'sign', type: 'Sign', name: 'Sign', status: 'active' },
+      {
+        id: 'archived',
+        type: 'Cone',
+        name: 'Old cone',
+        sku: 'OLD-SKU',
+        status: 'active',
+        deletedAt: new Date(),
+      },
     ]),
   };
   const service = new FormContextResolutionService(
@@ -70,5 +78,30 @@ describe('FormContextResolutionService material options', () => {
       'planned',
       'extra',
     ]);
+  });
+
+  it('preserves archived planned IDs and labels while excluding them from new selections', async () => {
+    const result = await service['loadPlannedResourceOptions']({
+      plannedMaterials: [{ type: 'Cone', materialIds: ['archived'] }],
+    });
+    expect(materialRepo.find).toHaveBeenCalledWith({ withDeleted: true });
+    expect(result.materials[0].materialIds).toEqual(['archived']);
+    expect(
+      result.materials[0].items.find((item) => item.id === 'archived'),
+    ).toMatchObject({
+      id: 'archived',
+      label: 'OLD-SKU — Old cone',
+      archived: true,
+    });
+    expect(
+      result.additionalMaterials.some((item) => item.id === 'archived'),
+    ).toBe(false);
+    const unplanned = await service['loadPlannedResourceOptions']({
+      plannedMaterials: [{ type: 'Cone' }],
+    });
+    expect(
+      unplanned.materials[0].items.some((item) => item.id === 'archived'),
+    ).toBe(false);
+    expect(unplanned.archivedMaterials[0].id).toBe('archived');
   });
 });

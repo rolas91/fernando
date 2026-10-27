@@ -56,6 +56,12 @@ describe('WorkOrdersService PDF export', () => {
           },
         ]),
       },
+      projectsRepo: {
+        findOne: jest.fn(async () => ({
+          number: 'P-102',
+          name: 'Market Street',
+        })),
+      },
       readGeneratedPdf: jest.fn(async () => pdf),
     });
     jest.spyOn(service, 'findShiftOverview').mockResolvedValue([
@@ -121,7 +127,7 @@ describe('WorkOrdersService PDF export', () => {
     });
     expect(project.count).toBe(1);
     expect((await PDFDocument.load(project.pdf)).getPageCount()).toBe(1);
-    expect(project.fileName).toBe('work-orders-project-project-2.pdf');
+    expect(project.fileName).toBe('Work Orders - P-102 - Market Street.pdf');
 
     const approved = await service.exportGeneratedWorkOrderPdfs({
       status: 'pm_approved',

@@ -98,10 +98,15 @@ function formatEquipment(e: Equipment): string {
 }
 
 function formatMaterial(m: Material): string {
-  const id = (m.identifier ?? '').trim();
-  const name = (m.name ?? '').trim();
-  if (id && name) return `${id} — ${name}`;
-  return name || id || m.id;
+  return (
+    [
+      ...new Set(
+        [m.sku, m.identifier, m.name]
+          .map((value) => value?.trim())
+          .filter(Boolean),
+      ),
+    ].join(' — ') || m.id
+  );
 }
 
 function rolesSummary(shift: ShiftLike): string {
@@ -514,7 +519,7 @@ export class FormContextResolutionService {
     );
     const [equipment, materials] = await Promise.all([
       this.equipmentRepo.find(),
-      this.materialRepo.find(),
+      this.materialRepo.find({ withDeleted: true }),
     ]);
     const quantity = (row: Record<string, unknown>) =>
       Math.max(1, Number(row.estimatedQuantity) || 1);
@@ -551,12 +556,15 @@ export class FormContextResolutionService {
           .filter(
             (item) =>
               normalizedType(item.type) === normalizedType(row.type) &&
-              item.status !== 'retired',
+              ((!item.deletedAt && item.status !== 'retired') ||
+                (Boolean(item.deletedAt) &&
+                  Boolean(configuredIds?.has(item.id)))),
           )
           .map((item) => ({
             id: item.id,
             type: item.type,
             label: formatMaterial(item),
+            archived: Boolean(item.deletedAt),
             estimatedQuantity: Math.max(
               0,
               Number(configuredQuantities[item.id]) || 0,
@@ -590,6 +598,7 @@ export class FormContextResolutionService {
       additionalMaterials: materials
         .filter(
           (item) =>
+            !item.deletedAt &&
             item.status !== 'retired' &&
             ![...requestedMaterialTypes].some(
               (type) => normalizedType(type) === normalizedType(item.type),
@@ -605,6 +614,7 @@ export class FormContextResolutionService {
           materials
             .filter(
               (item) =>
+                !item.deletedAt &&
                 item.status !== 'retired' &&
                 ![...requestedMaterialTypes].some(
                   (type) => normalizedType(type) === normalizedType(item.type),
@@ -613,6 +623,14 @@ export class FormContextResolutionService {
             .map((item) => item.type),
         ),
       ].sort(),
+      archivedMaterials: materials
+        .filter((item) => item.deletedAt)
+        .map((item) => ({
+          id: item.id,
+          type: item.type,
+          label: formatMaterial(item),
+          archived: true,
+        })),
     };
   }
 

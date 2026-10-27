@@ -22,6 +22,9 @@ export class Material {
   identifier: string;
 
   @Column({ type: 'varchar', length: 120, default: '' })
+  sku: string;
+
+  @Column({ type: 'varchar', length: 120, default: '' })
   brand: string;
 
   @Column({ type: 'varchar', length: 32 })

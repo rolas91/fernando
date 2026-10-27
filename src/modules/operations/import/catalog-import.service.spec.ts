@@ -2,6 +2,35 @@ import { isSameMaterialImportRecord } from './catalog-import.service';
 import { parseMaterialRow } from './parsers/simple-catalogs.parser';
 
 describe('material catalog import identity', () => {
+  it('imports SKU separately without changing the supplied internal ID or legacy identifier', () => {
+    const result = parseMaterialRow(
+      {
+        id: 'stable-id',
+        name: 'Cone',
+        type: 'Safety',
+        identifier: 'OLD-REF',
+        sku: 'NEW-SKU',
+        status: 'available',
+      },
+      2,
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.data).toMatchObject({
+      id: 'stable-id',
+      identifier: 'OLD-REF',
+      sku: 'NEW-SKU',
+    });
+    const legacy = parseMaterialRow(
+      {
+        name: 'Cone',
+        type: 'Safety',
+        identifier: 'OLD-REF',
+        status: 'available',
+      },
+      2,
+    );
+    expect(legacy.data).not.toHaveProperty('sku');
+  });
   const existing = {
     identifier: 'MAT-100',
     name: 'Traffic Cone',

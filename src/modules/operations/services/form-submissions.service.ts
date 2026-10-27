@@ -26,6 +26,7 @@ import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
 import { UpdateFormSubmissionDto } from '../dto/update-form-submission.dto';
 import { SpacesStorageService } from './spaces-storage.service';
+import { uniqueDocumentFileName } from './document-file-name';
 import { TimesheetsService } from './timesheets.service';
 import { ShiftsQueryService } from './shifts-query.service';
 import { ShiftWorkOrderAccessService } from './shift-work-order-access.service';
@@ -946,16 +947,13 @@ function mappedPdfValue(
   return mapped.configured ? (mapped.value ?? '') : fallback;
 }
 
-function generatedPdfFileName(
-  submissionId: string,
+export function generatedPdfFileName(
+  _submissionId: string,
   context: WorkOrderPdfContext | null,
   builderConfig?: WorkOrderPdfBuilderConfig,
+  fallbackName = 'Form',
 ): string {
-  const safeSubmissionId = basename(submissionId).replace(
-    /[^a-zA-Z0-9_-]/g,
-    '_',
-  );
-  if (!context) return `${safeSubmissionId}.pdf`;
+  if (!context) return uniqueDocumentFileName(`${fallbackName}.pdf`);
 
   const plannedMaterials = Array.isArray(context.shift?.plannedMaterials)
     ? context.shift.plannedMaterials
@@ -979,7 +977,7 @@ function generatedPdfFileName(
     builderConfig?.layout?.filenameTemplate ||
     '{projectNumber} - {projectName} - {materialTypes}';
   const filenameTokens: Record<string, string> = {
-    projectNumber: context.project?.number || context.project?.id || '',
+    projectNumber: context.project?.number || '',
     projectName: context.project?.name || '',
     materialTypes: materialTypes.join(' - '),
     workOrderNumber:
@@ -995,6 +993,7 @@ function generatedPdfFileName(
     .replace(/\s+/g, ' ')
     .trim();
   const safeName = requestedName
+    .replace(/\.pdf$/i, '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
@@ -1003,7 +1002,7 @@ function generatedPdfFileName(
     .replace(/^[\s.-]+|[\s.-]+$/g, '')
     .slice(0, 170)
     .trim();
-  return `${safeName ? `${safeName}-` : ''}${safeSubmissionId}.pdf`;
+  return uniqueDocumentFileName(`${safeName || fallbackName}.pdf`);
 }
 
 export function findWorkOrderFooterSignatures(
@@ -3965,7 +3964,7 @@ export class FormSubmissionsService {
           ? this.equipmentRepo.find({ where: { id: In(equipmentIds) } })
           : Promise.resolve([]),
         materialIds.length
-          ? this.materialsRepo.find({ where: { id: In(materialIds) } })
+          ? this.materialsRepo.find({ where: { id: In(materialIds) }, withDeleted: true })
           : Promise.resolve([]),
         workOrder?.id && submission.shiftId
           ? this.timesheetsRepo.find({
@@ -4219,6 +4218,7 @@ export class FormSubmissionsService {
       submission.id,
       workOrderContext,
       builderConfig,
+      `${template?.name || 'Form'} - ${submission.submittedAt ? new Date(submission.submittedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)}`,
     );
     const pdf =
       isWorkOrder && workOrderContext

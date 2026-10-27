@@ -331,6 +331,7 @@ const descriptors: Record<string, CatalogDescriptor> = {
     sheetName: 'Materials',
     exampleRow: {
       id: 'mat_sign_aluminum',
+      sku: 'SIGN-48',
       name: 'Sign Aluminum 48x48',
       type: 'Signage',
       identifier: 'SIGN-ALU-48',
@@ -359,6 +360,14 @@ const descriptors: Record<string, CatalogDescriptor> = {
         aliases: ['material_id'],
         notes:
           'Visible material ID; together with name and type, it identifies the record during import',
+      },
+      {
+        key: 'sku',
+        header: 'sku',
+        required: false,
+        type: 'string',
+        notes:
+          'Editable SKU, separate from the internal ID and legacy identifier',
       },
       { key: 'brand', header: 'brand', required: false, type: 'string' },
       { key: 'price', header: 'price', required: false, type: 'number' },

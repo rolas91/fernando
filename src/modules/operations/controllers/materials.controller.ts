@@ -13,6 +13,7 @@ import { OperationsAuthGuard } from '../operations-auth.guard';
 import { CreateMaterialDto } from '../dto/create-material.dto';
 import { UpdateMaterialDto } from '../dto/update-material.dto';
 import { MaterialsService } from '../services/materials.service';
+import { BulkDeleteMaterialsDto } from '../dto/bulk-delete-materials.dto';
 
 @ApiTags('operations')
 @Controller('materials')
@@ -27,7 +28,7 @@ export class MaterialsController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+    return this.service.findOne(id, true);
   }
 
   @Post()
@@ -40,6 +41,12 @@ export class MaterialsController {
   @ApiBody({ type: UpdateMaterialDto })
   update(@Param('id') id: string, @Body() dto: UpdateMaterialDto) {
     return this.service.update(id, dto);
+  }
+
+  @Post('bulk-delete')
+  @ApiBody({ type: BulkDeleteMaterialsDto })
+  removeMany(@Body() dto: BulkDeleteMaterialsDto) {
+    return this.service.removeMany(dto.ids);
   }
 
   @Delete(':id')

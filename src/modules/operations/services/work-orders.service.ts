@@ -10,6 +10,7 @@ import { In, IsNull, Not, Repository } from 'typeorm';
 import { readFile } from 'fs/promises';
 import { resolve, sep } from 'path';
 import { PDFDocument } from 'pdf-lib';
+import { uniqueDocumentFileName } from './document-file-name';
 import { Client } from '../../../entities/client.entity';
 import { Equipment } from '../../../entities/equipment.entity';
 import { FormSubmission } from '../../../entities/form-submission.entity';
@@ -398,7 +399,7 @@ export class WorkOrdersService {
       (workOrder) => !projectId || workOrder.projectId === projectId,
     );
     const workOrderIds = workOrders.map((workOrder) => workOrder.id);
-    const [submissions, templates] = await Promise.all([
+    const [submissions, templates]: [FormSubmission[], FormTemplate[]] = await Promise.all([
       workOrderIds.length > 0
         ? this.formSubmissionsRepo.find({
             where: { workOrderId: In(workOrderIds), status: 'submitted' },
@@ -507,11 +508,18 @@ export class WorkOrdersService {
       }
     }
 
+    const exportProject = projectId
+      ? await this.projectsRepo.findOne({ where: { id: projectId } })
+      : null;
+    const projectLabel = [exportProject?.number, exportProject?.name]
+      .filter(Boolean).join(' - ').normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9 _-]/g, '-').slice(0, 120) || 'Selected project';
     return {
       pdf: Buffer.from(await merged.save()),
       count: selected.length,
       fileName: projectId
-        ? `work-orders-project-${projectId.replace(/[^a-zA-Z0-9_-]/g, '_')}${from && to ? `-${from}-to-${to}` : ''}.pdf`
+        ? `Work Orders - ${projectLabel}${from && to ? `-${from}-to-${to}` : ''}.pdf`
         : `work-orders-${from}-to-${to}.pdf`,
     };
   }
@@ -562,7 +570,9 @@ export class WorkOrdersService {
     try {
       return await this.integrations.sendWorkOrderDocument(
         email,
-        `work-order-${submission.id.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+        uniqueDocumentFileName(
+          `Work Order ${submission.workOrderNumber || order.orderNumber || ''} - ${project?.name || 'Assignment'}.pdf`,
+        ),
         pdf,
       );
     } catch (error) {
@@ -1568,7 +1578,7 @@ export class WorkOrdersService {
         ? this.equipmentRepo.find({ where: { id: In([...equipmentIds]) } })
         : Promise.resolve([]),
       materialIds.size > 0
-        ? this.materialsRepo.find({ where: { id: In([...materialIds]) } })
+        ? this.materialsRepo.find({ where: { id: In([...materialIds]) }, withDeleted: true })
         : Promise.resolve([]),
     ]);
     const pdfSubmissionsByWorkOrderId = new Map<string, FormSubmission[]>();
@@ -1800,6 +1810,7 @@ export class WorkOrdersService {
           status: item?.status || 'Assigned',
           type: item?.type || 'Material',
           identifier: item?.identifier || '',
+          sku: item?.sku || '',
           kind: 'material',
           shiftIds: [...(materialShiftIds.get(id) ?? [])],
         };
@@ -1960,17 +1971,24 @@ export class WorkOrdersService {
     const clean = url.split('?')[0] || url;
     const name = clean.split('/').pop() || 'Document';
     try {
-      return decodeURIComponent(name);
+      return decodeURIComponent(name).replace(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i,
+        '',
+      );
     } catch {
       return name;
     }
   }
 
   private generatedPdfTitle(submission: FormSubmission, index: number) {
+    const fileName = this.fileNameFromUrl(submission.pdfUrl || '');
+    if (fileName !== 'Document' && !/^[0-9a-f-]{32,}\.pdf$/i.test(fileName)) {
+      return fileName;
+    }
     const submittedAt = submission.submittedAt
       ? new Date(submission.submittedAt).toISOString().slice(0, 10)
       : '';
-    return [`Generated PDF ${index + 1}`, submittedAt]
+    return [submission.workOrderNumber ? `Work Order ${submission.workOrderNumber}` : `Form ${index + 1}`, submittedAt]
       .filter(Boolean)
       .join(' - ');
   }

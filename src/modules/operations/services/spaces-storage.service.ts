@@ -6,8 +6,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash, createHmac, randomUUID } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 import sharp from 'sharp';
+import { safeDocumentFileName, uniqueDocumentFileName } from './document-file-name';
 import {
   ALLOWED_MIME_BY_UPLOAD_SCOPE,
   normalizeUploadMimeForScope,
@@ -414,7 +415,7 @@ export class SpacesStorageService {
       .join('/');
     const storedName = preserveFileName
       ? safeName
-      : `${randomUUID()}-${safeName}`;
+      : uniqueDocumentFileName(originalName);
     return `${prefix}/${scope}/${date}/${storedName}`;
   }
 
@@ -511,14 +512,7 @@ export class SpacesStorageService {
   }
 
   private sanitizeFileName(name: string) {
-    return (
-      name
-        .normalize('NFKD')
-        .replace(/[^\w.\-]+/g, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 180) || 'file'
-    );
+    return safeDocumentFileName(name);
   }
 
   private sanitizePathSegment(value: string) {

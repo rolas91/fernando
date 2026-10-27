@@ -13,11 +13,7 @@ import {
 const STATUS_VALUES = ['active', 'inactive', 'archived'];
 
 type SimpleCatalog =
-  | 'skill'
-  | 'workerRole'
-  | 'projectType'
-  | 'workOrderType'
-  | 'certification';
+  'skill' | 'workerRole' | 'projectType' | 'workOrderType' | 'certification';
 
 type FieldSpec = {
   key: string;
@@ -112,6 +108,20 @@ function buildAssetParser(catalog: AssetCatalog) {
       { required: catalog === 'material' },
     );
     if (identifier.error) pushError(errors, { ...identifier.error, row }, row);
+    const sku = catalog === 'material' ? readString(raw, 'sku') : undefined;
+    if (sku?.error) pushError(errors, { ...sku.error, row }, row);
+    if (sku?.value && sku.value.length > 120) {
+      pushError(
+        errors,
+        {
+          row,
+          field: 'sku',
+          code: 'INVALID_VALUE',
+          message: 'SKU must be at most 120 characters',
+        },
+        row,
+      );
+    }
     const brand = readString(raw, 'brand');
     if (brand.error) pushError(errors, { ...brand.error, row }, row);
     const status = readString(raw, 'status', [], { required: true });
@@ -154,6 +164,14 @@ function buildAssetParser(catalog: AssetCatalog) {
       nextMaintenance: nextMaintenance.value || null,
       notes: notes.value || '',
     };
+    // Older templates omit SKU; do not clear it when importing those files.
+    if (
+      catalog === 'material' &&
+      sku?.value !== undefined &&
+      sku.value !== null &&
+      sku.value !== ''
+    )
+      data.sku = sku.value.trim();
     return { row, raw, data, errors: [], action: undefined };
   };
 }

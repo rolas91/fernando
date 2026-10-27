@@ -12,6 +12,49 @@ async function onePagePdf() {
 }
 
 describe('WorkOrdersService PDF export', () => {
+  it('intersects project, inclusive dates and status without merging unrelated PDFs', async () => {
+    const pdf = await onePagePdf();
+    const service = Object.create(WorkOrdersService.prototype) as WorkOrdersService;
+    const rows = [
+      { id: 'start', projectId: '0818', date: '2026-10-20', approved: true },
+      { id: 'end', projectId: '0818', date: '2026-10-26', approved: false },
+      { id: 'before', projectId: '0818', date: '2026-10-19', approved: true },
+      { id: 'after', projectId: '0818', date: '2026-10-27', approved: true },
+      { id: 'other-project', projectId: 'other', date: '2026-10-22', approved: true },
+      { id: 'missing-pdf', projectId: '0818', date: '2026-10-23', approved: true },
+    ];
+    const readGeneratedPdf = jest.fn(async (_url: string) => pdf);
+    Object.assign(service, {
+      logger: { error: jest.fn() },
+      formSubmissionsRepo: {
+        find: jest.fn(async () => rows.map((row) => ({
+          id: `submission-${row.id}`, workOrderId: row.id, shiftId: row.id,
+          templateId: 'work-order', status: 'submitted',
+          pdfUrl: row.id === 'missing-pdf' ? '' : `https://files.example/${row.id}.pdf`,
+        }))),
+      },
+      formTemplatesRepo: { find: jest.fn(async () => [{ id: 'work-order', category: 'Work Order', name: 'Work Order' }]) },
+      projectsRepo: { findOne: jest.fn(async () => ({ number: '0818', name: 'Bay Corridor' })) },
+      readGeneratedPdf,
+    });
+    jest.spyOn(service, 'findShiftOverview').mockResolvedValue(rows.map((row) => ({
+      id: row.id, projectId: row.projectId, orderNumber: row.id,
+      shifts: [{ id: row.id, date: row.date, startTime: '08:00', status: 'ready_to_notify', roles: [], pmApprovedAt: row.approved ? `${row.date}T18:00:00Z` : null }],
+    })) as never);
+
+    for (const [status, expected] of [
+      ['all', ['start', 'end']],
+      ['pm_approved', ['start']],
+      ['completed', ['end']],
+    ] as const) {
+      readGeneratedPdf.mockClear();
+      const result = await service.exportGeneratedWorkOrderPdfs({ status, projectId: '0818', from: '2026-10-20', to: '2026-10-26' });
+      expect(result.count).toBe(expected.length);
+      expect((await PDFDocument.load(result.pdf)).getPageCount()).toBe(expected.length);
+      expect(readGeneratedPdf.mock.calls.map((call) => call[0])).toEqual(expected.map((id) => `https://files.example/${id}.pdf`));
+    }
+  });
+
   it('merges only generated PDFs matching the status and date filters', async () => {
     const pdf = await onePagePdf();
     const service = Object.create(

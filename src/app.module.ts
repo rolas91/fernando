@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { SystemErrorsModule } from './modules/system-errors/system-errors.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     }),
     AccessModule,
     AuthModule,
+    SystemErrorsModule,
     RealtimeModule,
     IntegrationsModule,
     OperationsModule,

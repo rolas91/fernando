@@ -6,10 +6,19 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import * as multer from 'multer';
+import { SystemErrorsService } from '../../modules/system-errors/system-errors.service';
 
 @Catch(multer.MulterError)
 export class MulterExceptionFilter implements ExceptionFilter {
+  constructor(private readonly errors: SystemErrorsService) {}
   catch(exception: multer.MulterError, host: ArgumentsHost) {
+    void this.errors.record({
+      message: exception.message,
+      stack: exception.stack,
+      context: 'File upload',
+      level: 'warn',
+      statusCode: 400,
+    });
     const res = host.switchToHttp().getResponse<Response>();
 
     let message =

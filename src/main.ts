@@ -15,6 +15,8 @@ import { AppModule } from './app.module';
 import { MulterExceptionFilter } from './common/filters/multer-exception.filter';
 import { corsOptions } from './config/cors';
 import { ensureRuntimeEnv } from './config/ensure-env';
+import { SystemErrorsLogger } from './modules/system-errors/system-errors.logger';
+import { SystemErrorsService } from './modules/system-errors/system-errors.service';
 
 function isSwaggerEnabled() {
   const flag = (process.env.SWAGGER_ENABLED ?? '').trim().toLowerCase();
@@ -40,6 +42,7 @@ async function bootstrap() {
     bodyParser: false,
   });
   const expressApp = app.getHttpAdapter().getInstance();
+  app.useLogger(app.get(SystemErrorsLogger));
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
   app.setGlobalPrefix('api');
@@ -54,7 +57,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.useGlobalFilters(new MulterExceptionFilter());
+  app.useGlobalFilters(new MulterExceptionFilter(app.get(SystemErrorsService)));
 
   const backendPublicPath = resolve(process.cwd(), 'public');
   if (existsSync(backendPublicPath)) {

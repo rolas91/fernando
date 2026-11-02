@@ -33,6 +33,7 @@ export function corsOptions(): CorsOptions {
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['X-Request-Id'],
     optionsSuccessStatus: 204,
   };
 }

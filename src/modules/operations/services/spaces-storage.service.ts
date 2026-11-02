@@ -503,7 +503,13 @@ export class SpacesStorageService {
   private encodeObjectKey(key: string) {
     return key
       .split('/')
-      .map((segment) => encodeURIComponent(segment))
+      .map((segment) =>
+        encodeURIComponent(segment).replace(
+          /[!'()*]/g,
+          (character) =>
+            `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+        ),
+      )
       .join('/');
   }
 

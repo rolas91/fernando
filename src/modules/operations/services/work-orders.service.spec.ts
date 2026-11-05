@@ -988,3 +988,38 @@ describe('WorkOrdersService.findOne shifts merge', () => {
     expect(result.shifts).toEqual([]);
   });
 });
+
+
+describe('PM approval isolation for independent shift updates', () => {
+  const service = Object.create(WorkOrdersService.prototype) as {
+    preserveUnchangedApprovedShifts(previous: Record<string, unknown>[], next: Record<string, unknown>[], changed?: string[]): Record<string, unknown>[];
+    assertPmApprovedShiftsUnchanged(previous: Record<string, unknown>[], next: Record<string, unknown>[]): void;
+  };
+  const approved = {
+    id: 'approved', date: '2026-10-26', pmApprovedAt: '2026-10-27T10:00:00Z',
+    roles: [{ id: 'role', workerConfirmations: [{ workerId: 'worker', status: 'confirmed' }] }],
+  };
+  const independent = { id: 'independent', date: '2026-11-13', roles: [] };
+  const staleApproved = { ...approved, roles: [{ id: 'role' }] };
+  const validate = (next: Record<string, unknown>[], changed?: string[]) => {
+    const preserved = service.preserveUnchangedApprovedShifts([approved, independent], next, changed);
+    service.assertPmApprovedShiftsUnchanged([approved, independent], preserved);
+    return preserved;
+  };
+  it('allows editing an independent shift and preserves the approved sibling exactly', () => {
+    const edited = { ...independent, date: '2026-11-14' };
+    expect(validate([staleApproved, edited], ['independent'])).toEqual([approved, edited]);
+  });
+  it('allows deleting an independent shift despite stale sibling confirmation data', () => {
+    expect(validate([staleApproved], [])).toEqual([approved]);
+  });
+  it('still rejects editing an approved shift', () => {
+    expect(() => validate([staleApproved, independent], ['approved'])).toThrow('is locked');
+  });
+  it('still rejects deleting an approved shift even if omitted from changed IDs', () => {
+    expect(() => validate([independent], [])).toThrow('is locked');
+  });
+  it('keeps the existing protection for clients without change tracking', () => {
+    expect(() => validate([staleApproved, independent])).toThrow('is locked');
+  });
+});

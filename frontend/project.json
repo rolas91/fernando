@@ -1,0 +1,72 @@
+{
+  "name": "frontend",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": [
+    "app:frontend"
+  ],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs frontend dev",
+        "cwd": "."
+      },
+      "continuous": true,
+      "cache": false
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs frontend build",
+        "cwd": "."
+      },
+      "inputs": [
+        "default",
+        {
+          "runtime": "node scripts/hash-env.cjs frontend"
+        }
+      ],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
+      "cache": true
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs frontend preview",
+        "cwd": "."
+      },
+      "continuous": true,
+      "cache": false
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs frontend typecheck",
+        "cwd": "."
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs frontend lint",
+        "cwd": "."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs frontend test",
+        "cwd": "."
+      },
+      "inputs": [
+        "default",
+        "{workspaceRoot}/backend/src/modules/operations/utils/operations-report.util.ts",
+        "{workspaceRoot}/backend/src/modules/operations/utils/dashboard-read.util.ts",
+        "{workspaceRoot}/backend/src/modules/operations/utils/payroll-report.util.ts"
+      ]
+    }
+  }
+}

@@ -1,0 +1,21 @@
+const assert = require('node:assert/strict');
+const { test } = require('node:test');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+const source = fs.readFileSync(path.join(__dirname, '../app/work-orders/form.tsx'), 'utf8');
+const ast = ts.createSourceFile('form.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const names = ['calculateTimesheetHours', 'timesheetTimeline', 'timeToMinutes', 'timesheetWeekday', 'noLunchCreditTargetForDate', 'roundHours'];
+const functions = ast.statements.filter(n => ts.isFunctionDeclaration(n) && names.includes(n.name?.text));
+const code = ts.transpileModule(functions.map(n => n.getText(ast)).join('\n'), { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText;
+const context = vm.createContext({});
+vm.runInContext(code, context);
+test('single-shift mobile preview matches the backend weekday and weekend policy', () => {
+  const row = { startTime: '08:00', endTime: '13:00', shiftDate: '2026-10-19', singleShiftDay: true };
+  assert.equal(context.calculateTimesheetHours(row).st, 8);
+  assert.equal(context.calculateTimesheetHours({ ...row, singleShiftDay: false }).st, 5);
+  assert.equal(context.calculateTimesheetHours({ ...row, shiftDate: '2026-10-18' }).st, 0);
+  assert.equal(context.calculateTimesheetHours({ ...row, shiftDate: '2026-10-18' }).dt, 5);
+  assert.equal(row.endTime, '13:00');
+});

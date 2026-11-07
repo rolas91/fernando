@@ -1,0 +1,1239 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { useAppContext } from '@/contexts/AppContext';
+import {
+  X,
+  DollarSign,
+  Calendar,
+  FileSpreadsheet,
+  FileText,
+  Users,
+  ClipboardCheck,
+  Timer,
+  TrendingUp,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+  Info,
+} from 'lucide-react';
+import type { Shift, ShiftTemplate } from '@/lib/types';
+import SearchableSelect from '@/components/shared/SearchableSelect';
+
+const clockMinutes = (value?: string | null) => {
+  const match =
+    value?.trim().match(/^(\d{1,2}):(\d{2})\s*([AP])\.?M\.?$/i) ??
+    value?.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const period = match[3]?.toUpperCase();
+  if (period === 'A' && hours === 12) hours = 0;
+  if (period === 'P' && hours !== 12) hours += 12;
+  return hours * 60 + minutes;
+};
+
+const formatClock = (value?: string | null) => {
+  const minutes = clockMinutes(value);
+  if (minutes === null) return '-';
+  const hours = Math.floor(minutes / 60);
+  return `${hours % 12 || 12}:${String(minutes % 60).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
+};
+
+const resolveShiftType = (shift: Shift, catalog: ShiftTemplate[]) => {
+  const linked = catalog.find((item) => item.id === shift.shiftTemplateId);
+  if (linked) return linked;
+
+  const named = catalog.find(
+    (item) =>
+      item.name.trim().toLowerCase() === shift.shiftName?.trim().toLowerCase(),
+  );
+  if (named) return named;
+
+  const date = new Date(`${shift.date}T12:00:00`);
+  const weekday = Number.isNaN(date.getTime()) ? -1 : date.getDay();
+  const dayQualifier =
+    weekday === 6 ? 'saturday' : weekday === 0 ? 'sunday' : '';
+  const start = clockMinutes(shift.defaultRoleStartTime || shift.startTime);
+  const periodQualifier =
+    start !== null && (start >= 17 * 60 || start < 5 * 60) ? 'night' : 'day';
+  const sameStart = catalog.filter(
+    (item) => clockMinutes(item.startTime) === start,
+  );
+  const qualified = dayQualifier
+    ? sameStart.find((item) => item.name.toLowerCase().includes(dayQualifier))
+    : sameStart.find((item) => !/saturday|sunday/i.test(item.name));
+  const semantic = catalog.find((item) => {
+    const name = item.name.toLowerCase();
+    const correctDay = dayQualifier
+      ? name.includes(dayQualifier)
+      : !/saturday|sunday/i.test(name);
+    return correctDay && name.includes(periodQualifier);
+  });
+  return qualified ?? semantic ?? sameStart[0] ?? null;
+};
+
+const TimesheetsView: React.FC = () => {
+  const {
+    timesheets,
+    workers,
+    projects,
+    workOrders,
+    shifts: shiftCatalog,
+    settings,
+    getWorkerById,
+    getProjectById,
+  } = useAppContext();
+
+  const [projectFilter, setProjectFilter] = useState('');
+  const [workerFilter, setWorkerFilter] = useState('');
+  const [rangeMode, setRangeMode] = useState<
+    'all' | 'week' | 'last_week' | 'custom'
+  >('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedWorkerId, setSelectedWorkerId] = useState('');
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 7;
+
+  const allPayrollTimesheets = useMemo(
+    () =>
+      timesheets.filter((timesheet) => {
+        if (timesheet.variant !== 'internal') return false;
+        const workOrder = workOrders.find(
+          (item) => item.id === timesheet.workOrderId,
+        );
+        const shift = workOrder?.shifts.find(
+          (item) => item.id === timesheet.shiftId,
+        );
+        return Boolean(shift?.pmApprovedAt || shift?.status === 'pm_approved');
+      }),
+    [timesheets, workOrders],
+  );
+
+  const parseTimesheetDate = (value?: string) => {
+    if (!value) return null;
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch;
+      return new Date(Number(year), Number(month) - 1, Number(day), 12);
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const toInputDate = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const dateBounds = useMemo(() => {
+    const dates = allPayrollTimesheets
+      .map((timesheet) => parseTimesheetDate(timesheet.date))
+      .filter((date): date is Date => Boolean(date))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    const today = new Date();
+    const todayAtNoon = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      12,
+    );
+
+    const startOfWeek = new Date(todayAtNoon);
+    startOfWeek.setDate(todayAtNoon.getDate() - todayAtNoon.getDay());
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+    const startOfLastWeek = new Date(startOfWeek);
+    startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+    const endOfLastWeek = new Date(startOfWeek);
+    endOfLastWeek.setDate(startOfWeek.getDate() - 1);
+
+    return {
+      allStart: dates[0] ? toInputDate(dates[0]) : '',
+      allEnd: dates[dates.length - 1]
+        ? toInputDate(dates[dates.length - 1])
+        : '',
+      weekStart: toInputDate(startOfWeek),
+      weekEnd: toInputDate(endOfWeek),
+      lastWeekStart: toInputDate(startOfLastWeek),
+      lastWeekEnd: toInputDate(endOfLastWeek),
+    };
+  }, [allPayrollTimesheets]);
+
+  const selectedRange = useMemo(() => {
+    if (rangeMode === 'week')
+      return { start: dateBounds.weekStart, end: dateBounds.weekEnd };
+    if (rangeMode === 'last_week')
+      return { start: dateBounds.lastWeekStart, end: dateBounds.lastWeekEnd };
+    if (rangeMode === 'custom')
+      return { start: customStartDate, end: customEndDate };
+    return { start: dateBounds.allStart, end: dateBounds.allEnd };
+  }, [customEndDate, customStartDate, dateBounds, rangeMode]);
+
+  const payrollTimesheets = useMemo(() => {
+    const start = parseTimesheetDate(selectedRange.start)?.getTime();
+    const end = parseTimesheetDate(selectedRange.end)?.getTime();
+    return allPayrollTimesheets.filter((timesheet) => {
+      const date = parseTimesheetDate(timesheet.date)?.getTime();
+      if (!date) return false;
+      if (start && date < start) return false;
+      if (end && date > end) return false;
+      return true;
+    });
+  }, [allPayrollTimesheets, selectedRange]);
+
+  const filteredPayrollTimesheets = useMemo(
+    () =>
+      payrollTimesheets.filter((timesheet) => {
+        if (projectFilter && timesheet.projectId !== projectFilter)
+          return false;
+        if (workerFilter && timesheet.workerId !== workerFilter) return false;
+        return true;
+      }),
+    [payrollTimesheets, projectFilter, workerFilter],
+  );
+
+  const toNumber = (value: unknown) => {
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/,/g, '').trim();
+      const numeric = Number(cleaned);
+      return Number.isFinite(numeric) ? numeric : 0;
+    }
+    const numeric = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  };
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(toNumber(value));
+
+  const formatNumber = (value: number) =>
+    new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(toNumber(value));
+
+  const formatDate = (value?: string) => {
+    if (!value) return '-';
+    const date = parseTimesheetDate(value);
+    if (!date) return '-';
+    return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
+  };
+
+  const getTimesheetHours = (timesheet: (typeof timesheets)[0]) => {
+    const raw = timesheet as (typeof timesheets)[0] & {
+      regular_hours?: unknown;
+      overtime_hours?: unknown;
+      double_time_hours?: unknown;
+    };
+    const regularHours = toNumber(raw.regularHours ?? raw.regular_hours);
+    const overtimeHours = toNumber(raw.overtimeHours ?? raw.overtime_hours);
+    const doubleTimeHours = toNumber(
+      raw.doubleTimeHours ?? raw.double_time_hours,
+    );
+    return {
+      regularHours,
+      overtimeHours,
+      doubleTimeHours,
+      totalHours: regularHours + overtimeHours + doubleTimeHours,
+    };
+  };
+
+  const calculatePay = (timesheet: (typeof timesheets)[0]) => {
+    const worker = getWorkerById(timesheet.workerId);
+    const rate = toNumber(worker?.hourlyRate);
+    const hours = getTimesheetHours(timesheet);
+    const workOrder = workOrders.find(
+      (item) => item.id === timesheet.workOrderId,
+    );
+    const shift = workOrder?.shifts.find(
+      (item) => item.id === timesheet.shiftId,
+    );
+    const shiftType = shift ? resolveShiftType(shift, shiftCatalog) : null;
+    const start = clockMinutes(
+      shiftType?.startTime ||
+        shift?.defaultRoleStartTime ||
+        shift?.startTime ||
+        timesheet.clockIn,
+    );
+    const isNight =
+      Boolean(shiftType?.name.toLowerCase().includes('night')) ||
+      (start !== null && (start >= 17 * 60 || start < 5 * 60));
+    const regularPremium = isNight
+      ? toNumber(settings.overtimeRules.nightShiftPremium ?? 3)
+      : 0;
+    const overtimePremium = isNight
+      ? toNumber(settings.overtimeRules.overtimeNightPremium ?? 4.5)
+      : 0;
+    const doubleTimePremium = isNight
+      ? toNumber(settings.overtimeRules.doubleTimeNightPremium ?? 6)
+      : 0;
+    const regular = hours.regularHours * (rate + regularPremium);
+    const overtime =
+      hours.overtimeHours *
+      (rate * toNumber(settings.overtimeRules.overtimeMultiplier) +
+        overtimePremium);
+    const doubleTime =
+      hours.doubleTimeHours *
+      (rate * toNumber(settings.overtimeRules.doubleTimeMultiplier) +
+        doubleTimePremium);
+    return {
+      regular,
+      overtime,
+      doubleTime,
+      total: regular + overtime + doubleTime,
+    };
+  };
+
+  const timesheetDisplayKey = (timesheet: (typeof timesheets)[0]) =>
+    [
+      timesheet.workerId,
+      timesheet.workOrderId || timesheet.id,
+      timesheet.date || '',
+    ].join('|');
+
+  const workerSummaries = useMemo(() => {
+    const summaries = new Map<
+      string,
+      {
+        workerId: string;
+        workerName: string;
+        initials: string;
+        projectIds: Set<string>;
+        timesheets: number;
+        assignments: number;
+        regularHours: number;
+        overtimeHours: number;
+        doubleTimeHours: number;
+        totalHours: number;
+        grossPay: number;
+        hourlyRate: number;
+        projectBreakdown: Map<
+          string,
+          {
+            projectId: string;
+            projectName: string;
+            hours: number;
+            grossPay: number;
+          }
+        >;
+        recentTimesheets: typeof timesheets;
+        timesheetKeys: Set<string>;
+      }
+    >();
+
+    filteredPayrollTimesheets.forEach((timesheet) => {
+      const worker = getWorkerById(timesheet.workerId);
+      const project = getProjectById(timesheet.projectId);
+      const workerName = worker
+        ? `${worker.firstName} ${worker.lastName}`
+        : 'Unknown Worker';
+      const initials = worker
+        ? `${worker.firstName[0] || ''}${worker.lastName[0] || ''}`
+        : '??';
+      const pay = calculatePay(timesheet);
+      const {
+        regularHours,
+        overtimeHours,
+        doubleTimeHours,
+        totalHours: rowHours,
+      } = getTimesheetHours(timesheet);
+      const current = summaries.get(timesheet.workerId) || {
+        workerId: timesheet.workerId,
+        workerName,
+        initials,
+        projectIds: new Set<string>(),
+        timesheets: 0,
+        assignments: 0,
+        regularHours: 0,
+        overtimeHours: 0,
+        doubleTimeHours: 0,
+        totalHours: 0,
+        grossPay: 0,
+        hourlyRate: toNumber(worker?.hourlyRate),
+        projectBreakdown: new Map(),
+        recentTimesheets: [],
+        timesheetKeys: new Set<string>(),
+      };
+
+      const displayKey = timesheetDisplayKey(timesheet);
+      current.projectIds.add(timesheet.projectId);
+      current.timesheetKeys.add(displayKey);
+      current.regularHours += regularHours;
+      current.overtimeHours += overtimeHours;
+      current.doubleTimeHours += doubleTimeHours;
+      current.totalHours += rowHours;
+      current.grossPay += pay.total;
+      if (
+        !current.recentTimesheets.some(
+          (item) => timesheetDisplayKey(item) === displayKey,
+        )
+      ) {
+        current.recentTimesheets.push(timesheet);
+      }
+
+      const projectKey = timesheet.projectId || 'unknown';
+      const breakdown = current.projectBreakdown.get(projectKey) || {
+        projectId: projectKey,
+        projectName: project?.name || 'Unassigned Project',
+        hours: 0,
+        grossPay: 0,
+      };
+      breakdown.hours += rowHours;
+      breakdown.grossPay += pay.total;
+      current.projectBreakdown.set(projectKey, breakdown);
+
+      summaries.set(timesheet.workerId, current);
+    });
+
+    summaries.forEach((summary) => {
+      summary.timesheets = summary.timesheetKeys.size;
+      const assignmentIds = new Set(
+        summary.recentTimesheets
+          .map((timesheet) => timesheet.workOrderId)
+          .filter(Boolean),
+      );
+      summary.assignments = assignmentIds.size || summary.projectIds.size;
+    });
+
+    return Array.from(summaries.values()).sort((a, b) =>
+      a.workerName.localeCompare(b.workerName),
+    );
+  }, [
+    calculatePay,
+    filteredPayrollTimesheets,
+    getProjectById,
+    getWorkerById,
+    timesheets,
+  ]);
+
+  const availableProjects = useMemo(() => {
+    const projectIds = new Set<string>();
+    payrollTimesheets.forEach((timesheet) =>
+      projectIds.add(timesheet.projectId),
+    );
+    return projects.filter((project) => projectIds.has(project.id));
+  }, [payrollTimesheets, projects]);
+
+  const availableWorkers = useMemo(() => {
+    const workerIds = new Set(
+      payrollTimesheets.map((timesheet) => timesheet.workerId),
+    );
+    return workers.filter((worker) => workerIds.has(worker.id));
+  }, [payrollTimesheets, workers]);
+
+  const projectOptions = useMemo(
+    () => [
+      { value: '', label: 'All Projects' },
+      ...availableProjects.map((project) => ({
+        value: project.id,
+        label: [project.number, project.name].filter(Boolean).join(' - '),
+        searchText: `${project.number || ''} ${project.name || ''}`,
+      })),
+    ],
+    [availableProjects],
+  );
+
+  const workerOptions = useMemo(
+    () => [
+      { value: '', label: 'All Workers' },
+      ...availableWorkers.map((worker) => ({
+        value: worker.id,
+        label: `${worker.firstName} ${worker.lastName}`,
+        searchText: `${worker.firstName} ${worker.lastName}`,
+      })),
+    ],
+    [availableWorkers],
+  );
+
+  const filteredSummaries = workerSummaries;
+
+  useEffect(() => {
+    if (filteredSummaries.length === 0) {
+      setSelectedWorkerId('');
+      return;
+    }
+    if (
+      selectedWorkerId &&
+      !filteredSummaries.some(
+        (summary) => summary.workerId === selectedWorkerId,
+      )
+    ) {
+      setSelectedWorkerId('');
+    }
+  }, [filteredSummaries, selectedWorkerId]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    projectFilter,
+    rangeMode,
+    selectedRange.end,
+    selectedRange.start,
+    workerFilter,
+  ]);
+
+  useEffect(() => {
+    if (
+      projectFilter &&
+      !availableProjects.some((project) => project.id === projectFilter)
+    ) {
+      setProjectFilter('');
+    }
+  }, [availableProjects, projectFilter]);
+
+  useEffect(() => {
+    if (
+      workerFilter &&
+      !availableWorkers.some((worker) => worker.id === workerFilter)
+    ) {
+      setWorkerFilter('');
+    }
+  }, [availableWorkers, workerFilter]);
+
+  const selectedWorker =
+    filteredSummaries.find(
+      (summary) => summary.workerId === selectedWorkerId,
+    ) || null;
+  const detailedRows = useMemo(
+    () =>
+      filteredPayrollTimesheets
+        .map((timesheet) => {
+          const worker = getWorkerById(timesheet.workerId);
+          const project = getProjectById(timesheet.projectId);
+          const workOrder = workOrders.find(
+            (item) => item.id === timesheet.workOrderId,
+          );
+          const shift = workOrder?.shifts.find(
+            (item) => item.id === timesheet.shiftId,
+          );
+          const template = shift ? resolveShiftType(shift, shiftCatalog) : null;
+          const workerRole = shift?.roles.find((role) =>
+            role.assignedWorkers.includes(timesheet.workerId),
+          );
+          const shiftStartTime =
+            workerRole?.startTime ||
+            shift?.defaultRoleStartTime ||
+            shift?.startTime;
+          const inferredShiftType =
+            (clockMinutes(shiftStartTime) ?? 0) >= 17 * 60 ||
+            (clockMinutes(shiftStartTime) ?? 0) < 5 * 60
+              ? 'Night Shift'
+              : 'Day Shift';
+          const hours = getTimesheetHours(timesheet);
+          const pay = calculatePay(timesheet);
+          return {
+            id: timesheet.id,
+            workerId: timesheet.workerId,
+            workerName: worker
+              ? `${worker.firstName} ${worker.lastName}`
+              : 'Unknown Worker',
+            initials: worker
+              ? `${worker.firstName[0] || ''}${worker.lastName[0] || ''}`
+              : '??',
+            date: timesheet.date,
+            lunchAndBreakTaken: timesheet.lunchTaken === true ? 'Yes' : 'No',
+            projectLabel:
+              [project?.number, project?.name].filter(Boolean).join(' - ') ||
+              'Unassigned Project',
+            shiftType: template?.name || inferredShiftType,
+            shiftTime: `${formatClock(timesheet.clockIn)} - ${formatClock(timesheet.clockOut)}`,
+            ...hours,
+            grossPay: pay.total,
+          };
+        })
+        .sort(
+          (a, b) =>
+            b.date.localeCompare(a.date) ||
+            a.workerName.localeCompare(b.workerName),
+        ),
+    [
+      calculatePay,
+      filteredPayrollTimesheets,
+      getProjectById,
+      getWorkerById,
+      shiftCatalog,
+      workOrders,
+    ],
+  );
+  const totalPages = Math.max(1, Math.ceil(detailedRows.length / rowsPerPage));
+  const pageRows = detailedRows.slice(
+    (page - 1) * rowsPerPage,
+    page * rowsPerPage,
+  );
+  const totals = filteredSummaries.reduce(
+    (acc, summary) => {
+      acc.workers += 1;
+      acc.timesheets += summary.timesheets;
+      acc.hours += toNumber(summary.totalHours);
+      acc.regularHours += toNumber(summary.regularHours);
+      acc.overtimeHours += toNumber(summary.overtimeHours);
+      acc.doubleTimeHours += toNumber(summary.doubleTimeHours);
+      acc.grossPay += toNumber(summary.grossPay);
+      return acc;
+    },
+    {
+      workers: 0,
+      timesheets: 0,
+      hours: 0,
+      regularHours: 0,
+      overtimeHours: 0,
+      doubleTimeHours: 0,
+      grossPay: 0,
+    },
+  );
+
+  const averageHourlyRate =
+    totals.hours > 0 ? totals.grossPay / totals.hours : 0;
+
+  const toggleWorkerDetail = (workerId: string) => {
+    setSelectedWorkerId((current) => (current === workerId ? '' : workerId));
+  };
+
+  const exportHeaders = [
+    'Worker Name',
+    'Date',
+    'Lunch and Break Taken',
+    'Project Number and Name',
+    'Shift Type and Time',
+    'ST Hours',
+    'OT Hours',
+    'DR Hours',
+    'Total Hours',
+    'Gross Pay',
+  ];
+
+  const handleExportCsv = () => {
+    const escapeCsv = (value: string | number) =>
+      `"${String(value).replace(/"/g, '""')}"`;
+    const rows = detailedRows.map((row) =>
+      [
+        row.workerName,
+        formatDate(row.date),
+        row.lunchAndBreakTaken,
+        row.projectLabel,
+        `${row.shiftType} - ${row.shiftTime}`,
+        row.regularHours.toFixed(2),
+        row.overtimeHours.toFixed(2),
+        row.doubleTimeHours.toFixed(2),
+        row.totalHours.toFixed(2),
+        row.grossPay.toFixed(2),
+      ]
+        .map(escapeCsv)
+        .join(','),
+    );
+    const csv = [exportHeaders.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'timesheets_summary.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
+    try {
+      const ExcelJS = await import('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'DR Traffic Control';
+      workbook.created = new Date();
+      const worksheet = workbook.addWorksheet('Timesheets', {
+        views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
+      });
+
+      worksheet.columns = [
+        { header: exportHeaders[0], key: 'workerName', width: 24 },
+        { header: exportHeaders[1], key: 'date', width: 14 },
+        { header: exportHeaders[2], key: 'lunchAndBreakTaken', width: 24 },
+        { header: exportHeaders[3], key: 'project', width: 34 },
+        { header: exportHeaders[4], key: 'shift', width: 30 },
+        { header: exportHeaders[5], key: 'st', width: 12 },
+        { header: exportHeaders[6], key: 'ot', width: 12 },
+        { header: exportHeaders[7], key: 'dr', width: 12 },
+        { header: exportHeaders[8], key: 'total', width: 14 },
+        { header: exportHeaders[9], key: 'grossPay', width: 16 },
+      ];
+
+      detailedRows.forEach((row) => {
+        worksheet.addRow({
+          workerName: row.workerName,
+          date: parseTimesheetDate(row.date),
+          lunchAndBreakTaken: row.lunchAndBreakTaken,
+          project: row.projectLabel,
+          shift: `${row.shiftType} - ${row.shiftTime}`,
+          st: row.regularHours,
+          ot: row.overtimeHours,
+          dr: row.doubleTimeHours,
+          total: row.totalHours,
+          grossPay: row.grossPay,
+        });
+      });
+
+      const header = worksheet.getRow(1);
+      header.height = 24;
+      header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      header.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1C2E4A' },
+      };
+      header.alignment = { vertical: 'middle' };
+      worksheet.autoFilter = { from: 'A1', to: 'J1' };
+      worksheet.getColumn('B').numFmt = 'mm/dd/yyyy';
+      ['F', 'G', 'H', 'I'].forEach((column) => {
+        worksheet.getColumn(column).numFmt = '0.00';
+      });
+      worksheet.getColumn('J').numFmt = '$#,##0.00';
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        row.height = 21;
+        row.alignment = { vertical: 'middle' };
+        if (rowNumber % 2 === 0) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8FAFC' },
+          };
+        }
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'timesheets_summary.xlsx';
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  const StatCard = ({
+    icon: Icon,
+    label,
+    value,
+    sublabel,
+    tone,
+  }: {
+    icon: React.ElementType;
+    label: string;
+    value: string;
+    sublabel: string;
+    tone: string;
+  }) => (
+    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div
+          className={`flex h-11 w-11 items-center justify-center rounded-full ${tone}`}
+        >
+          <Icon size={23} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-gray-600">{label}</p>
+          <p className="mt-2 text-2xl font-bold leading-none text-gray-950">
+            {value}
+          </p>
+          <p className="mt-2 text-xs text-gray-500">{sublabel}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-min-h-[calc(100dvh-64px)] lg:h-[calc(100dvh-64px)] bg-gray-50 p-5 text-gray-950">
+      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-normal text-gray-950">
+              Timesheets Summary
+            </h2>
+            <Info size={17} className="text-blue-600" />
+          </div>
+          <p className="mt-2 text-sm text-gray-600">
+            Summary of timesheets and payroll totals by worker.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            disabled={exportingExcel}
+            onClick={() => void handleExportExcel()}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60"
+          >
+            <FileSpreadsheet size={16} className="text-emerald-600" />{' '}
+            {exportingExcel ? 'Exporting...' : 'Export Excel'}
+          </button>
+          <button
+            onClick={handleExportCsv}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            <FileText size={16} /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={`grid min-h-[calc(100vh-160px)] transition-[grid-template-columns,gap] duration-300 ease-out ${selectedWorker ? 'gap-5 xl:grid-cols-[minmax(0,1fr)_330px]' : 'gap-0 xl:grid-cols-[minmax(0,1fr)_0px]'}`}
+      >
+        <div className="min-w-0 space-y-4">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr_1fr]">
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase text-gray-500">
+                  Payroll Period
+                </p>
+                <div className="flex h-11 items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 flex-wrap gap-3">
+                  <Calendar size={16} className="text-gray-500" />
+                  <span>{formatDate(selectedRange.start)}</span>
+                  <span className="text-gray-400">to</span>
+                  <span>{formatDate(selectedRange.end)}</span>
+                  <Calendar size={16} className="text-gray-500" />
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase text-gray-500">
+                  Project
+                </p>
+                <SearchableSelect
+                  value={projectFilter}
+                  onChange={setProjectFilter}
+                  options={projectOptions}
+                  placeholder="All Projects"
+                  searchPlaceholder="Search projects..."
+                  emptyMessage="No projects found."
+                  buttonClassName="h-11 rounded-md border-gray-200 font-semibold text-gray-700"
+                />
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase text-gray-500">
+                  Worker
+                </p>
+                <SearchableSelect
+                  value={workerFilter}
+                  onChange={setWorkerFilter}
+                  options={workerOptions}
+                  placeholder="All Workers"
+                  searchPlaceholder="Search workers..."
+                  emptyMessage="No workers found."
+                  buttonClassName="h-11 rounded-md border-gray-200 font-semibold text-gray-700"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+              <span className="text-xs font-bold text-gray-700">
+                Quick Range
+              </span>
+              <button
+                onClick={() => setRangeMode('week')}
+                className={`h-9 rounded-md border px-5 text-xs font-bold ${rangeMode === 'week' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                This Week
+              </button>
+              <button
+                onClick={() => setRangeMode('last_week')}
+                className={`h-9 rounded-md border px-5 text-xs font-bold ${rangeMode === 'last_week' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                Last Week
+              </button>
+              <button
+                onClick={() => setRangeMode('all')}
+                className={`h-9 rounded-md border px-5 text-xs font-bold ${rangeMode === 'all' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                All Dates
+              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setRangeMode('custom')}
+                  className={`inline-flex h-9 items-center gap-2 rounded-md border px-4 text-xs font-bold ${rangeMode === 'custom' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  Custom <Calendar size={14} />
+                </button>
+                {rangeMode === 'custom' && (
+                  <>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="h-9 rounded-md border border-gray-200 px-2 text-xs font-semibold text-gray-700 outline-none focus:border-blue-500"
+                    />
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="h-9 rounded-md border border-gray-200 px-2 text-xs font-semibold text-gray-700 outline-none focus:border-blue-500"
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <StatCard
+              icon={Users}
+              label="Total Workers"
+              value={String(totals.workers)}
+              sublabel="With timesheets"
+              tone="bg-blue-50 text-blue-600"
+            />
+            <StatCard
+              icon={ClipboardCheck}
+              label="Total Timesheets"
+              value={String(totals.timesheets)}
+              sublabel="In selected range"
+              tone="bg-emerald-50 text-emerald-600"
+            />
+            <StatCard
+              icon={Timer}
+              label="Total Hours"
+              value={formatNumber(totals.hours)}
+              sublabel={`ST: ${formatNumber(totals.regularHours)}   OT: ${formatNumber(totals.overtimeHours)}   DT: ${formatNumber(totals.doubleTimeHours)}`}
+              tone="bg-sky-50 text-blue-600"
+            />
+            <StatCard
+              icon={DollarSign}
+              label="Total Gross Pay"
+              value={formatCurrency(totals.grossPay)}
+              sublabel="All projects"
+              tone="bg-violet-50 text-violet-600"
+            />
+            <StatCard
+              icon={TrendingUp}
+              label="Avg. Hourly Rate"
+              value={formatCurrency(averageHourlyRate)}
+              sublabel="Blended average"
+              tone="bg-orange-50 text-orange-600"
+            />
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1340px]">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    {[
+                      'Worker Name',
+                      'Date',
+                      'Lunch and Break Taken',
+                      'Project Number and Name',
+                      'Shift Type and Time',
+                      'ST Hours',
+                      'OT Hours',
+                      'DR Hours',
+                      'Total Hours',
+                      'Gross Pay',
+                    ].map((header) => (
+                      <th
+                        key={header}
+                        className="px-4 py-3 text-left text-[11px] font-bold uppercase text-gray-500"
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => toggleWorkerDetail(row.workerId)}
+                      className={`cursor-pointer border-b border-gray-100 hover:bg-gray-50 ${selectedWorker?.workerId === row.workerId ? 'bg-blue-50/40' : ''}`}
+                    >
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3 text-left">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                            {row.initials}
+                          </span>
+                          <span className="text-sm font-bold text-gray-900">
+                            {row.workerName}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-gray-700">
+                        {formatDate(row.date)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-gray-700">
+                        {row.lunchAndBreakTaken}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-semibold text-gray-700">
+                        {row.projectLabel}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-700">
+                        <span className="font-bold">{row.shiftType}</span>
+                        <span className="mt-1 block whitespace-nowrap text-xs text-gray-500">
+                          {row.shiftTime}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm font-semibold text-gray-700">
+                        {formatNumber(row.regularHours)}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-bold text-rose-500">
+                        {formatNumber(row.overtimeHours)}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-semibold text-gray-700">
+                        {formatNumber(row.doubleTimeHours)}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-bold text-gray-950">
+                        {formatNumber(row.totalHours)}
+                      </td>
+                      <td className="px-4 py-4 text-sm font-bold text-gray-950">
+                        {formatCurrency(row.grossPay)}
+                      </td>
+                    </tr>
+                  ))}
+                  {pageRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="px-4 py-12 text-center text-sm text-gray-500"
+                      >
+                        No timesheets found for the selected filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-medium text-gray-600">
+                Showing{' '}
+                {detailedRows.length === 0 ? 0 : (page - 1) * rowsPerPage + 1}{' '}
+                to {Math.min(page * rowsPerPage, detailedRows.length)} of{' '}
+                {detailedRows.length} timesheets
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-600">
+                  Rows per page:
+                </span>
+                <select
+                  value={rowsPerPage}
+                  disabled
+                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700"
+                >
+                  <option>{rowsPerPage}</option>
+                </select>
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={page === 1}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  disabled={page === 1}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                {Array.from(
+                  { length: Math.min(totalPages, 5) },
+                  (_, index) => index + 1,
+                ).map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => setPage(item)}
+                    className={`h-9 w-9 rounded-md text-sm font-bold ${page === item ? 'bg-blue-600 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
+                  >
+                    {item}
+                  </button>
+                ))}
+                <button
+                  onClick={() =>
+                    setPage((value) => Math.min(totalPages, value + 1))
+                  }
+                  disabled={page === totalPages}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={page === totalPages}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
+                >
+                  <ChevronsRight size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside
+          className={`overflow-hidden rounded-lg bg-white shadow-sm transition-all duration-300 ease-out xl:sticky xl:top-20 xl:h-[calc(100vh-100px)] xl:self-start ${selectedWorker ? 'translate-x-0 border border-gray-200 p-4 opacity-100' : 'pointer-events-none h-0 translate-x-3 border-0 p-0 opacity-0 xl:h-[calc(100vh-100px)]'}`}
+        >
+          {selectedWorker ? (
+            <div className="flex h-full flex-col gap-4 overflow-y-auto pr-1">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+                    {selectedWorker.initials}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-950">
+                      {selectedWorker.workerName}
+                    </h3>
+                    <p className="text-xs font-semibold text-gray-500">
+                      Payroll Period
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedWorkerId('')}
+                  className="rounded-md p-1 text-gray-500 hover:bg-gray-50"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 flex-wrap gap-3">
+                <span>
+                  {formatDate(selectedRange.start)} -{' '}
+                  {formatDate(selectedRange.end)}
+                </span>
+                <Calendar size={16} />
+              </div>
+              <div className="responsive-grid grid grid-cols-3 gap-3 border-b border-gray-100 pb-4">
+                <div>
+                  <p className="text-xs font-bold text-gray-500">Timesheets</p>
+                  <p className="text-lg font-bold">
+                    {selectedWorker.timesheets}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-500">Projects</p>
+                  <p className="text-lg font-bold">
+                    {selectedWorker.projectIds.size}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-500">Assignments</p>
+                  <p className="text-lg font-bold">
+                    {selectedWorker.assignments}
+                  </p>
+                </div>
+              </div>
+              <div className="responsive-grid grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xs font-bold text-gray-500">ST Hours</p>
+                  <p className="text-base font-bold">
+                    {formatNumber(selectedWorker.regularHours)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-500">OT Hours</p>
+                  <p className="text-base font-bold text-rose-500">
+                    {formatNumber(selectedWorker.overtimeHours)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-500">DT Hours</p>
+                  <p className="text-base font-bold">
+                    {formatNumber(selectedWorker.doubleTimeHours)}
+                  </p>
+                </div>
+              </div>
+              <div className="responsive-grid grid grid-cols-2 gap-3">
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs font-bold text-gray-500">Total Hours</p>
+                  <p className="mt-2 text-xl font-bold">
+                    {formatNumber(selectedWorker.totalHours)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-xs font-bold text-gray-500">Gross Pay</p>
+                  <p className="mt-2 text-xl font-bold text-blue-700">
+                    {formatCurrency(selectedWorker.grossPay)}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <p className="mb-3 text-xs font-bold text-gray-900">
+                  Project Breakdown
+                </p>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_64px_80px] text-[10px] font-bold uppercase text-gray-500">
+                    <span>Project</span>
+                    <span>Hours</span>
+                    <span className="text-right">Gross Pay</span>
+                  </div>
+                  {Array.from(selectedWorker.projectBreakdown.values()).map(
+                    (item) => (
+                      <div
+                        key={item.projectId}
+                        className="grid grid-cols-[1fr_64px_80px] items-center text-xs"
+                      >
+                        <span className="truncate font-semibold text-gray-700">
+                          {item.projectName}
+                        </span>
+                        <span className="font-semibold text-gray-700">
+                          {formatNumber(item.hours)}
+                        </span>
+                        <span className="text-right font-semibold text-gray-700">
+                          {formatCurrency(item.grossPay)}
+                        </span>
+                      </div>
+                    ),
+                  )}
+                  <div className="grid grid-cols-[1fr_64px_80px] border-t border-gray-100 pt-2 text-xs font-bold">
+                    <span>Total</span>
+                    <span>{formatNumber(selectedWorker.totalHours)}</span>
+                    <span className="text-right text-blue-700">
+                      {formatCurrency(selectedWorker.grossPay)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="mb-3 flex items-center justify-between flex-wrap gap-3">
+                  <p className="text-xs font-bold text-gray-900">
+                    Recent Assignments
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {selectedWorker.recentTimesheets
+                    .slice(0, 3)
+                    .map((timesheet) => {
+                      const project = getProjectById(timesheet.projectId);
+                      const workOrder = workOrders.find(
+                        (item) => item.id === timesheet.workOrderId,
+                      );
+                      return (
+                        <div
+                          key={timesheet.id}
+                          className="flex items-center justify-between gap-2 text-xs flex-wrap gap-3"
+                        >
+                          <span className="min-w-0 truncate font-bold text-gray-800">
+                            {workOrder?.orderNumber ||
+                              timesheet.workOrderId ||
+                              'Assignment'}{' '}
+                            - {project?.name || 'Project'}
+                          </span>
+                          <span className="shrink-0 font-semibold text-gray-500">
+                            {formatDate(timesheet.date)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </aside>
+      </div>
+    </div>
+  );
+};
+
+export default TimesheetsView;

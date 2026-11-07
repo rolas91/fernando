@@ -1,0 +1,24 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const path = require('node:path');
+const compile = text => ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+const original = fs.readFileSync(path.join(__dirname, 'fixtures/legacy-payroll-view.tsx.txt'), 'utf8');
+const helpers = original.slice(original.indexOf('const clockMinutes'), original.indexOf('const TimesheetsView'));
+const body = original.slice(original.indexOf('  const allPayrollTimesheets'), original.indexOf('  const toggleWorkerDetail'));
+const harness = `${helpers}\nfunction legacy(input) { const { timesheets, workers, projects, workOrders, shiftCatalog, settings, rangeMode, customStartDate, customEndDate, projectFilter, workerFilter, page } = input; const rowsPerPage = 7, selectedWorkerId = ''; const getWorkerById = id => workers.find(row => row.id === id); const getProjectById = id => projects.find(row => row.id === id); ${body} return { detailedRows, pageRows, totalPages, totalRecords: detailedRows.length, workerSummaries: workerSummaries.map(({ projectIds, projectBreakdown, timesheetKeys, recentTimesheets, ...summary }) => ({ ...summary, projectIds: [...projectIds], projectBreakdown: [...projectBreakdown.values()], recentTimesheets: recentTimesheets.slice(0,3).map(({id, projectId, workOrderId, date}) => ({id, projectId, workOrderId, date})) })), availableProjects, availableWorkers: availableWorkers.map(({id,firstName,lastName})=>({id,firstName,lastName})), dateBounds, selectedRange, totals, averageHourlyRate }; }`;
+class FixedDate extends Date { constructor(...args) { super(...(args.length ? args : ['2026-11-05T12:00:00'])); } }
+const context = vm.createContext({ Date: FixedDate, useMemo: fn => fn(), useEffect: () => {} });
+vm.runInContext(compile(harness), context);
+const moduleContext = vm.createContext({ exports: {} });
+vm.runInContext(compile(fs.readFileSync(path.join(__dirname, '../../backend/src/modules/operations/utils/payroll-report.util.ts'), 'utf8')), moduleContext);
+const calculate = moduleContext.exports.calculatePayroll;
+const shifts = Array.from({length: 12}, (_, i) => ({id:'s'+i,date: i%2?'2026-11-01':'2026-11-05',shiftName:i%3?'':'Saturday Night',shiftTemplateId:i%4?'':'night',startTime:i%2?'06:00':'18:00',defaultRoleStartTime:i%5?'':'19:00',status:i===11?'confirmed':'pm_approved',pmApprovedAt:i===11?null:'2026-11-06',roles:[{startTime:'03:00',assignedWorkers:['w1']},{startTime:'08:00',assignedWorkers:['w2']}]}));
+const base = { today:'2026-11-05',page:1,rangeMode:'all',customStartDate:'',customEndDate:'',projectFilter:'',workerFilter:'', workers:[{id:'w1',firstName:'Ana',lastName:'Z',hourlyRate:'1,050.25'},{id:'w2',firstName:'Bob',lastName:'A',hourlyRate:23}],projects:[{id:'p1',name:'Alpha',number:'0593'},{id:'p2',name:'Beta',number:'17'}],workOrders:[{id:'wo1',orderNumber:'42',shifts}],shiftCatalog:[{id:'day',name:'Day Shift',startTime:'06:00'},{id:'night',name:'Night Shift',startTime:'18:00'},{id:'sat',name:'Saturday Night',startTime:'18:00'},{id:'sun',name:'Sunday Day',startTime:'06:00'}],settings:{overtimeRules:{overtimeMultiplier:1.5,doubleTimeMultiplier:2,nightShiftPremium:3,overtimeNightPremium:4.5,doubleTimeNightPremium:6}},timesheets:Array.from({length:150},(_,i)=>({id:'t'+i,workerId:i%7===0?'missing':i%2?'w1':'w2',projectId:i%9===0?'unknown':i%2?'p1':'p2',workOrderId:i%13===0?'missing':'wo1',shiftId:'s'+i%12,variant:i%10===0?'client':'internal',date:i%3===0?'2026-10-30':i%3===1?'2026-11-03':'2027-01-12',clockIn:i%2?'6:30 AM':'18:00',clockOut:'03:00',regularHours:i%4?'8.25':'',regular_hours:7,overtimeHours:String(i%4),doubleTimeHours:i%3,lunchTaken:i%2===0})) };
+const clean = value => JSON.parse(JSON.stringify(value));
+const cases = [ {},{page:3},{rangeMode:'week'},{rangeMode:'last_week'},{rangeMode:'custom',customStartDate:'2026-11-03',customEndDate:'2026-11-03'},{rangeMode:'custom',customStartDate:'2027-01-12'},{rangeMode:'custom',customEndDate:'2026-10-30'},{projectFilter:'p1'},{workerFilter:'w1'},{projectFilter:'p2',workerFilter:'w2'},{timesheets:[]},{settings:{overtimeRules:{overtimeMultiplier:'1.75',doubleTimeMultiplier:'2.25',nightShiftPremium:0,overtimeNightPremium:null,doubleTimeNightPremium:9}}} ];
+for (const scenario of cases) { const input = {...base,...scenario}; context.input = input; const legacy = vm.runInContext('legacy(input)',context); assert.deepEqual(clean(calculate(input)),clean(legacy)); }
+assert.ok(calculate(base).totals.grossPay > calculate(base).pageRows.reduce((sum,row)=>sum+row.grossPay,0));
+assert.ok(calculate(base).detailedRows.some(row => row.date === '2027-01-12'));
+console.log(`${cases.length} payroll parity scenarios passed: complete totals, duplicate display keys, future approvals, night premiums, role times, missing lookups, date bounds, filters and exports.`);

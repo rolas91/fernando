@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build && npm prune --omit=dev
+
+FROM node:24-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production PORT=3000 DB_SYNCHRONIZE=false AUTH_DEV_BYPASS=false SERVE_FRONTEND=false
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/package.json ./package.json
+COPY --chown=node:node scripts/container-healthcheck.cjs ./scripts/container-healthcheck.cjs
+COPY --chmod=755 deploy/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN mkdir -p /app/public && chown node:node /app/public
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=20s --timeout=6s --start-period=60s --retries=5 CMD ["node", "scripts/container-healthcheck.cjs"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["node", "dist/main.js"]

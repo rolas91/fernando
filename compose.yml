@@ -1,0 +1,72 @@
+name: dr-workops-local
+x-api: &api
+  image: dr-workops-api:local
+  build:
+    context: ./backend
+    dockerfile: Dockerfile.production
+  environment:
+    NODE_ENV: production
+    PORT: "3000"
+    DB_HOST: db
+    DB_PORT: "5432"
+    DB_USER: workops
+    DB_PASSWORD: ${LOCAL_DB_PASSWORD:?Copy .env.docker.example to .env.docker}
+    DB_NAME: workops_local
+    DB_SYNCHRONIZE: "false"
+    DB_LOGGING: "false"
+    JWT_SECRET: ${LOCAL_JWT_SECRET:?Set a local JWT secret}
+    ADMIN_EMAIL: ${LOCAL_ADMIN_EMAIL:-admin@workops.local}
+    ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:?Set a local administrator password}
+    AUTH_DEV_BYPASS: "false"
+    SERVE_FRONTEND: "false"
+    CORS_ORIGIN: http://localhost:8080,http://127.0.0.1:8080
+  volumes:
+    - local-uploads:/app/public
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: workops
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD}
+      POSTGRES_DB: workops_local
+    ports:
+      - "127.0.0.1:${LOCAL_DB_PORT:-5433}:5432"
+    volumes:
+      - local-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U workops -d workops_local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *api
+    command: [node, dist/database/run-migrations.js]
+    restart: "no"
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    <<: *api
+    init: true
+    ports:
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${LOCAL_API_PORT:-3000}:3000"
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      db: {condition: service_healthy}
+  web:
+    image: dr-workops-web:local
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ""
+        VITE_REALTIME_URL: ""
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        VITE_BUSINESS_TIME_ZONE: ${VITE_BUSINESS_TIME_ZONE:-America/Los_Angeles}
+    environment:
+      API_UPSTREAM: api:3000
+    ports:
+      - "127.0.0.1:${LOCAL_WEB_PORT:-8080}:8080"
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  local-db:
+  local-uploads:

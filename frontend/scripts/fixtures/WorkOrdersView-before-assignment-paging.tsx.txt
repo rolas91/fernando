@@ -1,0 +1,3115 @@
+import { useAssignmentDocuments } from '@/hooks/use-assignment-documents';
+import { DocumentReadNotice } from '@/components/scheduler/DocumentReadNotice';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useAppContext } from '@/contexts/AppContext';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { WorkOrder, Shift } from '@/lib/types';
+import {
+  getRoleRequiredCertificationIds,
+  workerMeetsRoleCertificationRequirements,
+} from '@/lib/workerCertificationMatch';
+import {
+  assignmentRoleOptions,
+  workerHasAssignmentRole,
+  workerRoleNames,
+} from '@/lib/workerRoleMatch';
+import SearchableSelect from '@/components/shared/SearchableSelect';
+import { CertificationMultiSelect } from '@/components/skills/SkillMultiSelect';
+import WorkOrderFileUploadsField from './WorkOrderFileUploadsField';
+import ShiftFormTemplatesPicker from '@/components/forms/ShiftFormTemplatesPicker';
+import { AssignmentAddressField } from './AssignmentAddressField';
+import { DEFAULT_ASSIGNMENT_COUNTRY } from '@/lib/googlePlaceAddress';
+import { publicFileUrl } from '@/lib/publicFiles';
+import {
+  assignmentDateRangeLabel,
+  isAssignmentRangeWithinProject,
+  projectHasScheduleBounds,
+} from '@/lib/workOrderShiftDateRange';
+import { getDefaultShiftFormTemplateIds } from '@/lib/defaultShiftForms';
+import {
+  availableRoleNamesForCard,
+  nextUnusedRoleName,
+} from '@/lib/shiftRoleSelection';
+import { dbFetchTrashedWorkOrders } from '@/lib/db';
+import { fetchShiftChatUnreadCount } from '@/lib/shiftChat';
+import { ShiftChatAside } from '@/components/scheduler/ShiftChatAside';
+import {
+  Plus,
+  Search,
+  MapPin,
+  Users,
+  Calendar,
+  ChevronRight,
+  ChevronLeft,
+  X,
+  Briefcase,
+  Truck,
+  Clock,
+  LayoutList,
+  CalendarDays,
+  Columns3,
+  ChevronsLeft,
+  ChevronsRight,
+  FolderKanban,
+  Eye,
+  Edit2,
+  MoreHorizontal,
+  ArrowUpDown,
+  Filter,
+  ChevronDown,
+  Save,
+  Trash2,
+  RotateCcw,
+  Archive,
+  MessageCircle,
+} from 'lucide-react';
+
+type ViewMode = 'list' | 'calendar';
+type CalendarMode = 'day' | 'week' | 'month';
+type DateFilterMode = 'all' | 'day' | 'range';
+
+const PlannedResourcesEditor = ({
+  title,
+  options,
+  value,
+  onChange,
+}: {
+  title: string;
+  options: string[];
+  value: Array<{ type: string; estimatedQuantity: number }>;
+  onChange: (value: Array<{ type: string; estimatedQuantity: number }>) => void;
+}) => (
+  <section className="rounded-xl border border-gray-200 p-3">
+    <div className="mb-2 flex items-center justify-between flex-wrap gap-3">
+      <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+      <button
+        type="button"
+        onClick={() => {
+          const available = options.find(
+            (option) => !value.some((item) => item.type === option),
+          );
+          if (available)
+            onChange([...value, { type: available, estimatedQuantity: 1 }]);
+        }}
+        disabled={
+          !options.some((option) => !value.some((item) => item.type === option))
+        }
+        className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 disabled:opacity-40"
+      >
+        <Plus size={13} /> Add type
+      </button>
+    </div>
+    <div className="space-y-2">
+      {value.map((resource, index) => (
+        <div
+          key={`${resource.type}-${index}`}
+          className="grid grid-cols-[1fr_100px_32px] gap-2"
+        >
+          <select
+            value={resource.type}
+            onChange={(event) =>
+              onChange(
+                value.map((item, itemIndex) =>
+                  itemIndex === index
+                    ? { ...item, type: event.target.value }
+                    : item,
+                ),
+              )
+            }
+            className="h-9 rounded-lg border border-gray-200 px-2 text-sm"
+          >
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min={1}
+            value={resource.estimatedQuantity}
+            onChange={(event) =>
+              onChange(
+                value.map((item, itemIndex) =>
+                  itemIndex === index
+                    ? {
+                        ...item,
+                        estimatedQuantity: Math.max(
+                          1,
+                          Number(event.target.value) || 1,
+                        ),
+                      }
+                    : item,
+                ),
+              )
+            }
+            className="h-9 rounded-lg border border-gray-200 px-2 text-sm"
+            aria-label={`${resource.type} estimated quantity`}
+          />
+          <button
+            type="button"
+            onClick={() =>
+              onChange(value.filter((_, itemIndex) => itemIndex !== index))
+            }
+            className="flex h-9 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
+            aria-label={`Remove ${resource.type}`}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      {value.length === 0 ? (
+        <p className="py-3 text-center text-xs text-gray-400">
+          No types planned.
+        </p>
+      ) : null}
+    </div>
+  </section>
+);
+
+const localDateString = (date: Date) => {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const startOfWeek = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+};
+
+const dateInRange = (date: string, start?: string, end?: string) => {
+  if (!date || !start || !end) return false;
+  return date >= start && date <= end;
+};
+
+const rangesOverlap = (
+  startA?: string,
+  endA?: string,
+  startB?: string,
+  endB?: string,
+) => {
+  if (!startA || !endA || !startB || !endB) return false;
+  return startA <= endB && endA >= startB;
+};
+
+const workOrderTouchesDay = (wo: WorkOrder, day: string) => {
+  if (!day) return true;
+  return (
+    dateInRange(day, wo.startDate, wo.endDate) ||
+    wo.shifts.some((shift) => shift.date === day)
+  );
+};
+
+const workOrderTouchesRange = (wo: WorkOrder, start: string, end: string) => {
+  if (!start || !end) return true;
+  return (
+    rangesOverlap(wo.startDate, wo.endDate, start, end) ||
+    wo.shifts.some((shift) => dateInRange(shift.date, start, end))
+  );
+};
+
+const WorkOrdersView: React.FC = () => {
+  const {
+    workOrders,
+    projects,
+    clients,
+    workers,
+    equipment,
+    settings,
+    workOrderTypes,
+    formTemplates,
+    getProjectById,
+    getClientById,
+    getWorkerById,
+    updateWorkOrder,
+    deleteWorkOrder,
+    restoreWorkOrder,
+    addWorkOrder,
+    setCurrentPage,
+  } = useAppContext();
+  const { toast } = useToast();
+
+  const [search, setSearch] = useState('');
+  const [dateFilterMode, setDateFilterMode] = useState<DateFilterMode>('all');
+  const [dayFilter, setDayFilter] = useState(() => localDateString(new Date()));
+  const [rangeStartFilter, setRangeStartFilter] = useState(() =>
+    localDateString(startOfWeek(new Date())),
+  );
+  const [rangeEndFilter, setRangeEndFilter] = useState(() => {
+    const d = startOfWeek(new Date());
+    d.setDate(d.getDate() + 6);
+    return localDateString(d);
+  });
+  const [selectedWO, setSelectedWO] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>('week');
+  const [calendarDate, setCalendarDate] = useState(() => {
+    return startOfWeek(new Date());
+  });
+  const [sortBy, setSortBy] = useState<'date' | 'project'>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [showNewWOModal, setShowNewWOModal] = useState(false);
+  const [pendingDeleteWO, setPendingDeleteWO] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashedWorkOrders, setTrashedWorkOrders] = useState<WorkOrder[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [shiftChatPanel, setShiftChatPanel] = useState<{
+    shift: Shift;
+    woId: string;
+  } | null>(null);
+  const [shiftChatUnread, setShiftChatUnread] = useState<
+    Record<string, number>
+  >({});
+  const [editingWO, setEditingWO] = useState<WorkOrder | null>(null);
+  const [editWOSaving, setEditWOSaving] = useState(false);
+  const [editWOForm, setEditWOForm] = useState({
+    projectId: '',
+    workOrderTypeId: '',
+    title: '',
+    orderNumber: '',
+    startDate: '',
+    endDate: '',
+    notes: '',
+    dispatchNote: '',
+    fileUploads: [] as string[],
+    assignmentAddress: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
+    assignmentCity: '',
+    assignmentState: '',
+    assignmentZipCode: '',
+    assignmentCountry: DEFAULT_ASSIGNMENT_COUNTRY,
+  });
+
+  const openTrash = async () => {
+    setShowTrash(true);
+    setTrashLoading(true);
+    try {
+      setTrashedWorkOrders(await dbFetchTrashedWorkOrders());
+    } catch (error) {
+      toast({
+        title: 'Unable to load Recycle Bin',
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTrashLoading(false);
+    }
+  };
+
+  const restoreFromTrash = async (workOrder: WorkOrder) => {
+    const restored = await restoreWorkOrder(workOrder.id);
+    if (!restored) return;
+    setTrashedWorkOrders((current) =>
+      current.filter((item) => item.id !== workOrder.id),
+    );
+    toast({
+      title: 'Assignment Restored',
+      description: `${workOrder.title} is active in Assignments again.`,
+    });
+  };
+
+  const activeWorkOrderTypes = useMemo(
+    () =>
+      workOrderTypes
+        .filter((item) => item.status === 'active')
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [workOrderTypes],
+  );
+
+  const workOrderTypeNameById = useMemo(() => {
+    return new Map(workOrderTypes.map((item) => [item.id, item.name]));
+  }, [workOrderTypes]);
+
+  const filtered = useMemo(() => {
+    let result = workOrders.filter((wo) => {
+      if (dateFilterMode === 'day' && !workOrderTouchesDay(wo, dayFilter))
+        return false;
+      if (dateFilterMode === 'range') {
+        const start =
+          rangeStartFilter <= rangeEndFilter
+            ? rangeStartFilter
+            : rangeEndFilter;
+        const end =
+          rangeStartFilter <= rangeEndFilter
+            ? rangeEndFilter
+            : rangeStartFilter;
+        if (!workOrderTouchesRange(wo, start, end)) return false;
+      }
+      if (search) {
+        const project = getProjectById(wo.projectId);
+        const client = project ? getClientById(project.clientId) : undefined;
+        const woTypeName = wo.workOrderTypeId
+          ? workOrderTypeNameById.get(wo.workOrderTypeId) || ''
+          : '';
+        const q = search.toLowerCase();
+        return (
+          wo.title +
+          (project?.name || '') +
+          (client?.name || '') +
+          (project?.city || '') +
+          (wo.orderNumber || '') +
+          woTypeName
+        )
+          .toLowerCase()
+          .includes(q);
+      }
+      return true;
+    });
+
+    result.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'date') {
+        cmp = a.startDate.localeCompare(b.startDate);
+      } else if (sortBy === 'project') {
+        const pa = getProjectById(a.projectId)?.name || '';
+        const pb = getProjectById(b.projectId)?.name || '';
+        cmp = pa.localeCompare(pb);
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [
+    workOrders,
+    search,
+    dateFilterMode,
+    dayFilter,
+    rangeStartFilter,
+    rangeEndFilter,
+    getProjectById,
+    getClientById,
+    sortBy,
+    sortDir,
+    workOrderTypeNameById,
+  ]);
+
+  const selected = selectedWO
+    ? workOrders.find((wo) => wo.id === selectedWO)
+    : null;
+  const selectedProject = selected ? getProjectById(selected.projectId) : null;
+  const selectedClient = selectedProject
+    ? getClientById(selectedProject.clientId)
+    : null;
+  const documents = useAssignmentDocuments(selected?.id);
+  const formSubmissions = documents.data ?? [];
+  const selectedFormSubmissions = useMemo(
+    () =>
+      selected
+        ? formSubmissions
+            .filter((submission) => submission.workOrderId === selected.id)
+            .sort((a, b) =>
+              String(b.submittedAt || '').localeCompare(
+                String(a.submittedAt || ''),
+              ),
+            )
+        : [],
+    [formSubmissions, selected],
+  );
+  const selectedFormSubmissionsByShift = useMemo(() => {
+    const map = new Map<string, typeof selectedFormSubmissions>();
+    selectedFormSubmissions.forEach((submission) => {
+      const shiftId = (submission.shiftId || '').trim();
+      if (!shiftId) return;
+      map.set(shiftId, [...(map.get(shiftId) || []), submission]);
+    });
+    return map;
+  }, [selectedFormSubmissions]);
+  const selectedShiftIds = useMemo(
+    () => selected?.shifts.map((shift) => shift.id) ?? [],
+    [selected],
+  );
+  const selectedShiftIdsKey = selectedShiftIds.join('|');
+
+  const openShiftChatById = useCallback(
+    (shiftId: string, workOrderId?: string) => {
+      const workOrder =
+        (workOrderId
+          ? workOrders.find((item) => item.id === workOrderId)
+          : undefined) ||
+        workOrders.find((item) =>
+          item.shifts.some((shift) => shift.id === shiftId),
+        );
+      const shift = workOrder?.shifts.find((item) => item.id === shiftId);
+      if (!workOrder || !shift) return;
+      setShiftChatPanel({ shift, woId: workOrder.id });
+    },
+    [workOrders],
+  );
+
+  useEffect(() => {
+    let active = true;
+    if (selectedShiftIds.length === 0) {
+      return () => {
+        active = false;
+      };
+    }
+
+    void Promise.all(
+      selectedShiftIds.map(async (shiftId) => {
+        try {
+          const result = await fetchShiftChatUnreadCount(shiftId);
+          return [shiftId, result.unreadCount] as const;
+        } catch {
+          return [shiftId, 0] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (!active) return;
+      setShiftChatUnread((current) => ({
+        ...current,
+        ...Object.fromEntries(entries),
+      }));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedShiftIds, selectedShiftIdsKey]);
+
+  useEffect(() => {
+    const openPendingChat = () => {
+      try {
+        const raw = sessionStorage.getItem('pending_shift_chat');
+        if (!raw) return;
+        const pending = JSON.parse(raw) as {
+          shiftId?: string;
+          workOrderId?: string;
+        };
+        if (!pending.shiftId) return;
+        sessionStorage.removeItem('pending_shift_chat');
+        openShiftChatById(pending.shiftId, pending.workOrderId);
+      } catch {}
+    };
+
+    const onOpenChat = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ shiftId?: string; workOrderId?: string }>
+      ).detail;
+      if (detail?.shiftId) {
+        openShiftChatById(detail.shiftId, detail.workOrderId);
+      }
+    };
+
+    openPendingChat();
+    window.addEventListener('open-shift-chat', onOpenChat);
+    return () => window.removeEventListener('open-shift-chat', onOpenChat);
+  }, [openShiftChatById]);
+
+  const handleShiftChatRead = useCallback((shiftId: string) => {
+    setShiftChatUnread((current) => ({ ...current, [shiftId]: 0 }));
+  }, []);
+
+  const showFormResponses = false;
+  const selectedEditProject = editWOForm.projectId
+    ? getProjectById(editWOForm.projectId)
+    : null;
+  const selectedEditClient = selectedEditProject
+    ? getClientById(selectedEditProject.clientId)
+    : null;
+  const currentYear = new Date().getFullYear();
+
+  const calendarDays = useMemo(() => {
+    if (calendarMode === 'day') {
+      return [calendarDate];
+    }
+    if (calendarMode === 'week') {
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(calendarDate);
+        d.setDate(d.getDate() + i);
+        return d;
+      });
+    } else {
+      const monthStart = new Date(
+        calendarDate.getFullYear(),
+        calendarDate.getMonth(),
+        1,
+      );
+      const startDay = monthStart.getDay();
+      const daysInMonth = new Date(
+        calendarDate.getFullYear(),
+        calendarDate.getMonth() + 1,
+        0,
+      ).getDate();
+      const days: Date[] = [];
+      for (let i = startDay - 1; i >= 0; i--) {
+        const d = new Date(monthStart);
+        d.setDate(d.getDate() - i - 1);
+        days.push(d);
+      }
+      for (let i = 1; i <= daysInMonth; i++) {
+        days.push(
+          new Date(calendarDate.getFullYear(), calendarDate.getMonth(), i),
+        );
+      }
+      while (days.length % 7 !== 0) {
+        const last = days[days.length - 1];
+        const d = new Date(last);
+        d.setDate(d.getDate() + 1);
+        days.push(d);
+      }
+      return days;
+    }
+  }, [calendarDate, calendarMode]);
+
+  const getWOsForDate = (date: Date) => {
+    const dateStr = localDateString(date);
+    return filtered.filter((wo) => {
+      return wo.shifts.some((s) => s.date === dateStr);
+    });
+  };
+
+  const navigateCalendar = (dir: number) => {
+    setCalendarDate((prev) => {
+      const d = new Date(prev);
+      if (calendarMode === 'day') {
+        d.setDate(d.getDate() + dir);
+      } else if (calendarMode === 'week') {
+        d.setDate(d.getDate() + dir * 7);
+      } else {
+        d.setMonth(d.getMonth() + dir);
+      }
+      return d;
+    });
+  };
+
+  const goToToday = () => {
+    const d = new Date();
+    if (calendarMode !== 'day') {
+      d.setDate(d.getDate() - d.getDay());
+    }
+    setCalendarDate(d);
+  };
+
+  const toggleSort = (field: 'date' | 'project') => {
+    if (sortBy === field) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortDir('asc');
+    }
+  };
+
+  const today = localDateString(new Date());
+
+  const openEditWOModal = useCallback((wo: WorkOrder) => {
+    setEditingWO(wo);
+    setEditWOForm({
+      projectId: wo.projectId,
+      workOrderTypeId: wo.workOrderTypeId || '',
+      title: wo.title,
+      orderNumber: wo.orderNumber || '',
+      startDate: wo.startDate,
+      endDate: wo.endDate,
+      notes: wo.notes || '',
+      dispatchNote: wo.dispatchNote || '',
+      fileUploads: [...(wo.fileUploads || [])],
+      assignmentAddress: wo.assignmentAddress ?? '',
+      latitude: wo.latitude ?? null,
+      longitude: wo.longitude ?? null,
+      assignmentCity: wo.assignmentCity ?? '',
+      assignmentState: wo.assignmentState ?? '',
+      assignmentZipCode: wo.assignmentZipCode ?? '',
+      assignmentCountry:
+        wo.assignmentCountry?.trim() || DEFAULT_ASSIGNMENT_COUNTRY,
+    });
+  }, []);
+
+  const handleSaveEditedWO = useCallback(async () => {
+    if (!editingWO) return;
+    if (!editWOForm.projectId) {
+      toast({
+        title: 'Missing project',
+        description: 'Please select a project.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!editWOForm.title.trim()) {
+      toast({
+        title: 'Missing title',
+        description: 'Please enter a title.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (editWOForm.endDate < editWOForm.startDate) {
+      toast({
+        title: 'Invalid dates',
+        description: 'End date cannot be earlier than start date.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setEditWOSaving(true);
+    try {
+      await updateWorkOrder(editingWO.id, {
+        projectId: editWOForm.projectId,
+        workOrderTypeId: editWOForm.workOrderTypeId || undefined,
+        title: editWOForm.title.trim(),
+        orderNumber: editWOForm.orderNumber.trim() || undefined,
+        startDate: editWOForm.startDate,
+        endDate: editWOForm.endDate,
+        notes: editWOForm.notes.trim(),
+        dispatchNote: editWOForm.dispatchNote.trim(),
+        fileUploads: editWOForm.fileUploads,
+        assignmentAddress: editWOForm.assignmentAddress.trim(),
+        latitude: editWOForm.latitude,
+        longitude: editWOForm.longitude,
+        assignmentCity: editWOForm.assignmentCity.trim(),
+        assignmentState: editWOForm.assignmentState.trim(),
+        assignmentZipCode: editWOForm.assignmentZipCode.trim(),
+        assignmentCountry:
+          editWOForm.assignmentCountry.trim() || DEFAULT_ASSIGNMENT_COUNTRY,
+      });
+      toast({
+        title: 'Assignment Updated',
+        description: `${editWOForm.title.trim()} was updated.`,
+      });
+      setEditingWO(null);
+    } catch (error) {
+      toast({
+        title: 'Could not update assignment',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Please review the assignment information and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setEditWOSaving(false);
+    }
+  }, [editingWO, editWOForm, updateWorkOrder, toast]);
+
+  const renderWOCard = (wo: WorkOrder, compact = false) => {
+    const project = getProjectById(wo.projectId);
+    const client = project ? getClientById(project.clientId) : undefined;
+    const workOrderTypeName = wo.workOrderTypeId
+      ? workOrderTypeNameById.get(wo.workOrderTypeId) || 'Unknown type'
+      : 'Unspecified';
+    const totalAssigned = wo.shifts.reduce(
+      (acc, s) =>
+        acc + s.roles.reduce((a, r) => a + r.assignedWorkers.length, 0),
+      0,
+    );
+    const totalRequired = wo.shifts.reduce(
+      (acc, s) => acc + s.roles.reduce((a, r) => a + r.requiredCount, 0),
+      0,
+    );
+    const totalEquip = wo.shifts.reduce(
+      (acc, shift) =>
+        acc +
+        (shift.plannedEquipment || []).reduce(
+          (total, resource) =>
+            total + Math.max(0, Number(resource.estimatedQuantity) || 0),
+          0,
+        ),
+      0,
+    );
+
+    if (compact) {
+      return (
+        <div
+          key={wo.id}
+          onClick={() => setSelectedWO(wo.id)}
+          className={`bg-white rounded-lg border p-2 cursor-pointer transition-all hover:shadow-sm text-left ${
+            selectedWO === wo.id
+              ? 'border-blue-400 shadow-sm'
+              : 'border-gray-200'
+          }`}
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-xs font-semibold text-gray-800 truncate">
+              {project?.name || wo.title || 'Assignment'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {wo.orderNumber && (
+              <span className="font-mono text-gray-400">{wo.orderNumber}</span>
+            )}
+            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+              {workOrderTypeName}
+            </span>
+            <span
+              className={`font-bold ${totalAssigned < totalRequired ? 'text-red-600' : 'text-green-600'}`}
+            >
+              {totalAssigned}/{totalRequired}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={wo.id}
+        onClick={() => setSelectedWO(wo.id)}
+        className={`bg-white rounded-xl border p-4 cursor-pointer transition-all ${
+          selectedWO === wo.id
+            ? 'border-blue-400 shadow-md'
+            : 'border-gray-200 hover:shadow-md'
+        }`}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-0.5">
+              <h3 className="font-semibold text-gray-800 truncate">
+                {project?.name || wo.title || 'Assignment'}
+              </h3>
+              {wo.orderNumber && (
+                <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">
+                  {wo.orderNumber}
+                </span>
+              )}
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 flex-shrink-0">
+                {workOrderTypeName}
+              </span>
+            </div>
+            <p className="text-sm text-gray-500">
+              {[
+                wo.title,
+                client?.name,
+                project?.number ? `#${project.number}` : '',
+              ]
+                .filter(Boolean)
+                .join(' | ')}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1">
+            <MapPin size={12} /> {project?.city || '-'}
+          </span>
+          <span className="flex items-center gap-1">
+            <Calendar size={12} /> {wo.startDate} - {wo.endDate}
+          </span>
+          <span className="flex items-center gap-1">
+            <Users size={12} />
+            <span
+              className={
+                totalAssigned < totalRequired
+                  ? 'text-red-600 font-medium'
+                  : 'text-green-600 font-medium'
+              }
+            >
+              {totalAssigned}/{totalRequired}
+            </span>
+          </span>
+          {totalEquip > 0 && (
+            <span className="flex items-center gap-1">
+              <Truck size={12} /> {totalEquip}
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <Clock size={12} /> {wo.shifts.length} shifts
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-[calc(100dvh-64px)] lg:h-[calc(100dvh-64px)] flex flex-col">
+      {}
+      <div className="bg-white border-b border-gray-200 px-3 sm:px-6 py-4 flex-shrink-0">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Briefcase size={22} className="text-primary" />
+              Assignments
+            </h2>
+            <p className="text-sm text-gray-500">
+              {workOrders.length} total assignments
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              {[
+                { mode: 'list' as ViewMode, icon: LayoutList, label: 'List' },
+                {
+                  mode: 'calendar' as ViewMode,
+                  icon: CalendarDays,
+                  label: 'Calendar',
+                },
+              ].map((v) => (
+                <button
+                  key={v.mode}
+                  onClick={() => setViewMode(v.mode)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === v.mode
+                      ? 'bg-white shadow-sm text-primary'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  title={v.label}
+                >
+                  <v.icon size={14} />
+                  <span className="hidden sm:inline">{v.label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setCurrentPage('scheduler')}
+              className="px-3 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1"
+            >
+              <CalendarDays size={14} /> Open Schedule
+            </button>
+            <button
+              type="button"
+              onClick={() => void openTrash()}
+              className="px-3 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-1"
+            >
+              <Archive size={14} /> Recycle Bin
+            </button>
+          </div>
+        </div>
+
+        {}
+        <div className="flex items-center gap-3 flex-wrap">
+          {}
+          <div className="flex items-center bg-white rounded-lg border border-gray-200 px-3 py-1.5 basis-48 flex-1 max-w-sm">
+            <Search size={14} className="text-gray-400 mr-2" />
+            <input
+              placeholder="Search assignments..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-sm outline-none w-full"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="p-0.5 hover:bg-gray-100 rounded"
+              >
+                <X size={12} className="text-gray-400" />
+              </button>
+            )}
+          </div>
+
+          {}
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5">
+            <Filter size={14} className="text-gray-400" />
+            <select
+              value={dateFilterMode}
+              onChange={(e) => {
+                const nextMode = e.target.value as DateFilterMode;
+                setDateFilterMode(nextMode);
+                if (nextMode === 'day' && dayFilter) {
+                  setCalendarMode('day');
+                  setCalendarDate(new Date(`${dayFilter}T12:00:00`));
+                }
+                if (nextMode === 'range' && rangeStartFilter) {
+                  setCalendarMode('week');
+                  setCalendarDate(
+                    startOfWeek(new Date(`${rangeStartFilter}T12:00:00`)),
+                  );
+                }
+              }}
+              className="bg-transparent text-xs font-medium text-gray-600 outline-none"
+              aria-label="Date filter mode"
+            >
+              <option value="all">All dates</option>
+              <option value="day">Day</option>
+              <option value="range">Range</option>
+            </select>
+            {dateFilterMode === 'day' && (
+              <input
+                type="date"
+                value={dayFilter}
+                onChange={(e) => {
+                  setDayFilter(e.target.value);
+                  if (e.target.value) {
+                    const d = new Date(`${e.target.value}T12:00:00`);
+                    setCalendarMode('day');
+                    setCalendarDate(d);
+                  }
+                }}
+                className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 outline-none focus:border-primary"
+                aria-label="Filter by day"
+              />
+            )}
+            {dateFilterMode === 'range' && (
+              <>
+                <input
+                  type="date"
+                  value={rangeStartFilter}
+                  onChange={(e) => setRangeStartFilter(e.target.value)}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 outline-none focus:border-primary"
+                  aria-label="Filter start date"
+                />
+                <span className="text-xs text-gray-400">to</span>
+                <input
+                  type="date"
+                  value={rangeEndFilter}
+                  onChange={(e) => setRangeEndFilter(e.target.value)}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 outline-none focus:border-primary"
+                  aria-label="Filter end date"
+                />
+              </>
+            )}
+            {dateFilterMode !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setDateFilterMode('all')}
+                className="rounded-md px-1.5 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {}
+          {viewMode === 'list' && (
+            <div className="flex items-center gap-1">
+              {[
+                { key: 'date' as const, label: 'Date' },
+                { key: 'project' as const, label: 'Project' },
+              ].map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => toggleSort(s.key)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    sortBy === s.key
+                      ? 'bg-blue-50 text-primary'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  <ArrowUpDown size={10} />
+                  {s.label}
+                  {sortBy === s.key && (
+                    <span className="text-blue-400">
+                      {sortDir === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {}
+          {viewMode === 'calendar' && (
+            <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => navigateCalendar(-1)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg"
+                >
+                  <ChevronLeft size={16} className="text-gray-500" />
+                </button>
+                <button
+                  onClick={goToToday}
+                  className="px-3 py-1.5 text-xs text-primary hover:bg-primary/10 rounded-lg font-medium"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => navigateCalendar(1)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg"
+                >
+                  <ChevronRight size={16} className="text-gray-500" />
+                </button>
+              </div>
+              <span className="text-sm font-semibold text-gray-700">
+                {calendarMode === 'day'
+                  ? calendarDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : calendarMode === 'week'
+                    ? `${calendarDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(calendarDate.getTime() + 6 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : calendarDate.toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+              </span>
+              <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                {(['day', 'week', 'month'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setCalendarMode(m)}
+                    className={`px-2.5 py-1 text-xs rounded-md transition-colors capitalize ${calendarMode === m ? 'bg-white shadow-sm text-primary font-medium' : 'text-gray-500'}`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {}
+      <div className="flex-1 overflow-auto">
+        {}
+        {viewMode === 'list' && (
+          <div className="p-3 sm:p-6">
+            <div className="flex gap-6">
+              <div
+                className={`${selectedWO ? 'w-1/2' : 'w-full'} space-y-3 transition-all`}
+              >
+                {filtered.map((wo) => renderWOCard(wo))}
+                {filtered.length === 0 && (
+                  <div className="text-center py-12 text-gray-400">
+                    <Briefcase size={40} className="mx-auto mb-2 opacity-50" />
+                    <p>No assignments found</p>
+                  </div>
+                )}
+              </div>
+
+              {}
+              {selected && selectedProject && (
+                <div className="w-1/2 bg-white rounded-xl border border-gray-200 sticky top-4 self-start max-h-[calc(100vh-200px)] overflow-y-auto">
+                  <div className="p-5 border-b border-gray-200 flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-800">
+                        {selected.title}
+                      </h3>
+                      {selected.orderNumber && (
+                        <span className="text-xs font-mono text-gray-400">
+                          {selected.orderNumber}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openEditWOModal(selected)}
+                        className="p-1.5 hover:bg-blue-50 rounded-lg text-primary"
+                        title="Edit Assignment"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage('scheduler')}
+                        className="p-1.5 hover:bg-primary/10 rounded-lg text-primary"
+                        title="Open in Schedule"
+                      >
+                        <CalendarDays size={16} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPendingDeleteWO({
+                            id: selected.id,
+                            title: selected.title,
+                          });
+                        }}
+                        className="p-1.5 hover:bg-red-50 rounded-lg text-red-600"
+                        title="Delete Assignment"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <button onClick={() => setSelectedWO(null)}>
+                        <X size={18} className="text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    {}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <FolderKanban size={14} className="text-primary" />
+                        <span className="text-sm font-semibold text-blue-800">
+                          {selectedProject.name}
+                        </span>
+                        <span className="text-xs font-mono text-blue-500">
+                          #{selectedProject.number}
+                        </span>
+                      </div>
+                      <div className="responsive-grid grid grid-cols-2 gap-1 text-xs text-blue-700">
+                        <span>
+                          Client: <strong>{selectedClient?.name}</strong>
+                        </span>
+                        <span>
+                          Location: {selectedProject.location},{' '}
+                          {selectedProject.city}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="responsive-grid grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-500">Type:</span>
+                        <p className="font-medium">
+                          {selected.workOrderTypeId
+                            ? workOrderTypeNameById.get(
+                                selected.workOrderTypeId,
+                              ) || 'Unknown type'
+                            : 'Unspecified'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Shifts:</span>
+                        <p className="font-medium">{selected.shifts.length}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Start:</span>
+                        <p className="font-medium">{selected.startDate}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">End:</span>
+                        <p className="font-medium">{selected.endDate}</p>
+                      </div>
+                    </div>
+
+                    {selected.notes && (
+                      <div>
+                        <span className="text-sm text-gray-500">Notes:</span>
+                        <p className="text-sm text-gray-700 mt-1 bg-gray-50 rounded p-2">
+                          {selected.notes}
+                        </p>
+                      </div>
+                    )}
+                    {selected.dispatchNote && (
+                      <div>
+                        <span className="text-sm text-gray-500">
+                          Dispatch Note:
+                        </span>
+                        <p className="text-sm text-gray-700 mt-1 bg-amber-50 border border-amber-200 rounded p-2 whitespace-pre-wrap">
+                          {selected.dispatchNote}
+                        </p>
+                      </div>
+                    )}
+                    {selected.fileUploads &&
+                      selected.fileUploads.length > 0 && (
+                        <div>
+                          <span className="text-sm text-gray-500">
+                            File Uploads:
+                          </span>
+                          <div className="mt-2 space-y-2">
+                            {selected.fileUploads.map((url) => (
+                              <a
+                                key={url}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 hover:bg-white flex-wrap gap-3"
+                              >
+                                <span className="truncate">
+                                  {decodeURIComponent(
+                                    url.split('/').pop() || url,
+                                  )}
+                                </span>
+                                <span className="text-xs font-medium text-primary">
+                                  View
+                                </span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    <DocumentReadNotice pending={documents.isPending} failed={documents.isError} retry={documents.refetch} />
+                    {showFormResponses &&
+                      selectedFormSubmissions.length > 0 && (
+                        <div>
+                          <span className="text-sm text-gray-500">
+                            Form Responses:
+                          </span>
+                          <div className="mt-2 space-y-2">
+                            {selectedFormSubmissions.map((submission) => {
+                              const template = formTemplates.find(
+                                (item) => item.id === submission.templateId,
+                              );
+                              const worker = workers.find(
+                                (item) => item.id === submission.workerId,
+                              );
+                              return (
+                                <div
+                                  key={submission.id}
+                                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+                                >
+                                  <div className="flex items-center justify-between gap-3 flex-wrap gap-3">
+                                    <div className="min-w-0">
+                                      <p className="truncate font-medium text-gray-800">
+                                        {template?.name ||
+                                          submission.templateId ||
+                                          'Form response'}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {worker
+                                          ? `${worker.firstName} ${worker.lastName}`
+                                          : submission.workerId ||
+                                            'Unknown worker'}
+                                        {submission.submittedAt
+                                          ? ` · ${new Date(submission.submittedAt).toLocaleString()}`
+                                          : ''}
+                                      </p>
+                                    </div>
+                                    {submission.pdfUrl ? (
+                                      <a
+                                        href={publicFileUrl(submission.pdfUrl)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-primary ring-1 ring-gray-200 hover:bg-blue-50"
+                                      >
+                                        View PDF
+                                      </a>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                    <div>
+                      <h4 className="font-semibold text-gray-700 mb-2">
+                        Shifts & Assignments
+                      </h4>
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {selected.shifts.map((shift) => {
+                          const totalA = shift.roles.reduce(
+                            (a, r) => a + r.assignedWorkers.length,
+                            0,
+                          );
+                          const totalR = shift.roles.reduce(
+                            (a, r) => a + r.requiredCount,
+                            0,
+                          );
+                          const shiftFormSubmissions =
+                            selectedFormSubmissionsByShift.get(shift.id) || [];
+                          return (
+                            <div
+                              key={shift.id}
+                              className="border border-gray-200 rounded-lg p-3"
+                            >
+                              <div className="flex items-center justify-between mb-2 flex-wrap gap-3">
+                                <span className="text-sm font-medium text-gray-800">
+                                  {new Date(
+                                    shift.date + 'T12:00:00',
+                                  ).toLocaleDateString('en-US', {
+                                    weekday: 'short',
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                                    <Clock size={12} /> {shift.startTime} -{' '}
+                                    {shift.endTime}
+                                  </span>
+                                  <span
+                                    className={`text-xs font-bold ${totalA >= totalR ? 'text-green-600' : 'text-red-600'}`}
+                                  >
+                                    {totalA}/{totalR}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setShiftChatPanel({
+                                        shift,
+                                        woId: selected.id,
+                                      });
+                                    }}
+                                    className="relative inline-flex items-center gap-1 rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                                    title="Open shift chat"
+                                  >
+                                    <MessageCircle size={12} />
+                                    Chat
+                                    {(shiftChatUnread[shift.id] || 0) > 0 && (
+                                      <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white">
+                                        {shiftChatUnread[shift.id] > 9
+                                          ? '9+'
+                                          : shiftChatUnread[shift.id]}
+                                      </span>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                              {shift.roles.map((role) => (
+                                <div key={role.id} className="ml-2 mb-1">
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="font-medium text-gray-700">
+                                      {role.roleName}
+                                    </span>
+                                    <span
+                                      className={`${role.assignedWorkers.length < role.requiredCount ? 'text-red-600' : 'text-green-600'}`}
+                                    >
+                                      ({role.assignedWorkers.length}/
+                                      {role.requiredCount})
+                                    </span>
+                                  </div>
+                                  {role.assignedWorkers.map((wid) => {
+                                    const w = getWorkerById(wid);
+                                    return w ? (
+                                      <span
+                                        key={wid}
+                                        className="text-xs text-gray-500 ml-3 block"
+                                      >
+                                        {w.firstName} {w.lastName}
+                                      </span>
+                                    ) : null;
+                                  })}
+                                </div>
+                              ))}
+                              {shiftFormSubmissions.length > 0 && (
+                                <div className="mt-3 border-t border-gray-100 pt-3">
+                                  <p className="mb-2 text-xs font-semibold text-gray-500">
+                                    PDFs / Form responses
+                                  </p>
+                                  <div className="space-y-2">
+                                    {shiftFormSubmissions.map((submission) => {
+                                      const template = formTemplates.find(
+                                        (item) =>
+                                          item.id === submission.templateId,
+                                      );
+                                      const worker = workers.find(
+                                        (item) =>
+                                          item.id === submission.workerId,
+                                      );
+                                      return (
+                                        <div
+                                          key={submission.id}
+                                          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+                                        >
+                                          <div className="flex items-center justify-between gap-3 flex-wrap gap-3">
+                                            <div className="min-w-0">
+                                              <p className="truncate font-medium text-gray-800">
+                                                {template?.name ||
+                                                  submission.templateId ||
+                                                  'Form response'}
+                                              </p>
+                                              <p className="text-xs text-gray-500">
+                                                {worker
+                                                  ? `${worker.firstName} ${worker.lastName}`
+                                                  : submission.workerId ||
+                                                    'Unknown worker'}
+                                                {submission.submittedAt
+                                                  ? ` · ${new Date(submission.submittedAt).toLocaleString()}`
+                                                  : ''}
+                                              </p>
+                                            </div>
+                                            {submission.pdfUrl ? (
+                                              <a
+                                                href={publicFileUrl(
+                                                  submission.pdfUrl,
+                                                )}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-primary ring-1 ring-gray-200 hover:bg-blue-50"
+                                              >
+                                                View PDF
+                                              </a>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {}
+        {viewMode === 'calendar' && (
+          <div className="p-4">
+            {calendarMode === 'week' ? (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="grid grid-cols-7 border-b border-gray-200">
+                  {calendarDays.map((d, i) => {
+                    const dateStr = localDateString(d);
+                    const isToday = dateStr === today;
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    return (
+                      <div
+                        key={i}
+                        className={`text-center py-3 border-r border-gray-100 last:border-r-0 ${isToday ? 'bg-blue-50' : isWeekend ? 'bg-gray-50' : ''}`}
+                      >
+                        <p
+                          className={`text-xs font-semibold ${isToday ? 'text-primary' : isWeekend ? 'text-gray-400' : 'text-gray-600'}`}
+                        >
+                          {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                        </p>
+                        <p
+                          className={`text-lg font-bold ${isToday ? 'text-primary' : 'text-gray-800'}`}
+                        >
+                          {d.getDate()}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {d.toLocaleDateString('en-US', { month: 'short' })}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-7 min-h-[500px]">
+                  {calendarDays.map((d, i) => {
+                    const dateStr = localDateString(d);
+                    const isToday = dateStr === today;
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    const dayWOs = getWOsForDate(d);
+
+                    return (
+                      <div
+                        key={i}
+                        className={`border-r border-gray-100 last:border-r-0 p-2 space-y-1.5 ${isToday ? 'bg-blue-50/30' : isWeekend ? 'bg-gray-50/50' : ''}`}
+                      >
+                        {dayWOs.map((wo) => {
+                          const project = getProjectById(wo.projectId);
+                          const shift = wo.shifts.find(
+                            (s) => s.date === dateStr,
+                          );
+                          const totalA = shift
+                            ? shift.roles.reduce(
+                                (a, r) => a + r.assignedWorkers.length,
+                                0,
+                              )
+                            : 0;
+                          const totalR = shift
+                            ? shift.roles.reduce(
+                                (a, r) => a + r.requiredCount,
+                                0,
+                              )
+                            : 0;
+
+                          return (
+                            <button
+                              key={wo.id}
+                              onClick={() => setSelectedWO(wo.id)}
+                              className={`w-full text-left rounded-lg border p-2 transition-all hover:shadow-sm ${
+                                selectedWO === wo.id
+                                  ? 'border-blue-400 bg-blue-50 shadow-sm'
+                                  : 'border-gray-200 bg-white hover:border-gray-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="text-xs font-semibold text-gray-800 truncate">
+                                  {project?.name || wo.title || 'Assignment'}
+                                </span>
+                              </div>
+                              {shift && (
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  <span>
+                                    {shift.startTime}-{shift.endTime}
+                                  </span>
+                                  <span
+                                    className={`font-bold ${totalA < totalR ? 'text-red-600' : 'text-green-600'}`}
+                                  >
+                                    {totalA}/{totalR}
+                                  </span>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                        {dayWOs.length === 0 && (
+                          <div className="h-full flex items-center justify-center">
+                            <span className="text-xs text-gray-300">-</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="grid grid-cols-7 border-b border-gray-200">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
+                    (d) => (
+                      <div
+                        key={d}
+                        className="text-center py-2 text-xs font-semibold text-gray-500 border-r border-gray-100 last:border-r-0"
+                      >
+                        {d}
+                      </div>
+                    ),
+                  )}
+                </div>
+                <div className="grid grid-cols-7">
+                  {calendarDays.map((d, i) => {
+                    const dateStr = localDateString(d);
+                    const isToday = dateStr === today;
+                    const isCurrentMonth =
+                      d.getMonth() === calendarDate.getMonth();
+                    const dayWOs = getWOsForDate(d);
+
+                    return (
+                      <div
+                        key={i}
+                        className={`min-h-[100px] border-r border-b border-gray-100 p-1.5 ${
+                          isToday
+                            ? 'bg-blue-50/50'
+                            : !isCurrentMonth
+                              ? 'bg-gray-50/50 opacity-50'
+                              : ''
+                        }`}
+                      >
+                        <div
+                          className={`text-xs font-bold mb-1 ${isToday ? 'text-primary' : 'text-gray-700'}`}
+                        >
+                          {d.getDate()}
+                        </div>
+                        <div className="space-y-0.5">
+                          {dayWOs.slice(0, 3).map((wo) => {
+                            const project = getProjectById(wo.projectId);
+                            return (
+                              <button
+                                key={wo.id}
+                                onClick={() => setSelectedWO(wo.id)}
+                                className={`w-full text-left text-xs px-1.5 py-0.5 rounded truncate transition-colors ${
+                                  selectedWO === wo.id
+                                    ? 'bg-blue-200 text-blue-800'
+                                    : 'text-gray-700 hover:opacity-80'
+                                }`}
+                                style={{
+                                  backgroundColor:
+                                    selectedWO === wo.id
+                                      ? undefined
+                                      : '#e5e7eb',
+                                }}
+                              >
+                                {project?.name || wo.title || 'Assignment'}
+                              </button>
+                            );
+                          })}
+                          {dayWOs.length > 3 && (
+                            <span className="text-xs text-gray-400 px-1">
+                              +{dayWOs.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {}
+      {editingWO && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-2 sm:p-4">
+          <div
+            className="bg-white rounded-2xl w-full max-w-2xl max-h-[90dvh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0 flex-wrap gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">
+                  Edit Assignment
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Update the general assignment information
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingWO(null)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X size={14} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Project Name *
+                </label>
+                <select
+                  value={editWOForm.projectId}
+                  onChange={(e) =>
+                    setEditWOForm((prev) => ({
+                      ...prev,
+                      projectId: e.target.value,
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select project...</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      #{project.number} - {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedEditProject && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <FolderKanban size={14} className="text-primary" />
+                    <span className="text-sm font-semibold text-blue-800">
+                      {selectedEditProject.name}
+                    </span>
+                  </div>
+                  <div className="responsive-grid grid grid-cols-2 gap-1 text-xs text-blue-700">
+                    <span>
+                      Project #: <strong>{selectedEditProject.number}</strong>
+                    </span>
+                    <span>
+                      Client: <strong>{selectedEditClient?.name || '-'}</strong>
+                    </span>
+                    <span>
+                      Location: {selectedEditProject.location},{' '}
+                      {selectedEditProject.city}
+                    </span>
+                    <span>
+                      Status:{' '}
+                      <span className="capitalize">
+                        {selectedEditProject.status.replace('_', ' ')}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Assignment #
+                </label>
+                <input
+                  value={editWOForm.orderNumber}
+                  onChange={(e) =>
+                    setEditWOForm((prev) => ({
+                      ...prev,
+                      orderNumber: e.target.value,
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Automatic from Settings"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Assignment Type
+                </label>
+                <select
+                  value={editWOForm.workOrderTypeId}
+                  onChange={(e) =>
+                    setEditWOForm((prev) => ({
+                      ...prev,
+                      workOrderTypeId: e.target.value,
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select type...</option>
+                  {activeWorkOrderTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Title *
+                </label>
+                <input
+                  value={editWOForm.title}
+                  onChange={(e) =>
+                    setEditWOForm((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Assignment title"
+                />
+              </div>
+              <AssignmentAddressField
+                id="wo-edit-assignment-address"
+                value={{
+                  assignmentAddress: editWOForm.assignmentAddress,
+                  latitude: editWOForm.latitude,
+                  longitude: editWOForm.longitude,
+                  assignmentCity: editWOForm.assignmentCity,
+                  assignmentState: editWOForm.assignmentState,
+                  assignmentZipCode: editWOForm.assignmentZipCode,
+                  assignmentCountry: editWOForm.assignmentCountry,
+                }}
+                onChange={(v) =>
+                  setEditWOForm((prev) => ({
+                    ...prev,
+                    assignmentAddress: v.assignmentAddress,
+                    latitude: v.latitude,
+                    longitude: v.longitude,
+                    assignmentCity: v.assignmentCity,
+                    assignmentState: v.assignmentState,
+                    assignmentZipCode: v.assignmentZipCode,
+                    assignmentCountry: v.assignmentCountry,
+                  }))
+                }
+              />
+              <div className="responsive-grid grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Start Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={editWOForm.startDate}
+                    onChange={(e) =>
+                      setEditWOForm((prev) => ({
+                        ...prev,
+                        startDate: e.target.value,
+                      }))
+                    }
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                    End Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={editWOForm.endDate}
+                    onChange={(e) =>
+                      setEditWOForm((prev) => ({
+                        ...prev,
+                        endDate: e.target.value,
+                      }))
+                    }
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Dispatch Note
+                </label>
+                <textarea
+                  rows={4}
+                  value={editWOForm.dispatchNote}
+                  onChange={(e) =>
+                    setEditWOForm((prev) => ({
+                      ...prev,
+                      dispatchNote: e.target.value,
+                    }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Add the dispatch note for this assignment"
+                />
+              </div>
+              <WorkOrderFileUploadsField
+                value={editWOForm.fileUploads}
+                workOrderId={editingWO.id}
+                onChange={(fileUploads) =>
+                  setEditWOForm((prev) => ({ ...prev, fileUploads }))
+                }
+              />
+            </div>
+            <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditingWO(null)}
+                disabled={editWOSaving}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditedWO}
+                disabled={editWOSaving}
+                className="px-4 py-2 text-sm rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {editWOSaving ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewWOModal && (
+        <NewWorkOrderModal onClose={() => setShowNewWOModal(false)} />
+      )}
+
+      <ShiftChatAside
+        open={shiftChatPanel !== null}
+        shift={shiftChatPanel?.shift ?? null}
+        workOrder={
+          shiftChatPanel
+            ? (workOrders.find((item) => item.id === shiftChatPanel.woId) ??
+              null)
+            : null
+        }
+        onClose={() => setShiftChatPanel(null)}
+        onRead={handleShiftChatRead}
+      />
+
+      <AlertDialog
+        open={!!pendingDeleteWO}
+        onOpenChange={(open) => !open && setPendingDeleteWO(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move Assignment to Recycle Bin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`"${pendingDeleteWO?.title}" will be removed from active views and can be restored later.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                if (!pendingDeleteWO) return;
+                const result = await deleteWorkOrder(pendingDeleteWO.id);
+                if (selectedWO === pendingDeleteWO.id) setSelectedWO(null);
+                toast({
+                  title: result?.trashed
+                    ? 'Moved to Recycle Bin'
+                    : 'Assignment Deleted',
+                  description: result?.trashed
+                    ? `${pendingDeleteWO.title} can be restored from the Recycle Bin.`
+                    : `${pendingDeleteWO.title} was deleted.`,
+                });
+                setPendingDeleteWO(null);
+              }}
+            >
+              Move to Recycle Bin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {showTrash && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-4">
+          <div
+            className="w-full max-w-2xl rounded-lg border border-gray-200 bg-white shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 flex-wrap gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">
+                  Recycle Bin
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Completed assignments removed from the active views.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTrash(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-4">
+              {trashLoading ? (
+                <p className="py-10 text-center text-sm text-gray-500">
+                  Loading Recycle Bin...
+                </p>
+              ) : trashedWorkOrders.length === 0 ? (
+                <p className="py-10 text-center text-sm text-gray-500">
+                  The Recycle Bin is empty.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {trashedWorkOrders.map((workOrder) => (
+                    <div
+                      key={workOrder.id}
+                      className="flex items-center justify-between gap-4 rounded-md border border-gray-200 px-4 py-3 flex-wrap gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-900">
+                          {workOrder.title}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {workOrder.orderNumber || 'No assignment number'} |
+                          Deleted{' '}
+                          {workOrder.deletedAt
+                            ? new Date(workOrder.deletedAt).toLocaleString()
+                            : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void restoreFromTrash(workOrder)}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <RotateCcw size={14} /> Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const NewWorkOrderModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const {
+    projects,
+    workerRoles,
+    certifications,
+    workers,
+    equipment,
+    settings,
+    shifts: shiftCatalog,
+    workOrderTypes,
+    formTemplates,
+    addWorkOrder,
+    getClientById,
+    getProjectById,
+    getWorkerById,
+  } = useAppContext();
+  const { toast } = useToast();
+  const today = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }, []);
+  const startDateDefault = useMemo(
+    () => today.toISOString().split('T')[0],
+    [today],
+  );
+  const endDateDefault = useMemo(() => {
+    const end = new Date(today);
+    end.setDate(end.getDate() + 4);
+    return end.toISOString().split('T')[0];
+  }, [today]);
+  const currentYear = today.getFullYear();
+  const activeWorkOrderTypes = useMemo(
+    () =>
+      workOrderTypes
+        .filter((type) => type.status === 'active')
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [workOrderTypes],
+  );
+  const activeShiftTemplates = useMemo(
+    () => shiftCatalog.filter((item) => item.status === 'active'),
+    [shiftCatalog],
+  );
+  const activeWorkerRoleNames = useMemo(
+    () => assignmentRoleOptions(workerRoles),
+    [workerRoles],
+  );
+  const defaultRoleName = activeWorkerRoleNames[0];
+  const defaultShiftFormTemplateIds = useMemo(
+    () => getDefaultShiftFormTemplateIds(formTemplates),
+    [formTemplates],
+  );
+  const [form, setForm] = useState({
+    projectId: '',
+    title: '',
+    orderNumber: '',
+    workOrderTypeId: '',
+    shiftTemplateId: '',
+    startDate: startDateDefault,
+    endDate: endDateDefault,
+    repeatDays: [true, true, true, true, true, false, false],
+    notes: '',
+    dispatchNote: '',
+    fileUploads: [] as string[],
+    assignmentAddress: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
+    assignmentCity: '',
+    assignmentState: '',
+    assignmentZipCode: '',
+    assignmentCountry: DEFAULT_ASSIGNMENT_COUNTRY,
+  });
+  const [shiftFormTemplateIds, setShiftFormTemplateIds] = useState<string[]>(
+    defaultShiftFormTemplateIds,
+  );
+  const [shiftFormTemplatesTouched, setShiftFormTemplatesTouched] =
+    useState(false);
+  const [roles, setRoles] = useState([
+    {
+      id: `sr_wo_role_${Date.now()}`,
+      roleName: defaultRoleName,
+      requiredCount: 1,
+      startTime: '',
+      assignedWorkers: [] as string[],
+      requiredCertificationIds: [] as string[],
+      requiredSkillIds: [] as string[],
+    },
+  ]);
+  const [plannedEquipment, setPlannedEquipment] = useState<
+    Array<{ type: string; estimatedQuantity: number }>
+  >([]);
+  const [plannedMaterials, setPlannedMaterials] = useState<
+    Array<{ type: string; estimatedQuantity: number }>
+  >([]);
+  const [workerSearch, setWorkerSearch] = useState('');
+
+  useEffect(() => {
+    if (!form.workOrderTypeId && activeWorkOrderTypes.length > 0) {
+      setForm((prev) => ({
+        ...prev,
+        workOrderTypeId: activeWorkOrderTypes[0].id,
+      }));
+    }
+  }, [form.workOrderTypeId, activeWorkOrderTypes]);
+
+  useEffect(() => {
+    if (!shiftFormTemplatesTouched) {
+      setShiftFormTemplateIds(defaultShiftFormTemplateIds);
+    }
+  }, [defaultShiftFormTemplateIds, shiftFormTemplatesTouched]);
+
+  const selectedProjectData = form.projectId
+    ? getProjectById(form.projectId)
+    : null;
+  const selectedClientData = selectedProjectData
+    ? getClientById(selectedProjectData.clientId)
+    : null;
+  const projectOptions = useMemo(
+    () =>
+      projects.map((project) => {
+        const client = getClientById(project.clientId);
+        return {
+          value: project.id,
+          label: `#${project.number} - ${project.name}`,
+          searchText: `${client?.name || ''} ${project.location} ${project.city}`,
+        };
+      }),
+    [projects, getClientById],
+  );
+
+  const roleColorClass = (roleName: string) => {
+    switch (roleName) {
+      case 'Foreman':
+        return 'bg-purple-50 border-purple-200';
+      case 'Flagger':
+        return 'bg-blue-50 border-blue-200';
+      case 'Traffic Controller':
+        return 'bg-teal-50 border-teal-200';
+      case 'Truck Driver':
+        return 'bg-orange-50 border-orange-200';
+      default:
+        return 'bg-gray-50 border-gray-200';
+    }
+  };
+
+  const addRole = () => {
+    setRoles((prev) => {
+      const roleName = nextUnusedRoleName(activeWorkerRoleNames, prev);
+      if (!roleName) return prev;
+      return [
+        ...prev,
+        {
+          id: `sr_wo_role_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          roleName,
+          requiredCount: 1,
+          startTime: roles[0]?.startTime || '',
+          assignedWorkers: [],
+          requiredCertificationIds: [],
+          requiredSkillIds: [],
+        },
+      ];
+    });
+  };
+
+  const removeRole = (idx: number) => {
+    if (roles.length <= 1) return;
+    setRoles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const roleBg = (role: string) => {
+    switch (role) {
+      case 'Foreman':
+        return 'bg-purple-500';
+      case 'Flagger':
+        return 'bg-blue-500';
+      case 'Traffic Controller':
+        return 'bg-teal-500';
+      case 'Truck Driver':
+        return 'bg-orange-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  const assignedWorkerIds = useMemo(
+    () => new Set(roles.flatMap((r) => r.assignedWorkers)),
+    [roles],
+  );
+
+  const availableWorkers = useMemo(
+    () =>
+      workers.filter(
+        (w) =>
+          w.status === 'active' &&
+          !assignedWorkerIds.has(w.id) &&
+          `${w.firstName} ${w.lastName} ${w.type} ${workerRoleNames(w).join(' ')}`
+            .toLowerCase()
+            .includes(workerSearch.toLowerCase()),
+      ),
+    [workers, assignedWorkerIds, workerSearch],
+  );
+
+  const handleAssignWorkerToBestRole = (workerId: string) => {
+    const w = workers.find((x) => x.id === workerId);
+    if (!w) return;
+    const matchingRoleIdx = roles.findIndex(
+      (r) =>
+        workerHasAssignmentRole(w, r.roleName) &&
+        r.assignedWorkers.length < r.requiredCount,
+    );
+    const targetIdx = matchingRoleIdx;
+    if (targetIdx < 0) {
+      toast({
+        title: 'Role mismatch',
+        description: `${w.firstName} ${w.lastName} does not have an open matching worker role for this shift.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    const targetRole = roles[targetIdx];
+    if (
+      !workerMeetsRoleCertificationRequirements(
+        w,
+        getRoleRequiredCertificationIds(targetRole),
+      )
+    ) {
+      toast({
+        title: 'Certification requirements not met',
+        description: `${w.firstName} ${w.lastName} does not have all required certifications for ${targetRole.roleName}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    const next = [...roles];
+    if (!next[targetIdx].assignedWorkers.includes(workerId)) {
+      next[targetIdx] = {
+        ...next[targetIdx],
+        assignedWorkers: [...next[targetIdx].assignedWorkers, workerId],
+      };
+      setRoles(next);
+    }
+  };
+
+  const handleRemoveWorkerFromRole = (workerId: string, roleIdx: number) => {
+    const next = [...roles];
+    next[roleIdx] = {
+      ...next[roleIdx],
+      assignedWorkers: next[roleIdx].assignedWorkers.filter(
+        (id) => id !== workerId,
+      ),
+    };
+    setRoles(next);
+  };
+
+  const addHoursToTime = (time: string, hoursToAdd: number) => {
+    const [h, m] = time.split(':').map(Number);
+    const date = new Date();
+    date.setHours(h || 0, m || 0, 0, 0);
+    date.setHours(date.getHours() + hoursToAdd);
+    const hh = `${date.getHours()}`.padStart(2, '0');
+    const mm = `${date.getMinutes()}`.padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const [wizardStep, setWizardStep] = useState<0 | 1 | 2 | 3>(0);
+
+  const buildShiftsFromRoles = useCallback(
+    (woId: string) => {
+      const groupedShifts = new Map<string, Shift>();
+      let hasInvalidRange = false;
+
+      if (form.endDate < form.startDate) {
+        hasInvalidRange = true;
+        return { shifts: [], hasInvalidRange };
+      }
+
+      const rangeStart = new Date(`${form.startDate}T12:00:00`);
+      const rangeEnd = new Date(`${form.endDate}T12:00:00`);
+
+      roles.forEach((role, roleIdx) => {
+        if (!role.startTime) return;
+        const roleEndTime = addHoursToTime(role.startTime, 9);
+
+        for (
+          let d = new Date(rangeStart);
+          d <= rangeEnd;
+          d.setDate(d.getDate() + 1)
+        ) {
+          const dayOfWeek = d.getDay();
+          const dayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          if (!form.repeatDays[dayIndex]) continue;
+
+          const dateStr = d.toISOString().split('T')[0];
+          const key = `${dateStr}|${role.startTime}|${roleEndTime}`;
+
+          if (!groupedShifts.has(key)) {
+            groupedShifts.set(key, {
+              id: `s_new_${dateStr}_${Date.now()}_${roleIdx}`,
+              workOrderId: woId,
+              shiftName: form.title.trim(),
+              shiftTemplateId: form.shiftTemplateId || undefined,
+              date: dateStr,
+              startTime: role.startTime,
+              endTime: roleEndTime,
+              plannedEquipment: plannedEquipment.map((resource) => ({
+                ...resource,
+              })),
+              plannedMaterials: plannedMaterials.map((resource) => ({
+                ...resource,
+              })),
+              formTemplateIds: [...shiftFormTemplateIds],
+              roles: [],
+            });
+          }
+
+          groupedShifts.get(key)?.roles.push({
+            id: `sr_new_${Date.now()}_${dateStr}_${roleIdx}`,
+            roleName: role.roleName,
+            requiredCount: role.requiredCount,
+            requiredCertificationIds: [
+              ...getRoleRequiredCertificationIds(role),
+            ],
+            requiredSkillIds: [],
+            assignedWorkers: [...role.assignedWorkers],
+          });
+        }
+      });
+
+      const shifts = Array.from(groupedShifts.values()).sort((a, b) => {
+        const dateCmp = a.date.localeCompare(b.date);
+        if (dateCmp !== 0) return dateCmp;
+        return a.startTime.localeCompare(b.startTime);
+      });
+
+      return { shifts, hasInvalidRange };
+    },
+    [
+      roles,
+      form.startDate,
+      form.endDate,
+      form.repeatDays,
+      form.shiftTemplateId,
+      form.title,
+      plannedEquipment,
+      plannedMaterials,
+      shiftFormTemplateIds,
+    ],
+  );
+
+  const validateStep = (step: 0 | 1 | 2 | 3): boolean => {
+    if (step === 0) {
+      if (!form.projectId) {
+        toast({
+          title: 'Missing Project',
+          description: 'Please select a project.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      if (!form.title.trim()) {
+        toast({
+          title: 'Missing Title',
+          description: 'Please enter a title.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      if (form.endDate < form.startDate) {
+        toast({
+          title: 'Invalid Date Range',
+          description: 'End Date cannot be earlier than Start Date.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      const woProj = getProjectById(form.projectId);
+      if (woProj && projectHasScheduleBounds(woProj)) {
+        const wDates = { startDate: form.startDate, endDate: form.endDate };
+        if (!isAssignmentRangeWithinProject(wDates, woProj)) {
+          toast({
+            title: 'Outside project dates',
+            description: `Assignment must fall within ${assignmentDateRangeLabel(woProj)}.`,
+            variant: 'destructive',
+          });
+          return false;
+        }
+      }
+    }
+
+    if (step === 1) {
+      if (!form.shiftTemplateId) {
+        toast({
+          title: 'Missing Shift Type',
+          description:
+            activeShiftTemplates.length > 0
+              ? 'Please select a shift type from the catalog.'
+              : 'No active shift types are available. Add one in Settings before creating shifts.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      if (roles.length === 0) {
+        toast({
+          title: 'Missing Roles',
+          description: 'Add at least one role assignment.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      if (roles.some((role) => !role.startTime)) {
+        toast({
+          title: 'Missing Start Time',
+          description: 'Enter a start time for every role.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      if (!form.repeatDays.some(Boolean)) {
+        toast({
+          title: 'Missing Repeat Days',
+          description: 'Select at least one day for the schedule.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      const { hasInvalidRange, shifts } = buildShiftsFromRoles('preview_wo');
+      if (hasInvalidRange) {
+        toast({
+          title: 'Invalid Role Dates',
+          description: 'Role End Date cannot be earlier than Start Date.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+      if (shifts.length === 0) {
+        toast({
+          title: 'Missing Role Schedule',
+          description:
+            'Please add at least one role with valid date range and hours.',
+          variant: 'destructive',
+        });
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const goToNextStep = () => {
+    if (!validateStep(wizardStep)) return;
+    setWizardStep((prev) => (prev < 3 ? ((prev + 1) as 0 | 1 | 2 | 3) : prev));
+  };
+
+  const handleCreateWorkOrder = () => {
+    if (!validateStep(0) || !validateStep(1)) return;
+    const woId = `wo_new_${Date.now()}`;
+    const orderNum = form.orderNumber.trim() || undefined;
+    const { shifts, hasInvalidRange } = buildShiftsFromRoles(woId);
+
+    if (hasInvalidRange) {
+      toast({
+        title: 'Invalid Role Dates',
+        description: 'Role End Date cannot be earlier than Start Date.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (shifts.length === 0) {
+      toast({
+        title: 'Missing Role Schedule',
+        description:
+          'Please add at least one role with valid date range and hours.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const startDate = shifts[0].date;
+    const endDate = shifts[shifts.length - 1].date;
+
+    const createProject = getProjectById(form.projectId);
+    if (createProject && projectHasScheduleBounds(createProject)) {
+      const rng = { startDate, endDate };
+      if (!isAssignmentRangeWithinProject(rng, createProject)) {
+        toast({
+          title: 'Outside project dates',
+          description: `Shift schedule must fall within project window ${assignmentDateRangeLabel(createProject)}.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    addWorkOrder({
+      id: woId,
+      projectId: form.projectId,
+      workOrderTypeId: form.workOrderTypeId || undefined,
+      title: form.title,
+      orderNumber: orderNum,
+      status: 'pending',
+      startDate,
+      endDate,
+      shifts,
+      notes: form.notes,
+      dispatchNote: form.dispatchNote.trim(),
+      fileUploads: form.fileUploads,
+      assignmentAddress: form.assignmentAddress.trim(),
+      latitude: form.latitude,
+      longitude: form.longitude,
+      assignmentCity: form.assignmentCity.trim(),
+      assignmentState: form.assignmentState.trim(),
+      assignmentZipCode: form.assignmentZipCode.trim(),
+      assignmentCountry:
+        form.assignmentCountry.trim() || DEFAULT_ASSIGNMENT_COUNTRY,
+    });
+    toast({
+      title: 'Assignment Created',
+      description: `${form.title} ${orderNum ? `(${orderNum})` : ''} with ${shifts.length} shifts created.`,
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-2 sm:p-4">
+      <div
+        className="bg-white rounded-2xl w-full max-w-2xl max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-shrink-0 flex-wrap gap-3">
+          <div>
+            <h2 className="text-base font-bold text-gray-800">
+              Add New Assignment
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Register the general assignment information
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-gray-100 rounded-lg"
+          >
+            <X size={16} className="text-gray-400" />
+          </button>
+        </div>
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="flex-1 overflow-y-auto p-5 space-y-5"
+        >
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            {[
+              { key: 0 as const, label: 'General' },
+              { key: 1 as const, label: 'Shifts' },
+              { key: 2 as const, label: 'Workers' },
+              { key: 3 as const, label: 'Resource Types' },
+            ].map((step) => (
+              <button
+                key={step.key}
+                type="button"
+                onClick={() => {
+                  if (step.key <= wizardStep) setWizardStep(step.key);
+                }}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  wizardStep === step.key
+                    ? 'bg-white shadow-sm text-primary'
+                    : step.key < wizardStep
+                      ? 'text-gray-600 hover:text-gray-700'
+                      : 'text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {step.label}
+              </button>
+            ))}
+          </div>
+
+          {wizardStep === 0 && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Project Name *
+                </label>
+                <SearchableSelect
+                  value={form.projectId}
+                  onChange={(pid) => {
+                    const proj = getProjectById(pid);
+                    const startOfYear = new Date(currentYear, 0, 1).getTime();
+                    const weekNumber = Math.ceil(
+                      (Date.now() - startOfYear) / (7 * 24 * 60 * 60 * 1000),
+                    );
+                    setForm((f) => ({
+                      ...f,
+                      projectId: pid,
+                      title:
+                        f.title ||
+                        (proj ? `${proj.name} - Week ${weekNumber}` : ''),
+                    }));
+                  }}
+                  options={projectOptions}
+                  placeholder="Select project..."
+                  searchPlaceholder="Search project..."
+                  emptyMessage="No projects found."
+                />
+              </div>
+
+              {selectedProjectData && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <FolderKanban size={14} className="text-primary" />
+                    <span className="text-sm font-semibold text-blue-800">
+                      {selectedProjectData.name}
+                    </span>
+                  </div>
+                  <div className="responsive-grid grid grid-cols-2 gap-1 text-xs text-blue-700">
+                    <span>
+                      Project #: <strong>{selectedProjectData.number}</strong>
+                    </span>
+                    <span>
+                      Client: <strong>{selectedClientData?.name || '-'}</strong>
+                    </span>
+                    <span>
+                      Location: {selectedProjectData.location},{' '}
+                      {selectedProjectData.city}
+                    </span>
+                    <span>
+                      Status:{' '}
+                      <span className="capitalize">
+                        {selectedProjectData.status.replace('_', ' ')}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Assignment #
+                </label>
+                <input
+                  value={form.orderNumber}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, orderNumber: e.target.value }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Automatic from Settings"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Assignment Type
+                </label>
+                <select
+                  value={form.workOrderTypeId}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, workOrderTypeId: e.target.value }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select type...</option>
+                  {activeWorkOrderTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Title *
+                </label>
+                <input
+                  required
+                  value={form.title}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, title: e.target.value }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Assignment title"
+                />
+              </div>
+
+              <AssignmentAddressField
+                id="wo-new-assignment-address"
+                value={{
+                  assignmentAddress: form.assignmentAddress,
+                  latitude: form.latitude,
+                  longitude: form.longitude,
+                  assignmentCity: form.assignmentCity,
+                  assignmentState: form.assignmentState,
+                  assignmentZipCode: form.assignmentZipCode,
+                  assignmentCountry: form.assignmentCountry,
+                }}
+                onChange={(v) =>
+                  setForm((f) => ({
+                    ...f,
+                    assignmentAddress: v.assignmentAddress,
+                    latitude: v.latitude,
+                    longitude: v.longitude,
+                    assignmentCity: v.assignmentCity,
+                    assignmentState: v.assignmentState,
+                    assignmentZipCode: v.assignmentZipCode,
+                    assignmentCountry: v.assignmentCountry,
+                  }))
+                }
+              />
+
+              <div className="responsive-grid grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                    Start Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={form.startDate}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, startDate: e.target.value }))
+                    }
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                    End Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={form.endDate}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, endDate: e.target.value }))
+                    }
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Dispatch Note
+                </label>
+                <textarea
+                  value={form.dispatchNote}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, dispatchNote: e.target.value }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={4}
+                  placeholder="Add the dispatch note for this assignment"
+                />
+              </div>
+              <WorkOrderFileUploadsField
+                value={form.fileUploads}
+                onChange={(fileUploads) =>
+                  setForm((prev) => ({ ...prev, fileUploads }))
+                }
+              />
+            </>
+          )}
+
+          {wizardStep === 1 && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Shift Type
+                </label>
+                <select
+                  value={form.shiftTemplateId}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    const selectedTemplate = activeShiftTemplates.find(
+                      (item) => item.id === nextId,
+                    );
+                    setForm((f) => ({ ...f, shiftTemplateId: nextId }));
+                    if (selectedTemplate?.startTime) {
+                      setRoles((prev) =>
+                        prev.map((role) => ({
+                          ...role,
+                          startTime:
+                            selectedTemplate.startTime || role.startTime,
+                        })),
+                      );
+                    }
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select shift type...</option>
+                  {activeShiftTemplates.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <ShiftFormTemplatesPicker
+                idAttr="wo-new-shift-form-templates"
+                formTemplates={formTemplates}
+                value={shiftFormTemplateIds}
+                onChange={(ids) => {
+                  setShiftFormTemplatesTouched(true);
+                  setShiftFormTemplateIds(ids);
+                }}
+              />
+
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+                  <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">
+                    Role Assignment
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addRole}
+                    disabled={!nextUnusedRoleName(activeWorkerRoleNames, roles)}
+                    className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1 font-medium disabled:pointer-events-none disabled:text-gray-400"
+                  >
+                    <Plus size={12} /> Add Role
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {roles.map((role, idx) => (
+                    <div
+                      key={role.id}
+                      className={`border rounded-xl p-3 ${roleColorClass(role.roleName)}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={role.roleName}
+                          onChange={(e) => {
+                            const next = [...roles];
+                            next[idx] = {
+                              ...next[idx],
+                              roleName: e.target.value,
+                            };
+                            setRoles(next);
+                          }}
+                          className="flex-1 text-sm border border-gray-200 rounded-lg px-2.5 py-2 bg-white"
+                        >
+                          {availableRoleNamesForCard(
+                            activeWorkerRoleNames,
+                            roles,
+                            idx,
+                          ).map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min={1}
+                          value={role.requiredCount}
+                          onChange={(e) => {
+                            const next = [...roles];
+                            next[idx] = {
+                              ...next[idx],
+                              requiredCount: parseInt(e.target.value, 10) || 1,
+                            };
+                            setRoles(next);
+                          }}
+                          className="w-16 text-sm border border-gray-200 rounded-lg px-2 py-2 text-center bg-white"
+                        />
+                        {roles.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeRole(idx)}
+                            className="p-1.5 hover:bg-red-100 rounded-lg"
+                          >
+                            <Trash2 size={14} className="text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+                          Start Time
+                        </label>
+                        <input
+                          type="time"
+                          value={role.startTime}
+                          onChange={(e) => {
+                            const next = [...roles];
+                            next[idx] = {
+                              ...next[idx],
+                              startTime: e.target.value,
+                            };
+                            setRoles(next);
+                          }}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 bg-white"
+                        />
+                      </div>
+                      <div className="mt-2">
+                        <CertificationMultiSelect
+                          label="Certifications"
+                          certifications={certifications}
+                          selectedIds={getRoleRequiredCertificationIds(role)}
+                          onChange={(ids) => {
+                            const next = [...roles];
+                            next[idx] = {
+                              ...next[idx],
+                              requiredCertificationIds: ids,
+                              requiredSkillIds: [],
+                            };
+                            setRoles(next);
+                          }}
+                          placeholder="Required certifications (optional)..."
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-2">
+                  Repeat Days
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {['M', 'T', 'W', 'Th', 'F', 'S', 'Su'].map((day, i) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const next = [...form.repeatDays];
+                        next[i] = !next[i];
+                        setForm((f) => ({ ...f, repeatDays: next }));
+                      }}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${form.repeatDays[i] ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                  Notes
+                </label>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, notes: e.target.value }))
+                  }
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={2}
+                />
+              </div>
+            </>
+          )}
+
+          {wizardStep === 2 && (
+            <div className="space-y-4">
+              {roles.map((role, roleIdx) => (
+                <div key={role.id}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className={`text-xs font-bold px-2 py-0.5 rounded ${roleColorClass(role.roleName)}`}
+                    >
+                      {role.roleName}
+                    </span>
+                    <span
+                      className={`text-xs font-bold ${role.assignedWorkers.length >= role.requiredCount ? 'text-emerald-600' : 'text-orange-600'}`}
+                    >
+                      {role.assignedWorkers.length}/{role.requiredCount}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {role.assignedWorkers.map((wid) => {
+                      const w = getWorkerById(wid);
+                      if (!w) return null;
+                      return (
+                        <div
+                          key={wid}
+                          className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2"
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold ${roleBg(w.type)}`}
+                          >
+                            {w.firstName[0]}
+                            {w.lastName[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800">
+                              {w.firstName} {w.lastName}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {workerRoleNames(w).join(', ') || w.type}
+                            </p>
+                          </div>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">
+                            Assigned
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemoveWorkerFromRole(wid, roleIdx)
+                            }
+                            className="p-1 hover:bg-red-100 rounded"
+                          >
+                            <X size={12} className="text-red-500" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {role.assignedWorkers.length < role.requiredCount && (
+                      <div className="border-2 border-dashed border-gray-200 rounded-lg p-2 text-center">
+                        <span className="text-xs text-gray-400">
+                          Need{' '}
+                          {role.requiredCount - role.assignedWorkers.length}{' '}
+                          more {role.roleName}(s)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <div className="border-t border-gray-200 pt-3">
+                <span className="text-xs font-bold text-gray-600 mb-2 block">
+                  Available Workers
+                </span>
+                <div className="flex items-center bg-gray-100 rounded-lg px-2.5 py-1.5 mb-2">
+                  <Search size={12} className="text-gray-400 mr-1.5" />
+                  <input
+                    placeholder="Search workers..."
+                    value={workerSearch}
+                    onChange={(e) => setWorkerSearch(e.target.value)}
+                    className="bg-transparent text-sm outline-none w-full"
+                  />
+                </div>
+                <div className="space-y-1 max-h-52 overflow-y-auto">
+                  {availableWorkers.map((w) => {
+                    const workerRoleLabel =
+                      workerRoleNames(w).join(', ') || w.type;
+                    const matchingRoleIdx = roles.findIndex(
+                      (r) =>
+                        workerHasAssignmentRole(w, r.roleName) &&
+                        r.assignedWorkers.length < r.requiredCount,
+                    );
+                    return (
+                      <div
+                        key={w.id}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 border border-gray-200 hover:border-blue-200 hover:bg-primary/10/30 transition-colors"
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold ${roleBg(w.type)}`}
+                        >
+                          {w.firstName[0]}
+                          {w.lastName[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800">
+                            {w.firstName} {w.lastName}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500">
+                              {workerRoleLabel}
+                            </span>
+                            {matchingRoleIdx >= 0 && (
+                              <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 py-0 rounded font-medium">
+                                Match
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAssignWorkerToBestRole(w.id)}
+                          className="p-1.5 rounded-lg hover:bg-emerald-100"
+                        >
+                          <Users size={14} className="text-emerald-600" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 3 && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Plan resource types for the shift. Mobile records the concrete
+                equipment and material actually used.
+              </p>
+              <PlannedResourcesEditor
+                title="Equipment"
+                options={settings.equipmentTypes || []}
+                value={plannedEquipment}
+                onChange={setPlannedEquipment}
+              />
+              <PlannedResourcesEditor
+                title="Materials"
+                options={settings.materialTypes || []}
+                value={plannedMaterials}
+                onChange={setPlannedMaterials}
+              />
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            {wizardStep > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setWizardStep((prev) =>
+                    prev > 0 ? ((prev - 1) as 0 | 1 | 2 | 3) : prev,
+                  )
+                }
+                className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Back
+              </button>
+            )}
+            <div className="flex-1" />
+            {wizardStep < 3 ? (
+              <button
+                type="button"
+                onClick={goToNextStep}
+                className="px-3 sm:px-6 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCreateWorkOrder}
+                className="px-3 sm:px-6 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm"
+              >
+                Create Assignment
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default WorkOrdersView;

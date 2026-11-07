@@ -1,0 +1,54 @@
+name: dr-workops
+x-api: &api
+  image: ${API_IMAGE:?Set an immutable API_IMAGE in .env.images}
+  env_file: .env.production
+  environment:
+    NODE_ENV: production
+    PORT: "3000"
+    DB_SYNCHRONIZE: "false"
+    AUTH_DEV_BYPASS: "false"
+    SERVE_FRONTEND: "false"
+  security_opt: ["no-new-privileges:true"]
+services:
+  api:
+    <<: *api
+    init: true
+    restart: unless-stopped
+    volumes:
+      - uploads:/app/public
+  migrate:
+    <<: *api
+    profiles: [tools]
+    command: [node, dist/database/run-migrations.js]
+    restart: "no"
+  web:
+    image: ${WEB_IMAGE:?Set an immutable WEB_IMAGE in .env.images}
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: api:3000
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    depends_on:
+      api: {condition: service_healthy}
+    security_opt: ["no-new-privileges:true"]
+  caddy:
+    profiles: [tls]
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web: {condition: service_healthy}
+volumes:
+  uploads:
+  caddy-data:
+  caddy-config:

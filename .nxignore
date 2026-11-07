@@ -1,0 +1,14 @@
+DR-App-old/**
+git-history-backup-*/**
+output/**
+.agents/**
+.codex/**
+.volta/**
+.pnpm-store/**
+.cache/**
+backend/workspace/**
+**/node_modules/**
+**/.git/**
+**/dist/**
+**/.expo/**
+backend/public/**

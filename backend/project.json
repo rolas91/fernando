@@ -1,0 +1,75 @@
+{
+  "name": "backend",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": [
+    "app:backend"
+  ],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend start:dev",
+        "cwd": "."
+      },
+      "continuous": true,
+      "cache": false
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend build",
+        "cwd": "."
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend start:prod",
+        "cwd": "."
+      },
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false,
+      "continuous": true
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend typecheck",
+        "cwd": "."
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend lint:check",
+        "cwd": "."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend test:ci",
+        "cwd": "."
+      }
+    },
+    "migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend migration:run",
+        "cwd": "."
+      },
+      "cache": false
+    },
+    "migrate-revert": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs backend migration:revert",
+        "cwd": "."
+      },
+      "cache": false
+    }
+  }
+}

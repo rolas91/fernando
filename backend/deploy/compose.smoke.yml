@@ -1,0 +1,39 @@
+name: dr-workops-ci
+x-api: &api
+  image: ${API_IMAGE:-dr-workops-ci:local}
+  environment:
+    NODE_ENV: production
+    DB_HOST: db
+    DB_PORT: "5432"
+    DB_USER: workops_ci
+    DB_PASSWORD: ci-isolated-not-for-production
+    DB_NAME: workops_ci
+    DB_SYNCHRONIZE: "false"
+    DB_LOGGING: "false"
+    JWT_SECRET: ci-only-jwt-secret-at-least-32-characters
+    AUTH_DEV_BYPASS: "false"
+    SERVE_FRONTEND: "false"
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: workops_ci
+      POSTGRES_PASSWORD: ci-isolated-not-for-production
+      POSTGRES_DB: workops_ci
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U workops_ci -d workops_ci"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  migrate:
+    <<: *api
+    command: [node, dist/database/run-migrations.js]
+    restart: "no"
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    <<: *api
+    init: true
+    depends_on:
+      migrate: {condition: service_completed_successfully}

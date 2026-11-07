@@ -1,0 +1,94 @@
+{
+  "name": "mobile",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": [
+    "app:mobile"
+  ],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile start",
+        "cwd": "."
+      },
+      "continuous": true,
+      "cache": false
+    },
+    "android": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile android",
+        "cwd": "."
+      },
+      "cache": false,
+      "continuous": true
+    },
+    "ios": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile ios",
+        "cwd": "."
+      },
+      "cache": false,
+      "continuous": true
+    },
+    "web": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile web",
+        "cwd": "."
+      },
+      "cache": false,
+      "continuous": true
+    },
+    "build-web": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile build:web",
+        "cwd": "."
+      },
+      "cache": false,
+      "outputs": [
+        "{projectRoot}/dist"
+      ]
+    },
+    "build-android": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile build:android",
+        "cwd": "."
+      },
+      "cache": false
+    },
+    "build-ios": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile build:ios",
+        "cwd": "."
+      },
+      "cache": false
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile typecheck",
+        "cwd": "."
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile lint",
+        "cwd": "."
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node scripts/run-project.cjs mobile test:ci",
+        "cwd": "."
+      }
+    }
+  }
+}

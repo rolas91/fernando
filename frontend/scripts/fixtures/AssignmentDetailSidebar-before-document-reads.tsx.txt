@@ -1,0 +1,345 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAppContext } from '@/contexts/AppContext';
+import type { Client, Project, WorkOrder, Equipment } from '@/lib/types';
+import { publicFileUrl } from '@/lib/publicFiles';
+import { computeAssignmentDetailStats } from './assignmentDetailSidebarStats';
+import { fetchShiftStats } from '@/lib/db';
+import {
+  X,
+  User,
+  LayoutGrid,
+  IdCard,
+  FileText,
+  Paperclip,
+  Download,
+  ClipboardList,
+} from 'lucide-react';
+
+function fileLabelFromUrl(url: string): string {
+  try {
+    const name = decodeURIComponent(url.split('/').pop() || url);
+    return name || url;
+  } catch {
+    return url.split('/').pop() || url;
+  }
+}
+
+export interface AssignmentDetailSidebarProps {
+  workOrder: WorkOrder;
+  project: Project | null;
+  client: Client | null;
+  equipment: Equipment[];
+  onClose: () => void;
+}
+
+export const AssignmentDetailSidebar: React.FC<
+  AssignmentDetailSidebarProps
+> = ({ workOrder: wo, project, client, equipment, onClose }) => {
+  const { formSubmissions, formTemplates, workers } = useAppContext();
+  const stats = useMemo(
+    () => computeAssignmentDetailStats(wo, equipment),
+    [wo, equipment],
+  );
+  const [shiftStatusCounts, setShiftStatusCounts] = useState<
+    Record<string, number>
+  >({});
+
+  useEffect(() => {
+    const dates = wo.shifts
+      .map((shift) => shift.date)
+      .filter(Boolean)
+      .sort();
+    if (dates.length === 0) {
+      setShiftStatusCounts({});
+      return;
+    }
+    let active = true;
+    fetchShiftStats({ from: dates[0], to: dates[dates.length - 1] })
+      .then((response) => {
+        if (!active) return;
+        const counts: Record<string, number> = {};
+        response.shifts
+          .filter((shift) => shift.workOrderId === wo.id && shift.status)
+          .forEach((shift) => {
+            counts[shift.status!] = (counts[shift.status!] || 0) + 1;
+          });
+        setShiftStatusCounts(counts);
+      })
+      .catch(() => {
+        if (active) setShiftStatusCounts({});
+      });
+    return () => {
+      active = false;
+    };
+  }, [wo.id, wo.shifts]);
+
+  const contactName =
+    wo.requesterName?.trim() || client?.contactName?.trim() || '—';
+  const contactPhone =
+    wo.contactPhoneNumber?.trim() || client?.phone?.trim() || '—';
+  const contactEmail = wo.contactEmail?.trim() || client?.email?.trim() || '';
+
+  const description =
+    project?.description?.trim() ||
+    wo.notes?.trim() ||
+    wo.dispatchNote?.trim() ||
+    '' ||
+    null;
+
+  const files = wo.fileUploads?.filter(Boolean) ?? [];
+  const assignmentSubmissions = useMemo(
+    () =>
+      formSubmissions
+        .filter((submission) => submission.workOrderId === wo.id)
+        .sort((a, b) =>
+          String(b.submittedAt || '').localeCompare(
+            String(a.submittedAt || ''),
+          ),
+        ),
+    [formSubmissions, wo.id],
+  );
+
+  return (
+    <aside
+      className="flex max-h-[70dvh] min-h-0 w-full lg:h-full lg:max-h-none lg:w-[380px] shrink-0 flex-col border-l border-gray-200 bg-white shadow-[_-4px_0_24px_rgba(15,23,42,0.06)]"
+      aria-label="Assignment details"
+    >
+      <div className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-3 flex-wrap gap-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold leading-snug text-gray-900">
+            {wo.title}
+          </h2>
+          {wo.orderNumber && (
+            <p className="mt-0.5 font-mono text-[11px] text-gray-500">
+              {wo.orderNumber}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+          aria-label="Close panel"
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {}
+        <div className="mb-5 flex items-center justify-between gap-2 flex-wrap gap-3">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">
+            Status summary
+          </h3>
+          <span className="text-xs font-semibold text-gray-700">
+            {stats.totalShifts} shifts
+          </span>
+        </div>
+
+        <div className="responsive-grid mb-5 grid grid-cols-2 gap-2">
+          {[
+            [
+              'customer_pending',
+              'Customer Pending',
+              'border-orange-300 bg-orange-100 text-orange-900',
+              'bg-orange-600',
+            ],
+            [
+              'dispatch_pending',
+              'Dispatch Pending',
+              'border-yellow-300 bg-yellow-100 text-yellow-950',
+              'bg-yellow-500',
+            ],
+            [
+              'ready_to_notify',
+              'Ready to Notify',
+              'border-blue-300 bg-blue-100 text-blue-900',
+              'bg-blue-600',
+            ],
+            [
+              'awaiting_response',
+              'Awaiting Response',
+              'border-violet-300 bg-violet-100 text-violet-900',
+              'bg-violet-600',
+            ],
+            [
+              'workers_confirmed',
+              'Workers Confirmed',
+              'border-emerald-300 bg-emerald-100 text-emerald-900',
+              'bg-emerald-600',
+            ],
+            [
+              'shift_cancelled',
+              'Shift Cancelled',
+              'border-red-300 bg-red-100 text-red-900',
+              'bg-red-600',
+            ],
+            [
+              'shift_completed',
+              'Shift Completed',
+              'border-slate-400 bg-slate-200 text-slate-900',
+              'bg-slate-600',
+            ],
+            [
+              'pm_approved',
+              'PM Approved',
+              'border-teal-400 bg-teal-100 text-teal-900',
+              'bg-teal-600',
+            ],
+          ].map(([status, label, shell, dot]) => (
+            <div
+              key={status}
+              className={`rounded-xl border px-3 py-2.5 ${shell}`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                <span className="text-[10px] font-bold uppercase">{label}</span>
+              </div>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900">
+                {shiftStatusCounts[status] || 0}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {}
+        <div className="space-y-4 border-t border-gray-100 pt-5">
+          <DetailRow
+            icon={<User size={14} className="text-gray-500" />}
+            label="Client"
+            value={client?.name || '—'}
+          />
+          <DetailRow
+            icon={<LayoutGrid size={14} className="text-gray-500" />}
+            label="Project"
+            value={
+              project
+                ? `${project.name}${project.number ? ` (#${project.number})` : ''}`
+                : '—'
+            }
+          />
+          <DetailRow
+            icon={<IdCard size={14} className="text-gray-500" />}
+            label="Contact"
+            value={
+              <>
+                <span className="block">{contactName}</span>
+                <span className="block text-gray-500">{contactPhone}</span>
+                {contactEmail ? (
+                  <span className="block text-gray-500">{contactEmail}</span>
+                ) : null}
+              </>
+            }
+          />
+          {description && (
+            <div>
+              <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <FileText size={14} className="text-gray-500" />
+                Description
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
+                {description}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {}
+        {files.length > 0 && (
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700">
+              <Paperclip size={14} className="text-gray-500" />
+              Attachments
+            </div>
+            <ul className="space-y-2">
+              {files.map((url) => (
+                <li key={url}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 text-sm text-gray-800 hover:bg-white"
+                  >
+                    <span className="min-w-0 truncate">
+                      {fileLabelFromUrl(url)}
+                    </span>
+                    <Download size={14} className="shrink-0 text-primary" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {assignmentSubmissions.length > 0 && (
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700">
+              <ClipboardList size={14} className="text-gray-500" />
+              Form responses
+            </div>
+            <ul className="space-y-2">
+              {assignmentSubmissions.map((submission) => {
+                const template = formTemplates.find(
+                  (item) => item.id === submission.templateId,
+                );
+                const worker = workers.find(
+                  (item) => item.id === submission.workerId,
+                );
+                return (
+                  <li
+                    key={submission.id}
+                    className="rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 text-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-gray-900">
+                          {template?.name ||
+                            submission.templateId ||
+                            'Form response'}
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          {worker
+                            ? `${worker.firstName} ${worker.lastName}`
+                            : submission.workerId || 'Unknown worker'}
+                          {submission.submittedAt
+                            ? ` · ${new Date(submission.submittedAt).toLocaleString()}`
+                            : ''}
+                        </p>
+                      </div>
+                      {submission.pdfUrl ? (
+                        <a
+                          href={publicFileUrl(submission.pdfUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-white px-2 py-1 text-xs font-medium text-primary ring-1 ring-gray-200 hover:bg-blue-50"
+                        >
+                          <Download size={12} /> PDF
+                        </a>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+};
+
+const DetailRow: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}> = ({ icon, label, value }) => (
+  <div className="flex gap-2.5">
+    <div className="mt-0.5 shrink-0">{icon}</div>
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+      <div className="text-sm text-gray-900">{value}</div>
+    </div>
+  </div>
+);

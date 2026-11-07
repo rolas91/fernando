@@ -1,0 +1,334 @@
+name: WorkOps monorepo CI and containers
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      run_migrations:
+        description: Run database migrations before this release (verified backup required)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "1"
+      DB_USER: isolated_test
+      DB_PASSWORD: isolated_test_only
+      DB_NAME: isolated_test
+      DB_SYNCHRONIZE: "false"
+      AUTH_DEV_BYPASS: "false"
+      JWT_SECRET: ci-only-not-for-production-at-least-32-characters
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |-
+            package-lock.json
+            frontend/package-lock.json
+            backend/package-lock.json
+            mobile/package-lock.json
+      - run: npm ci
+      - run: npm run install:projects
+      - run: npm run check:workspace
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+  api:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.identity.outputs.image }}@${{ steps.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Set immutable image identity
+        id: identity
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-api" >> "$GITHUB_OUTPUT"
+      - name: Build container for smoke tests
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: ./backend
+          file: backend/Dockerfile.production
+          load: true
+          tags: dr-workops-ci:local
+          platforms: linux/amd64
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+          labels: >-
+            org.opencontainers.image.source=${{ github.server_url }}/${{
+            github.repository }}
+
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Container smoke test
+        run: docker compose -f backend/deploy/compose.smoke.yml up -d --wait
+          --wait-timeout 240
+      - name: Verify updated runtime libraries inside API image
+        run: docker compose -f backend/deploy/compose.smoke.yml exec -T api node <
+          backend/scripts/security-runtime-smoke.cjs
+      - name: Stop isolated smoke stack
+        if: always()
+        run: docker compose -f backend/deploy/compose.smoke.yml down --volumes
+          --remove-orphans
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        id: publish
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: ./backend
+          file: backend/Dockerfile.production
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.identity.outputs.image }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+          labels: >-
+            org.opencontainers.image.source=${{ github.server_url }}/${{
+            github.repository }}
+
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Record image digest
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        run: 'echo "Image: $IMAGE_NAME@$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"'
+        env:
+          IMAGE_NAME: ${{ steps.identity.outputs.image }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+  web:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.identity.outputs.image }}@${{ steps.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Set immutable image identity
+        id: identity
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-web" >> "$GITHUB_OUTPUT"
+      - name: Build container for smoke tests
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          load: true
+          tags: dr-workops-ci:local
+          platforms: linux/amd64
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          build-args: >-
+            VITE_API_URL=
+
+            VITE_REALTIME_URL=
+
+            VITE_GOOGLE_MAPS_API_KEY=${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
+
+            VITE_BUSINESS_TIME_ZONE=${{ vars.VITE_BUSINESS_TIME_ZONE ||
+            'America/Los_Angeles' }}
+          labels: >-
+            org.opencontainers.image.source=${{ github.server_url }}/${{
+            github.repository }}
+
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Container smoke test
+        run: docker run --rm dr-workops-ci:local nginx -t
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish tested image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        id: publish
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.identity.outputs.image }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+          build-args: >-
+            VITE_API_URL=
+
+            VITE_REALTIME_URL=
+
+            VITE_GOOGLE_MAPS_API_KEY=${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
+
+            VITE_BUSINESS_TIME_ZONE=${{ vars.VITE_BUSINESS_TIME_ZONE ||
+            'America/Los_Angeles' }}
+          labels: >-
+            org.opencontainers.image.source=${{ github.server_url }}/${{
+            github.repository }}
+
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Record image digest
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        run: 'echo "Image: $IMAGE_NAME@$IMAGE_DIGEST" >> "$GITHUB_STEP_SUMMARY"'
+        env:
+          IMAGE_NAME: ${{ steps.identity.outputs.image }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+  deploy_api:
+    needs:
+      - api
+      - web
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' &&
+      vars.ENABLE_VPS_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      DEPLOY_ROLE: api
+      IMAGE_REF: ${{ needs.api.outputs.image }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL }}
+      RUN_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' &&
+        inputs.run_migrations || false }}
+    steps:
+      - name: Deploy pinned digest and verify HTTPS health
+        shell: bash
+        run: >-
+          set -Eeuo pipefail
+
+          [[ "$DEPLOY_PATH" =~ ^/[a-zA-Z0-9/_-]+$ ]] || { echo "Invalid
+          DEPLOY_PATH"; exit 2; }
+
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || exit 2
+
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.:-]+$ ]] || exit 2
+
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]] || exit 2
+
+          [[ "$IMAGE_REF" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]] ||
+          exit 2
+
+          [[ "$RUN_MIGRATIONS" == true || "$RUN_MIGRATIONS" == false ]] || exit
+          2
+
+          [[ "$HEALTH_URL" == https://* ]] || { echo "Set PUBLIC_HEALTH_URL to
+          the HTTPS /api-healthz URL"; exit 2; }
+
+          umask 077
+
+          printf "%s\n" "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/deploy-key"
+
+          printf "%s\n" "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+
+          ssh -i "$RUNNER_TEMP/deploy-key" -o IdentitiesOnly=yes -o
+          StrictHostKeyChecking=yes -o
+          UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=20 -o
+          ServerAliveInterval=15 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST"
+          "bash '$DEPLOY_PATH/deploy.sh' $DEPLOY_ROLE '$IMAGE_REF'
+          $RUN_MIGRATIONS"
+
+          curl --fail --silent --show-error --retry 12 --retry-connrefused
+          --retry-delay 5 "$HEALTH_URL"
+      - name: Remove temporary SSH credentials
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/deploy-key" "$RUNNER_TEMP/known_hosts"
+  deploy_web:
+    needs:
+      - web
+      - deploy_api
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master' &&
+      vars.ENABLE_VPS_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      DEPLOY_ROLE: web
+      IMAGE_REF: ${{ needs.web.outputs.image }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL }}
+      RUN_MIGRATIONS: "false"
+    steps:
+      - name: Deploy pinned digest and verify HTTPS health
+        shell: bash
+        run: >-
+          set -Eeuo pipefail
+
+          [[ "$DEPLOY_PATH" =~ ^/[a-zA-Z0-9/_-]+$ ]] || { echo "Invalid
+          DEPLOY_PATH"; exit 2; }
+
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || exit 2
+
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.:-]+$ ]] || exit 2
+
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]] || exit 2
+
+          [[ "$IMAGE_REF" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]] ||
+          exit 2
+
+          [[ "$RUN_MIGRATIONS" == true || "$RUN_MIGRATIONS" == false ]] || exit
+          2
+
+          [[ "$HEALTH_URL" == https://* ]] || { echo "Set PUBLIC_HEALTH_URL to
+          the HTTPS /api-healthz URL"; exit 2; }
+
+          umask 077
+
+          printf "%s\n" "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/deploy-key"
+
+          printf "%s\n" "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+
+          ssh -i "$RUNNER_TEMP/deploy-key" -o IdentitiesOnly=yes -o
+          StrictHostKeyChecking=yes -o
+          UserKnownHostsFile="$RUNNER_TEMP/known_hosts" -o ConnectTimeout=20 -o
+          ServerAliveInterval=15 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST"
+          "bash '$DEPLOY_PATH/deploy.sh' $DEPLOY_ROLE '$IMAGE_REF'
+          $RUN_MIGRATIONS"
+
+          curl --fail --silent --show-error --retry 12 --retry-connrefused
+          --retry-delay 5 "$HEALTH_URL"
+      - name: Remove temporary SSH credentials
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/deploy-key" "$RUNNER_TEMP/known_hosts"

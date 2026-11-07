@@ -1,0 +1,60 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "master",
+  "daemon": false,
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "!{projectRoot}/node_modules/**/*",
+      "!{projectRoot}/dist/**/*",
+      "!{projectRoot}/.git/**/*",
+      "!{projectRoot}/coverage/**/*",
+      "!{projectRoot}/.expo/**/*",
+      "!{projectRoot}/tmp/**/*",
+      "workspaceTooling"
+    ],
+    "workspaceTooling": [
+      "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/package-lock.json",
+      "{workspaceRoot}/scripts/run-project.cjs",
+      "{workspaceRoot}/scripts/hash-env.cjs",
+      "{workspaceRoot}/scripts/npm-cli.cjs",
+      "{workspaceRoot}/scripts/nx.cjs",
+      {
+        "runtime": "node --version"
+      }
+    ]
+  },
+  "targetDefaults": {
+    "build": {
+      "cache": true,
+      "inputs": [
+        "default"
+      ],
+      "outputs": [
+        "{projectRoot}/dist"
+      ]
+    },
+    "typecheck": {
+      "cache": true,
+      "inputs": [
+        "default"
+      ],
+      "outputs": []
+    },
+    "test": {
+      "cache": true,
+      "inputs": [
+        "default"
+      ],
+      "outputs": []
+    },
+    "lint": {
+      "cache": false
+    },
+    "dev": {
+      "cache": false
+    }
+  },
+  "parallel": 3
+}

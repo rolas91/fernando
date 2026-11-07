@@ -1,0 +1,7 @@
+.env.production
+.env.images
+.env.images.*
+!.env.images.example
+.releases/
+.deploy.lock
+!.env.production.example

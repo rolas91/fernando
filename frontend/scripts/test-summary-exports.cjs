@@ -1,0 +1,8 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'../src/components/reports/ReportsView.tsx'),'utf8');const ast=ts.createSourceFile('reports.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let handler;
+function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='handleExport')handler=node.initializer.getText(ast);ts.forEachChild(node,visit);}visit(ast);assert(handler);
+const code=ts.transpileModule('const handleExport='+handler,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+const result={workerHours:Array.from({length:80},(_,i)=>({worker:{id:String(i),firstName:'Worker'+i,lastName:'Test',type:'Lead'},regular:8,ot:1,total:9,pay:200})),projectSummary:Array.from({length:80},(_,i)=>({project:{id:String(i),name:'Project'+i},orders:1,hours:8,cost:160}))};
+let blob,downloads=0;const url={createObjectURL:value=>{blob=value;return 'blob:test';},revokeObjectURL:()=>{}};const document={createElement:()=>({click:()=>downloads++})};
+const run=new Function('report','Blob','URL','document',code+';return handleExport;');
+(async()=>{for(const type of ['worker_hours','project_summary']){await run({exportAll:async()=>result},Blob,url,document)(type);const lines=(await blob.text()).split('\n');assert.equal(lines.length,81);assert(lines.at(-1).includes(type==='worker_hours'?'Worker79':'Project79'));}assert.equal(downloads,2);await run({exportAll:async()=>null},Blob,url,document)('worker_hours');assert.equal(downloads,2);console.log('Reports exports include all 80 rows, preserve CSV fields and do not download after a failed export.');})().catch(error=>{console.error(error);process.exitCode=1;});

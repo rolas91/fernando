@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+.source-language/
+.git/
+.env
+.env.*
+package-lock.json
+*.tsbuildinfo
+*.timestamp-*.mjs
+*.timestamp-*.js

@@ -1,4 +1,16 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');const {test}=require('node:test');const YAML=require('yaml');const root=path.resolve(__dirname,'..');const read=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8'));
+test('manual branch images do not relax production deployment gates',()=>{
+  const workflow=YAML.parse(fs.readFileSync(path.join(root,'.github/workflows/ci-deploy.yml'),'utf8'));
+  for(const role of ['api','web']){
+    const publish=workflow.jobs[role].steps.find(step=>step.id==='publish');
+    assert(publish.if.includes("github.event_name == 'workflow_dispatch'"));
+    assert(!publish.if.includes('pull_request'));
+    assert(publish.with.platforms.includes("github.ref == 'refs/heads/master'"));
+    const deploy=workflow.jobs['deploy_'+role];
+    assert(deploy.if.includes("github.ref == 'refs/heads/master'"));
+    assert(deploy.if.includes("ENABLE_VPS_DEPLOY == 'true'"));
+  }
+});
 test('Nx targets execute real scripts without merging application installations',()=>{const pkg=read('package.json');assert(!pkg.workspaces);assert(pkg.devDependencies.nx);for(const project of ['frontend','backend','mobile']){const config=read(project+'/project.json'),app=read(project+'/package.json');assert.equal(config.name,project);for(const [name,target] of Object.entries(config.targets)){const parts=target.options.command.split(' ');assert.equal(parts[2],project);assert(app.scripts[parts[3]],project+':'+name+' missing script');if(target.continuous)assert.equal(target.cache,false);}}});
 test('local launcher cannot inherit a production database or automatic schema synchronization',()=>{const {localEnv}=require('./local-env.cjs');const env=localEnv({LOCAL_DB_PASSWORD:'local',LOCAL_JWT_SECRET:'local-jwt'}, {DB_HOST:'remote-production',DB_NAME:'production',DB_SYNCHRONIZE:'true'});assert.equal(env.DB_HOST,'127.0.0.1');assert.equal(env.DB_NAME,'workops_local');assert.equal(env.DB_PORT,'5433');assert.equal(env.DB_SYNCHRONIZE,'false');assert.throws(()=>localEnv({LOCAL_DB_PASSWORD:'x',LOCAL_JWT_SECRET:'x',LOCAL_DB_PORT:'5432; unsafe'}));});
 test('monorepo export excludes nested repositories, runtime files and credentials',()=>{const {excluded,collect}=require('./prepare-monorepo.cjs');for(const file of ['backend/.env','frontend/.env.production','mobile/.env.local','backend/public/customer.pdf','backend/workspace/package.json','frontend/.git/config','mobile/google-services.json','mobile/signing.key','backend/.github/workflows/ci-deploy.yml'])assert(excluded(file),file);for(const file of ['.env.docker.example','backend/deploy/.env.production.example','frontend/public/favicon.ico','mobile/app.json','.github/workflows/ci-deploy.yml'])assert(!excluded(file),file);if(fs.existsSync(path.join(root,'frontend/.git'))){const files=collect();assert(files.includes('frontend/package.json'));assert(files.includes('backend/package.json'));assert(files.includes('mobile/package.json'));assert(files.includes('.github/workflows/ci-deploy.yml'));assert(!files.some(excluded));}});

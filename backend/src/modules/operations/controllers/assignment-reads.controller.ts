@@ -167,7 +167,7 @@ export class AssignmentReadsController {
       .leftJoin('clients', 'c', 'c.id = p.client_id')
       .leftJoin('work_order_types', 'kind', 'kind.id = wo.work_order_type_id')
       .select('wo.id', 'id')
-      .addSelect('wo.startDate', 'startDate')
+      .addSelect("to_char(wo.startDate, 'YYYY-MM-DD')", 'startDate')
       .addSelect(projectsVisible ? 'p.name' : "''", 'projectName')
       .orderBy('wo.startDate', 'ASC')
       .addOrderBy('wo.id', 'ASC');

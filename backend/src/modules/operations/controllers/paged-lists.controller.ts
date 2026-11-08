@@ -4,6 +4,7 @@ import { IncidentsService } from '../services/incidents.service';
 import { FormSubmissionsService } from '../services/form-submissions.service';
 import { User } from '../../../entities/user.entity';
 import { In } from 'typeorm';
+import { isUUID } from 'class-validator';
 import { WorkersService } from '../services/workers.service';
 import { StatusCatalog } from '../../../entities/status-catalog.entity';
 import { TimesheetsService } from '../services/timesheets.service';
@@ -254,6 +255,8 @@ export class PagedListsController {
       assignmentIds = ids('workOrderId'),
       workerIds =
         resource === 'incidents' ? ids('reportedBy') : ids('workerId');
+    // Worker IDs may be legacy strings; only users.id requires UUID values.
+    const userIds = workerIds.filter((id) => isUUID(id));
     const [projects, workOrders, workers, users] = await Promise.all([
       projectIds.length && permitted('projects.read')
         ? this.dataSource.getRepository(Project).find({
@@ -279,7 +282,7 @@ export class PagedListsController {
           })
         : Promise.resolve([] as Worker[]),
       resource === 'form-submissions' &&
-      workerIds.length &&
+      userIds.length &&
       permitted('users.read')
         ? this.dataSource.getRepository(User).find({
             select: {
@@ -288,7 +291,7 @@ export class PagedListsController {
               lastName: true,
               email: true,
             },
-            where: { id: In(workerIds) },
+            where: { id: In(userIds) },
           })
         : Promise.resolve([] as User[]),
     ] as const);

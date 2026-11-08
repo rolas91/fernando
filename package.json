@@ -42,8 +42,7 @@
     "check:workspace": "node --test scripts/workspace.test.cjs scripts/security-dependencies.test.cjs",
     "dev:local": "node scripts/run-local.cjs",
     "docker:db": "docker compose --env-file .env.docker up -d --wait db",
-    "docker:seed": "docker compose --env-file .env.docker run --rm --build api node dist/database/seed-iam.js",
-    "prepare:monorepo": "node scripts/prepare-monorepo.cjs"
+    "docker:seed": "docker compose --env-file .env.docker run --rm --build api node dist/database/seed-iam.js"
   },
   "devDependencies": {
     "nx": "24.0.5",

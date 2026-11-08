@@ -2,19 +2,21 @@
 
 Repositorio destino: https://github.com/rolas91/fernando.git. Su rama predeterminada actual es master. El monorepo contiene frontend/, backend/ y mobile/, con la configuración Nx, Docker local y GitHub Actions en la raíz.
 
-## Preparación de la migración
+## Carpeta de trabajo consolidada
 
-La carpeta de trabajo original conserva los tres repositorios Git anidados y todos sus cambios actuales. No ejecutar git add . en esa carpeta: los repositorios anidados se convertirían en referencias Git en lugar de incluir sus archivos.
+La raíz del proyecto contiene un único repositorio Git y tres aplicaciones: backend/, frontend/ y mobile/. No hay repositorios Git anidados ni es necesario trabajar desde output/monorepo-FECHA. El único remoto activo es origin, dirigido a rolas91/fernando.
 
-npm run prepare:monorepo muestra una vista previa. npm run prepare:monorepo -- --write crea una copia independiente en output/monorepo-FECHA, basada en un clon del repositorio destino. La rama de esa copia se llama migration/monorepo. Se conserva el historial remoto del backend y se colocan los archivos actuales bajo backend/. Frontend y mobile se incorporan como archivos actuales; sus historiales completos permanecen en sus repositorios originales. No se hacen commits ni push automáticamente.
+La estructura anterior, sus historiales Git independientes, archivos locales y copias generadas se conservan en un archivo externo al workspace. La consolidación local no publica cambios en GitHub ni modifica el VPS. El comando prepare:monorepo dejó de formar parte de los comandos activos: no hace falta generar nuevas copias del proyecto.
 
-La copia omite .git anidados, dependencias instaladas, archivos de entorno privados, adjuntos, respaldos, claves de firma y las configuraciones antiguas de Actions por aplicación. Solo se publican los workflows de la raíz. MONOREPO-EXPORT.json registra las revisiones originales y los archivos copiados; no contiene credenciales.
+Los archivos backend/.env, frontend/.env y mobile/.env, las configuraciones locales de Firebase y la firma de desarrollo de Android se conservan localmente y están excluidos de Git. Los archivos .env.example son plantillas. Los directorios nativos generados de Expo y los archivos públicos del backend también permanecen fuera del repositorio. Solo los workflows de .github/ en la raíz son activos.
 
-Antes de publicar, revisar git status en la copia. Las eliminaciones de archivos de la raíz antigua del backend son esperadas: ahora están dentro de backend/. No usar force push. Después de revisar y probar, se puede hacer un commit en migration/monorepo y abrir una PR hacia master. El código que sirve PM2 en el VPS no se actualiza por crear esta rama.
+Antes de publicar, revisar git status desde la raíz, confirmar los archivos elegidos y abrir una PR hacia master. No usar force push ni subir archivos privados. MONOREPO-EXPORT.json conserva las revisiones de la exportación inicial como referencia histórica.
 
 ## Instalación y comandos
 
 Usar Node 24 LTS. Ejecutar npm ci en la raíz y npm run install:projects para instalar las dependencias de las tres aplicaciones. Cada una mantiene su package-lock y sus dependencias independientes; frontend y mobile usan versiones distintas de React. Nx coordina tareas sin cambiar esas versiones.
+
+Los comandos dev normales conservan las configuraciones .env de cada aplicación. Para trabajar con la base local aislada, configurar .env.docker y utilizar npm run dev:local; ese lanzador fuerza workops_local y no reutiliza la base remota. No se deben asumir las direcciones de los entornos sin revisar la configuración local.
 
 | Comando | Resultado |
 | --- | --- |
@@ -50,13 +52,13 @@ En master se publican ghcr.io/rolas91/fernando-api:sha-COMMIT y ghcr.io/rolas91/
 
 Mantener ENABLE_VPS_DEPLOY sin configurar o false durante esta migración. Todavía no se ha ejecutado el workflow remoto del monorepo. El despliegue preparado usa el Environment production y los secretos DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY y DEPLOY_KNOWN_HOSTS; variables DEPLOY_PATH, DEPLOY_PORT y PUBLIC_HEALTH_URL. No apuntarlo todavía al servicio actual. VITE_GOOGLE_MAPS_API_KEY y VITE_BUSINESS_TIME_ZONE son variables de compilación web. Las migraciones siguen siendo explícitas y no se revierten al restaurar una imagen.
 
-.github/workflows/eas-build.yml es manual, usa mobile-release y trabaja dentro de mobile/. Requiere EXPO_TOKEN, EAS_PROJECT_ID y EXPO_PUBLIC_API_URL. No publica en tiendas. Los archivos privados de Firebase/firma deben configurarse en Expo/EAS; no se copian al monorepo.
+.github/workflows/eas-build.yml es manual, usa mobile-release y trabaja dentro de mobile/. Requiere EXPO_TOKEN, EAS_PROJECT_ID y EXPO_PUBLIC_API_URL. No publica en tiendas. Los archivos privados de Firebase/firma deben configurarse en Expo/EAS; las copias locales conservadas no se publican en Git.
 
 ## VPS: transición actual
 
-Producción drworkops.com continúa en NGINX hacia PM2, puerto 3000, con PostgreSQL nestdb. dev.drworkops.com ya tiene HTTPS y todavía sirve una página temporal. Docker de pruebas usará la base workops_docker_test y su usuario exclusivo, comprobados desde la red dr-workops-test, subred 172.18.0.0/16, gateway 172.18.0.1. La web de prueba se publicará solo en 127.0.0.1:8080 y NGINX la expondrá mediante dev. No hace falta Caddy: se conservará el NGINX actual.
+El VPS es independiente de la reorganización local. Dev usa /opt/dr-workops-test, Docker web/API, la base workops_docker_test y el puerto web local 8080. Docker de producción está en /opt/dr-workops, usa nestdb del PostgreSQL del host y publica la web en 127.0.0.1:8081. El servicio anterior con PM2 usa el puerto 3000. NGINX conserva HTTPS y determina si el dominio principal apunta a 3000 o 8081; comprobar su configuración para conocer el destino activo. Mover esta carpeta local no cambia ese destino.
 
-La conexión PostgreSQL desde Docker fue comprobada manualmente. Antes de arrancar la aplicación con la copia de datos hay que preparar su configuración de pruebas y aislar correos, SMS, push y tareas externas; no reutilizar las credenciales de integraciones de producción. Los adjuntos y respaldos quedan fuera de Git y se trasladan por separado. El respaldo del VPS está en /var/backups/dr-workops/20261107-035335.
+La API de dev utiliza una red Docker interna para aislar integraciones externas; producción conserva su configuración propia. No copiar la base ni las credenciales de dev a producción. Los adjuntos y respaldos quedan fuera de Git. Los respaldos del VPS están bajo /var/backups/dr-workops y los archivos locales archivados se conservan fuera del workspace.
 
 backend/deploy/README.md conserva los detalles del helper de despliegue, rollback y Compose. Sus referencias a repositorios separados corresponden a la configuración anterior; para ramas, Actions y nombres de imágenes prevalece esta guía de la raíz. backend/workspace y setup-workspace.cjs pertenecen a la estructura anterior y no se exportan al monorepo.
 

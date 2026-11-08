@@ -2197,6 +2197,8 @@ export class WorkOrdersService {
       dispatchNote: dto.dispatchNote?.trim() || '',
       fileUploads: this.normalizeTextArray(dto.fileUploads),
     });
+    // Relational shifts are not mapped columns, so Repository.create omits them.
+    entity.shifts = shifts;
     if (dto.assignmentAddress !== undefined) {
       entity.assignmentAddress = (dto.assignmentAddress ?? '').trim();
     }

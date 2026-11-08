@@ -3,11 +3,76 @@ import { DataSource } from 'typeorm';
 import { ExecutionContext } from '@nestjs/common';
 import { Client } from '../../../entities/client.entity';
 import { Project } from '../../../entities/project.entity';
+import { Worker } from '../../../entities/worker.entity';
+import { User } from '../../../entities/user.entity';
 import { Timesheet } from '../../../entities/timesheet.entity';
 import { PagedListsController } from './paged-lists.controller';
 import { OperationsAuthGuard } from '../operations-auth.guard';
 
 describe('paged catalog contracts', () => {
+  it.each([false, true])(
+    'preserves legacy worker lookups while querying users only with UUIDs (mixed=%s)',
+    async (mixed) => {
+      const userId = '550e8400-e29b-41d4-a716-446655440000';
+      const data = [{ id: 'submission-1', workerId: '0013' }];
+      if (mixed) data.push({ id: 'submission-2', workerId: userId });
+      const workerFind = jest.fn(async () => [
+        { id: '0013', firstName: 'Legacy', lastName: 'Worker', email: '' },
+      ]);
+      const userFind = jest.fn(async () => [
+        { id: userId, firstName: 'Account', lastName: 'User', email: '' },
+      ]);
+      const getRepository = jest.fn((entity) => {
+        if (entity === Worker) return { find: workerFind };
+        if (entity === User) return { find: userFind };
+        throw new Error('Unexpected lookup');
+      });
+      const controller = new PagedListsController(
+        { getRepository } as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {
+          findPaged: jest.fn(async () => ({
+            data,
+            meta: { total: data.length },
+          })),
+        } as never,
+      );
+      const result = await controller.list(
+        'form-submissions',
+        '1',
+        '25',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { user: { permissions: ['workers.read', 'users.read'] } } as never,
+      );
+      const lookups = (
+        result as { lookups: { submitters: Record<string, string> } }
+      ).lookups;
+      expect(lookups.submitters['0013']).toBe('Legacy Worker');
+      expect(
+        (
+          workerFind.mock.calls[0] as unknown as [
+            { where: { id: { value: string[] } } },
+          ]
+        )[0].where.id.value,
+      ).toEqual(mixed ? ['0013', userId] : ['0013']);
+      if (mixed) {
+        expect(
+          (
+            userFind.mock.calls[0] as unknown as [
+              { where: { id: { value: string[] } } },
+            ]
+          )[0].where.id.value,
+        ).toEqual([userId]);
+        expect(lookups.submitters[userId]).toBe('Account User');
+      } else expect(userFind).not.toHaveBeenCalled();
+    },
+  );
   it('returns bounded rows, full filtered totals, global counters and one grouped project-count query', async () => {
     const source = new DataSource({
       type: 'postgres',

@@ -166,6 +166,10 @@ describe('assignment page and weekly read contracts', () => {
       calendarTo: '2026-12-05',
     });
     expect(f.queries[0].getSql()).toContain('grid_shift');
+    // pg returns raw DATE columns as Date objects; this projection must stay text.
+    expect(f.queries[0].getSql()).toContain(
+      `to_char("wo"."start_date", 'YYYY-MM-DD') AS "startDate"`,
+    );
     f.shifts.loadShiftsForWorkOrders.mockClear();
     result = await f.controller.page({ page: '9' }, req);
     expect(result.data).toEqual([]);

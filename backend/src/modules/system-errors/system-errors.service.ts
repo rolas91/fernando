@@ -116,8 +116,10 @@ export class SystemErrorsService implements OnModuleInit, OnModuleDestroy {
     from?: string;
     to?: string;
     page?: number;
+    limit?: number;
   }) {
     const page = query.page || 1;
+    const pageSize = query.limit ?? 30;
     const qb = this.errors.createQueryBuilder('e');
     if (query.source)
       qb.andWhere('e.source = :source', { source: query.source });
@@ -128,10 +130,10 @@ export class SystemErrorsService implements OnModuleInit, OnModuleDestroy {
     if (query.to) qb.andWhere('e.lastSeen <= :to', { to: query.to });
     const [items, total] = await qb
       .orderBy('e.lastSeen', 'DESC')
-      .skip((page - 1) * 30)
-      .take(30)
+      .skip((page - 1) * pageSize)
+      .take(pageSize)
       .getManyAndCount();
-    return { items, total, page, pageSize: 30 };
+    return { items, total, page, pageSize };
   }
   async setStatus(id: string, status: string, userId: string) {
     const result = await this.errors.update(id, {

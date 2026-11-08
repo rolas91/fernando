@@ -71,6 +71,7 @@ class ErrorQueryDto {
   @IsOptional() @IsISO8601() from?: string;
   @IsOptional() @IsISO8601() to?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10000) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit?: number;
 }
 class ErrorStatusDto {
   @IsIn(['pending', 'resolved']) status: 'pending' | 'resolved';

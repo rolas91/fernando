@@ -55,8 +55,15 @@ export class ShiftsReadController {
       );
   }
   @Get('metrics')
-  async metrics(@Req() req: Request & { user?: UserAccessContext }) {
+  async metrics(
+    @Req() req: Request & { user?: UserAccessContext },
+    @Query() input: Record<string, string> = {},
+  ) {
     this.check(req.user);
+    const range = normalizeWorkOrderListRange({
+      from: input.from,
+      to: input.to,
+    });
     const { shifts } = await loadShiftStatusIndex(this.source.manager);
     const statusCounts: Record<string, number> = Object.fromEntries(
       ['All', ...Object.values(SHIFT_LABELS)].map((label) => [label, 0]),
@@ -64,14 +71,15 @@ export class ShiftsReadController {
     const projectIds = new Set<string>(),
       approvedProjectIds = new Set<string>();
     for (const shift of shifts) {
+      projectIds.add(shift.projectId);
+      if (shift.effectiveStatus === 'pm_approved')
+        approvedProjectIds.add(shift.projectId);
+      if (range && (shift.date < range.from || shift.date > range.to)) continue;
       statusCounts.All++;
       const label = shift.effectiveStatus
         ? SHIFT_LABELS[shift.effectiveStatus]
         : undefined;
       if (label) statusCounts[label]++;
-      projectIds.add(shift.projectId);
-      if (shift.effectiveStatus === 'pm_approved')
-        approvedProjectIds.add(shift.projectId);
     }
     const projects = projectIds.size
       ? await this.source.getRepository(Project).find({
@@ -93,7 +101,7 @@ export class ShiftsReadController {
   ) {
     this.check(req.user);
     const page = pageNumber(input.page, 1, 10000000),
-      limit = 25;
+      limit = pageNumber(input.limit, 25, 50);
     const range = normalizeWorkOrderListRange({
       from: input.from,
       to: input.to,

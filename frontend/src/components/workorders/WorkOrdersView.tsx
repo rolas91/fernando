@@ -1,7 +1,7 @@
+import DataPagination from '@/components/shared/DataPagination';
 import { useAssignmentChatRead } from '@/hooks/use-assignment-chat-read';
 import { AppContextOverride } from '@/contexts/AppContext';
 import { useAssignmentPage, useCompleteAssignment } from '@/hooks/use-assignment-paging';
-import { AssignmentPagination } from '@/components/shared/AssignmentPagination';
 import { AssignmentReadState } from '@/components/shared/AssignmentReadState';
 import { useAssignmentDocuments } from '@/hooks/use-assignment-documents';
 import { DocumentReadNotice } from '@/components/scheduler/DocumentReadNotice';
@@ -1980,7 +1980,7 @@ const WorkOrdersView: React.FC = () => {
           </div>
         </div>
       )}
-    <AssignmentPagination page={assignmentPage.page} total={assignmentPage.data?.meta.total ?? 0} setPage={assignmentPage.setPage} loading={assignmentPage.isFetching} />
+    <DataPagination page={assignmentPage.page} total={assignmentPage.data?.meta.total ?? 0} pageSize={assignmentPage.pageSize} onPage={assignmentPage.setPage} onPageSize={assignmentPage.setPageSize} busy={assignmentPage.isFetching} itemLabel="assignments" className="border-t border-gray-200 px-4" />
 </div></AppContextOverride>);
 };
 

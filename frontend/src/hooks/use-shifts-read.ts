@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePaginationState } from './use-pagination-state';
 import { useAuth } from '@/contexts/AuthContext';
 import { appDataKey } from '@/lib/appDataQueries';
 import { localDateKey } from '@/lib/appDataPages';
@@ -30,12 +31,11 @@ export function useShiftsRead(
     );
     return () => clearTimeout(timer);
   }, [day]);
-  const filters = { ...input, search },
-    key = JSON.stringify(filters);
-  const [position, setPosition] = useState({ key, page: 1 }),
-    page = position.key === key ? position.page : 1;
-  const setPage = (page: number) =>
-    setPosition({ key, page: Math.max(1, page) });
+  const filters = { ...input, search };
+  const { page, setPage, pageSize, setPageSize } = usePaginationState(
+    JSON.stringify([user?.id, filters]),
+  );
+  const key = JSON.stringify([filters, pageSize]);
   const valid =
     (filters.from === undefined && filters.to === undefined) ||
     Boolean(filters.from && filters.to && filters.from <= filters.to);
@@ -63,12 +63,16 @@ export function useShiftsRead(
       mode === 'board' ? 1 : page,
       mode,
       mode === 'board' ? columnPages : {},
+      pageSize,
     ),
     enabled: Boolean(user) && valid && active,
   });
   const metrics = useQuery({
-    ...shiftsMetricsOptions(user?.id || 'guest', day),
-    enabled: Boolean(user) && active,
+    ...shiftsMetricsOptions(user?.id || 'guest', day, {
+      from: input.from,
+      to: input.to,
+    }),
+    enabled: Boolean(user) && active && valid,
   });
   useEffect(() => {
     if (query.data && page > Math.max(1, query.data.meta.totalPages))
@@ -101,6 +105,8 @@ export function useShiftsRead(
     metrics,
     page,
     setPage,
+    pageSize,
+    setPageSize,
     columnPage,
     setColumnPage,
     refresh,

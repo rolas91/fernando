@@ -1,3 +1,5 @@
+import DataPagination from '@/components/shared/DataPagination';
+import { usePaginationState } from '@/hooks/use-pagination-state';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,7 +54,7 @@ export default function SystemErrorsView() {
   const [level, setLevel] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [page, setPage] = useState(1);
+  const { page, setPage, pageSize, setPageSize } = usePaginationState(JSON.stringify([user?.id, source, status, level, from, to]), undefined, 30);
   const [saving, setSaving] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const isAdmin = user?.role === 'admin';
@@ -65,12 +67,13 @@ export default function SystemErrorsView() {
       from,
       to,
       page,
+      pageSize,
       user?.id,
     ],
     enabled: isAdmin,
     retry: false,
     queryFn: () => {
-      const params = new URLSearchParams({ page: String(page) });
+      const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
       if (source) params.set('source', source);
       if (status) params.set('status', status);
       if (level) params.set('level', level);
@@ -84,6 +87,9 @@ export default function SystemErrorsView() {
   useEffect(() => {
     setPage(1);
   }, [source, status, level, from, to]);
+  useEffect(() => {
+    if (query.data && page > Math.max(1, Math.ceil(query.data.total / pageSize))) setPage(Math.max(1, Math.ceil(query.data.total / pageSize)));
+  }, [query.data, page, pageSize, setPage]);
   if (!isAdmin)
     return (
       <div className="p-6" role="alert">
@@ -276,26 +282,7 @@ export default function SystemErrorsView() {
               </article>
             ))}
           </div>
-          <div className="flex items-center justify-end gap-3">
-            <button
-              className={control}
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              Previous
-            </button>
-            <span className="text-sm">
-              Page {page} of{' '}
-              {Math.max(1, Math.ceil(query.data.total / query.data.pageSize))}
-            </span>
-            <button
-              className={control}
-              disabled={page * query.data.pageSize >= query.data.total}
-              onClick={() => setPage(page + 1)}
-            >
-              Next
-            </button>
-          </div>
+          <DataPagination page={page} total={query.data.total} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} busy={query.isFetching} itemLabel="errors" />
         </>
       )}
     </section>

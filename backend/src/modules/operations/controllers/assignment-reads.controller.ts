@@ -148,7 +148,7 @@ export class AssignmentReadsController {
     const clientsVisible = projectsVisible && visible('clients.read');
     const typesVisible = visible('work-order-types.read');
     const page = pageNumber(input.page, 1, 10000000),
-      limit = 25;
+      limit = pageNumber(input.limit, 25, 50);
     const range = this.range(input.from, input.to),
       calendar = this.range(input.calendarFrom, input.calendarTo);
     if (

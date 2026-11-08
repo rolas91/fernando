@@ -261,6 +261,39 @@ describe('compact shift reads and pagination', () => {
     expect(metrics.approvedProjectIds).toContain('p');
     expect(metrics.projects[0].id).toBe('p');
   });
+  it('keeps shift cards global across page/search/status inputs and scopes them only by dates', async () => {
+    setup();
+    jest
+      .spyOn(source.getRepository(Project), 'find')
+      .mockResolvedValue([{ id: 'p' }] as Project[]);
+    const controller = new ShiftsReadController(
+      source,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const req = {} as never;
+    const all = await controller.metrics(req);
+    const paged = await controller.metrics(req, {
+      page: '3',
+      limit: '10',
+      search: 'no match',
+      status: 'PM Approved',
+    });
+    expect(paged.statusCounts).toEqual(all.statusCounts);
+    expect(all.statusCounts.All).toBe(8);
+    const ranged = await controller.metrics(req, {
+      from: '2026-11-01',
+      to: '2026-11-07',
+    });
+    expect(ranged.statusCounts.All).toBe(7);
+    expect(ranged.projects).toEqual(all.projects);
+    expect(ranged.approvedProjectIds).toEqual(all.approvedProjectIds);
+    await expect(
+      controller.metrics(req, { from: '2026-11-08', to: '2026-11-01' }),
+    ).rejects.toThrow();
+  });
   it('paginates each board column independently in one compact index read', async () => {
     const fixture = setup(120);
     jest

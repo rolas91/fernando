@@ -201,6 +201,27 @@ describe('Dashboard and Reports scoped reads', () => {
       actor,
     );
   });
+  it.each([10, 25, 50])(
+    'keeps full report cards with %i rows per page',
+    async (limit) => {
+      const { controller } = reportSetup();
+      const result = await controller.read(
+        {
+          from: '2026-11-01',
+          to: '2026-11-06',
+          section: 'worker_hours',
+          page: '2',
+          limit: String(limit),
+        },
+        req,
+      );
+      expect(result.workerHours).toHaveLength(Math.min(limit, 80 - limit));
+      expect(result.meta.total).toBe(80);
+      expect(result.totalHours).toBe(640);
+      expect(result.workerTotals.pay).toBe(12800);
+      expect(result.timesheetCount).toBe(80);
+    },
+  );
   it('keeps project metadata and assignment counts while paging project summaries', async () => {
     const { controller } = reportSetup();
     const result = await controller.read(

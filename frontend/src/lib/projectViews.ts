@@ -55,12 +55,13 @@ export function projectDetailOptions(
   user: string,
   id: string | null,
   page: number,
+  pageSize = 25,
 ) {
   return {
     ...policy,
-    queryKey: [...appDataKey(user, 'projects'), 'detail', id, page],
+    queryKey: [...appDataKey(user, 'projects'), 'detail', id, page, pageSize],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      fetchProjectDetail(id!, page, signal),
+      fetchProjectDetail(id!, page, signal, pageSize),
   };
 }
 export function projectRecordOptions(user: string, id: string | null) {

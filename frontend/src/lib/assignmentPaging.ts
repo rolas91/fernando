@@ -36,6 +36,7 @@ export const assignmentPageOptions = (
   owner: string,
   filters: Record<string, string>,
   page: number,
+  pageSize = 25,
 ) => ({
   ...policy,
   structuralSharing: false as const,
@@ -44,9 +45,10 @@ export const assignmentPageOptions = (
     'assignments-page',
     filters,
     page,
+    pageSize,
   ],
   queryFn: ({ signal }: { signal: AbortSignal }) =>
-    fetchAssignmentPage(filters, page, signal),
+    fetchAssignmentPage(filters, page, signal, pageSize),
 });
 export const assignmentRecordOptions = (owner: string, id: string) => ({
   ...policy,

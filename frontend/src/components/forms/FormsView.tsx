@@ -1,9 +1,9 @@
+import DataPagination from '@/components/shared/DataPagination';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { appDataKey, shouldRetryAppRead } from '@/lib/appDataQueries';
 import { usePagedCatalog } from '@/hooks/use-paged-catalog';
 import { useDeferredAppData } from '@/hooks/use-deferred-app-data';
-import CatalogPagination from '@/components/shared/CatalogPagination';
 import CatalogQueryState from '@/components/shared/CatalogQueryState';
 import { fetchSubmissionCount, fetchSubmissionDetail } from '@/lib/db';
 import React, { useState, useMemo, useEffect } from 'react';
@@ -784,12 +784,7 @@ const FormsView: React.FC = () => {
                 ) : null}
               </tbody>
             </table>
-            <CatalogPagination
-              meta={catalog.meta}
-              page={catalog.page}
-              onPage={catalog.setPage}
-              busy={catalog.query.isFetching}
-            />
+            <DataPagination page={catalog.page} total={(catalog.meta)?.total} pageSize={catalog.pageSize} onPage={catalog.setPage} onPageSize={catalog.setPageSize} busy={catalog.query.isFetching} />
           </div>
           {selectedSubmissionId &&
             catalog.rows.some((row) => row.id === selectedSubmissionId) && (

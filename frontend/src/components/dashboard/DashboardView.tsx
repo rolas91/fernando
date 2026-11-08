@@ -1,5 +1,5 @@
+import DataPagination from '@/components/shared/DataPagination';
 import { useDashboardRead } from '@/hooks/use-summary-reads';
-import CatalogPagination from '@/components/shared/CatalogPagination';
 import CatalogQueryState from '@/components/shared/CatalogQueryState';
 import React from 'react';
 import { useAppContext, AppContextOverride } from '@/contexts/AppContext';
@@ -286,12 +286,7 @@ const DashboardView: React.FC = () => {
               <h2 className="font-semibold text-gray-800">Activity Feed</h2>
             </div>
             <div className="max-h-[500px] overflow-y-auto">
-              <CatalogPagination
-                meta={data.activity.meta}
-                page={dashboard.page}
-                onPage={dashboard.setPage}
-                busy={dashboard.query.isFetching}
-              />
+              <DataPagination page={dashboard.page} total={(data.activity.meta)?.total} pageSize={dashboard.pageSize} onPage={dashboard.setPage} onPageSize={dashboard.setPageSize} busy={dashboard.query.isFetching} />
               {todayActivity.map((item) => (
                 <div
                   key={item.id}

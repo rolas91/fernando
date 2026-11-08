@@ -1,8 +1,8 @@
+import DataPagination from '@/components/shared/DataPagination';
 import { useAssignmentChatRead } from '@/hooks/use-assignment-chat-read';
 import { AppContextOverride } from '@/contexts/AppContext';
 import { useScheduleScope, useAssignmentRecords, usePagePosition, useConflictAssignments } from '@/hooks/use-assignment-paging';
 import { AssignmentReadState } from '@/components/shared/AssignmentReadState';
-import { AssignmentPagination } from '@/components/shared/AssignmentPagination';
 import { useScheduleSubmissionIndex } from '@/hooks/use-assignment-documents';
 import { DocumentReadNotice } from './DocumentReadNotice';
 import { WorkerConfirmationIcons } from './WorkerConfirmationIcons';
@@ -905,11 +905,11 @@ const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
 
   const pageScopeKey = JSON.stringify([dateStrsInCalendarScope, filterStartDate, filterEndDate, selectedProject, schedulerSearchQuery, scheduleStripTab, selectedShiftStatusFilter]);
   const pagination = usePagePosition(pageScopeKey, filteredCalendarWorkOrders.length);
-  const pageSummaries = useMemo(() => filteredCalendarWorkOrders.slice((pagination.page - 1) * 25, pagination.page * 25), [filteredCalendarWorkOrders, pagination.page]);
+  const pageSummaries = useMemo(() => filteredCalendarWorkOrders.slice((pagination.page - 1) * pagination.pageSize, pagination.page * pagination.pageSize), [filteredCalendarWorkOrders, pagination.page, pagination.pageSize]);
   const requestedIds = [...new Set([...pageSummaries.map(row => row.id), detailSidebarWoId, editingWO?.id, editingShift?.woId, quickAddCell?.woId, shiftDetailsPanel?.woId, shiftChatPanel?.woId].filter(Boolean) as string[])];
   const requestedKey = JSON.stringify(requestedIds);
   useEffect(() => { setRecordIds(previous => JSON.stringify(previous) === requestedKey ? previous : requestedIds); }, [requestedKey]);
-  useEffect(() => { setSelectedShiftIds(new Set()); setLastSelectedShiftId(null); if (assignmentRowsRef.current) assignmentRowsRef.current.scrollTop = 0; }, [pageScopeKey, pagination.page]);
+  useEffect(() => { setSelectedShiftIds(new Set()); setLastSelectedShiftId(null); if (assignmentRowsRef.current) assignmentRowsRef.current.scrollTop = 0; }, [pageScopeKey, pagination.page, pagination.pageSize]);
   const pageLoaded = requestedKey === JSON.stringify(recordIds) && pageSummaries.every(row => workOrders.some(full => full.id === row.id));
   const calendarWorkOrders = useMemo(() => pageLoaded ? pageSummaries.flatMap(summary => {
     const full = workOrders.find(row => row.id === summary.id);
@@ -1086,14 +1086,13 @@ const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
   const assignmentScopeTotal = assignmentsTouchingCalendarScope.length;
 
   const weekStats = useMemo(() => {
-    const dateStrs = days.map((d) => d.toISOString().split('T')[0]);
     return computeScheduleDashboardStats(
-      visibleWOs.filter((wo) => !isCancelledAssignment(wo)),
-      dateStrs,
+      workOrdersWithEffectiveStatus.filter((wo) => !isCancelledAssignment(wo)),
+      dateStrsForFiltering,
       equipment,
       completedShiftKeys,
     );
-  }, [days, visibleWOs, equipment, completedShiftKeys]);
+  }, [dateStrsForFiltering, workOrdersWithEffectiveStatus, equipment, completedShiftKeys]);
 
   const headerDateLabel = useMemo(
     () =>
@@ -1902,8 +1901,12 @@ const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
     ],
   );
   useEffect(() => {
-    const sorted = [...dateStrsInCalendarScope].sort();
-    if (sorted.length === 0) return;
+    const sorted = [...dateStrsForFiltering].sort();
+    setShiftStatusCounters(null);
+    if (sorted.length === 0) {
+      setEffectiveShiftStatuses({});
+      return;
+    }
     let active = true;
     fetchShiftStats({ from: sorted[0], to: sorted[sorted.length - 1] })
       .then((result) => {
@@ -1923,7 +1926,7 @@ const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
     return () => {
       active = false;
     };
-  }, [dateStrsInCalendarScope, workOrders]);
+  }, [dateStrsForFiltering, workOrders]);
 
   const handleNotificationSent = useCallback(
     (entries: NotificationLogEntry[]) => {
@@ -3177,7 +3180,7 @@ const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
         )}
       </div>
 
-        <div className="shrink-0"><AssignmentPagination page={pagination.page} total={filteredCalendarWorkOrders.length} setPage={pagination.setPage} loading={scopeRead.isFetching || completeRecords.isFetching || !pageLoaded} /></div>
+        <div className="shrink-0"><DataPagination page={pagination.page} total={filteredCalendarWorkOrders.length} pageSize={pagination.pageSize} onPage={pagination.setPage} onPageSize={pagination.setPageSize} busy={scopeRead.isFetching || completeRecords.isFetching || !pageLoaded} itemLabel="assignments" className="border-t border-gray-200 px-4" /></div>
 
       {}
       {quickAddCell && (

@@ -96,8 +96,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function fetchShiftsPage(filters:ShiftsFilters,page:number,signal?:AbortSignal,mode='list',pages:Record<string,number>={}){const params=new URLSearchParams({page:String(page),mode,...(mode==='board'?{pages:JSON.stringify(pages)}:{})});Object.entries(filters).forEach(([key,value])=>{if(value)params.set(key,value);});return request<ShiftsPage>('/work-orders/views/shifts?'+params,{signal});}
-export function fetchShiftsMetrics(signal?:AbortSignal){return request<ShiftsMetrics>('/work-orders/views/shifts/metrics',{signal});}
+export function fetchShiftsPage(filters:ShiftsFilters,page:number,signal?:AbortSignal,mode='list',pages:Record<string,number>={},pageSize=25){const params=new URLSearchParams({page:String(page),limit:String(pageSize),mode,...(mode==='board'?{pages:JSON.stringify(pages)}:{})});Object.entries(filters).forEach(([key,value])=>{if(value)params.set(key,value);});return request<ShiftsPage>('/work-orders/views/shifts?'+params,{signal});}
+export function fetchShiftsMetrics(signal?:AbortSignal,range:{from?:string;to?:string}={}){const params=new URLSearchParams();if(range.from)params.set('from',range.from);if(range.to)params.set('to',range.to);return request<ShiftsMetrics>('/work-orders/views/shifts/metrics?'+params,{signal});}
 export function fetchShiftReadDetail(workOrderId:string,shiftId:string,signal?:AbortSignal){return request<ShiftReadDetail>('/work-orders/views/shifts/'+encodeURIComponent(workOrderId)+'/'+encodeURIComponent(shiftId)+'/detail',{signal});}
 export function fetchShiftOverview() {
   return request<WorkOrder[]>('/work-orders/shifts/overview');
@@ -251,7 +251,7 @@ export function fetchDashboardRead(filters: Record<string,string>,signal?:AbortS
 export function fetchOperationsRead(filters:Record<string,string>,signal?:AbortSignal) { return request<OperationsReadData>('/timesheets/reports/operations?'+new URLSearchParams(filters),{signal}); }
 export function fetchOperationsExport(filters:Record<string,string>,signal?:AbortSignal) { return request<OperationsExportData>('/timesheets/reports/operations/export?'+new URLSearchParams(filters),{signal}); }
 export function fetchProjectCalendar(from: string, to: string, filters: CatalogFilters, signal?: AbortSignal) { const params = new URLSearchParams({ from, to }); Object.entries(filters).forEach(([key,value]) => { if(value) params.set(key,value); }); return request<ProjectCalendarData>('/projects/views/calendar?' + params, { signal }); }
-export function fetchProjectDetail(id: string, page: number, signal?: AbortSignal) { return request<ProjectDetailData>('/projects/' + encodeURIComponent(id) + '/views/detail?page=' + page, { signal }); }
+export function fetchProjectDetail(id: string, page: number, signal?: AbortSignal, pageSize = 25) { return request<ProjectDetailData>('/projects/' + encodeURIComponent(id) + '/views/detail?page=' + page + '&limit=' + pageSize, { signal }); }
 export function fetchProjectRecord(id: string, signal?: AbortSignal) { return request<Project>('/projects/' + encodeURIComponent(id), { signal }); }
 export function fetchSubmissionCount(signal?: AbortSignal) { return request<{ total: number }>('/form-submissions/reports/count', { signal }); }
 export function fetchSubmissionDetail(id: string, signal?: AbortSignal) { return request<FormSubmission>('/form-submissions/' + encodeURIComponent(id), { signal }); }
@@ -1765,8 +1765,13 @@ export function fetchAssignmentDocuments(workOrderId: string, signal?: AbortSign
 }
 
 export function fetchScheduleAssignmentScope(from: string, to: string, signal?: AbortSignal) { return request<{readOnly:true;data:(WorkOrder & {latestShiftTimestamp?:string})[]}>('/work-orders/views/assignments/schedule-scope?'+new URLSearchParams({from,to}),{signal}); }
-export function fetchCompleteAssignmentRecords(ids:string[],signal?:AbortSignal) { return request<WorkOrder[]>('/work-orders/views/assignments/records?'+new URLSearchParams({ids:JSON.stringify(ids)}),{signal}); }
-export function fetchAssignmentPage(filters:Record<string,string>,page:number,signal?:AbortSignal) { return request<PagedResult<WorkOrder>>('/work-orders/views/assignments/page?'+new URLSearchParams({...filters,page:String(page)}),{signal}); }
+export async function fetchCompleteAssignmentRecords(ids:string[],signal?:AbortSignal) {
+  const batches: string[][] = [];
+  for (let index = 0; index < ids.length; index += 32) batches.push(ids.slice(index, index + 32));
+  const records = await Promise.all(batches.map(batch => request<WorkOrder[]>('/work-orders/views/assignments/records?' + new URLSearchParams({ids:JSON.stringify(batch)}), {signal})));
+  return records.flat();
+}
+export function fetchAssignmentPage(filters:Record<string,string>,page:number,signal?:AbortSignal,pageSize=25) { return request<PagedResult<WorkOrder>>('/work-orders/views/assignments/page?'+new URLSearchParams({...filters,page:String(page),limit:String(pageSize)}),{signal}); }
 export function fetchAssignmentRecord(id:string,signal?:AbortSignal) {return request<WorkOrder>('/work-orders/views/assignments/record/'+encodeURIComponent(id),{signal});}
 export function fetchAssignmentConflictIndex(signal?:AbortSignal){return request<{readOnly:true;data:WorkOrder[]}>('/work-orders/views/assignments/conflict-index',{signal});}
 

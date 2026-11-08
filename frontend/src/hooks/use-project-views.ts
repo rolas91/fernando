@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
+import { usePaginationState } from './use-pagination-state';
 import { useAuth } from '@/contexts/AuthContext';
 import { catalogReadOptions } from '@/lib/pagedCatalog';
 import {
@@ -33,7 +34,9 @@ export function useProjectViews(input: {
     sort: input.filters.sort || '',
     direction: input.filters.direction || '',
   };
-  const filterKey = JSON.stringify(filters);
+  const { pageSize: boardPageSize, setPageSize: setBoardPageSize } =
+    usePaginationState(owner + JSON.stringify(filters));
+  const filterKey = JSON.stringify([filters, boardPageSize]);
   const [boardPosition, setBoardPosition] = useState<{
     key: string;
     pages: Record<string, number>;
@@ -50,10 +53,16 @@ export function useProjectViews(input: {
     }));
   const board = useQueries({
     queries: input.columns.map((status) => ({
-      ...catalogReadOptions<Project>(owner, 'projects', boardPage(status), {
-        ...filters,
-        status,
-      }),
+      ...catalogReadOptions<Project>(
+        owner,
+        'projects',
+        boardPage(status),
+        {
+          ...filters,
+          status,
+        },
+        boardPageSize,
+      ),
       enabled:
         Boolean(user) &&
         input.mode === 'board' &&
@@ -87,16 +96,14 @@ export function useProjectViews(input: {
     ...projectCalendarOptions(owner, input.from, input.to, filters),
     enabled: Boolean(user) && input.mode === 'calendar',
   });
-  const [detailPosition, setDetailPosition] = useState({
-    id: input.selected,
-    page: 1,
-  });
-  const detailPage =
-    detailPosition.id === input.selected ? detailPosition.page : 1;
-  const setDetailPage = (page: number) =>
-    setDetailPosition({ id: input.selected, page: Math.max(1, page) });
+  const {
+    page: detailPage,
+    setPage: setDetailPage,
+    pageSize: detailPageSize,
+    setPageSize: setDetailPageSize,
+  } = usePaginationState(owner + input.selected);
   const detail = useQuery({
-    ...projectDetailOptions(owner, input.selected, detailPage),
+    ...projectDetailOptions(owner, input.selected, detailPage, detailPageSize),
     enabled: Boolean(user && input.selected && input.mode !== 'board'),
   });
   useEffect(() => {
@@ -114,10 +121,14 @@ export function useProjectViews(input: {
     board,
     boardPage,
     setBoardPage,
+    boardPageSize,
+    setBoardPageSize,
     calendar,
     detail,
     detailPage,
     setDetailPage,
+    detailPageSize,
+    setDetailPageSize,
     record,
   };
 }

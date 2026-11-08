@@ -1,5 +1,5 @@
+import DataPagination from '@/components/shared/DataPagination';
 import { usePagedCatalog } from '@/hooks/use-paged-catalog';
-import CatalogPagination from '@/components/shared/CatalogPagination';
 import CatalogQueryState from '@/components/shared/CatalogQueryState';
 import React, { useState, useMemo } from 'react';
 import { useAppContext, AppContextOverride } from '@/contexts/AppContext';
@@ -352,12 +352,7 @@ const EquipmentView: React.FC = () => {
             }}
           />
         )}
-        <CatalogPagination
-          meta={catalog.meta}
-          page={catalog.page}
-          onPage={catalog.setPage}
-          busy={catalog.query.isFetching}
-        />
+        <DataPagination page={catalog.page} total={(catalog.meta)?.total} pageSize={catalog.pageSize} onPage={catalog.setPage} onPageSize={catalog.setPageSize} busy={catalog.query.isFetching} />
       </div>
     </AppContextOverride>
   );

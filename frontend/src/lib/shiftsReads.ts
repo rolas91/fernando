@@ -53,6 +53,7 @@ export function shiftsPageOptions(
   page: number,
   mode: 'list' | 'calendar' | 'board' = 'list',
   pages: Record<string, number> = {},
+  pageSize = 25,
 ) {
   const readMode = mode === 'board' ? 'board' : 'list';
   return {
@@ -64,17 +65,27 @@ export function shiftsPageOptions(
       page,
       readMode,
       pages,
+      pageSize,
     ],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      fetchShiftsPage(filters, page, signal, readMode, pages),
+      fetchShiftsPage(filters, page, signal, readMode, pages, pageSize),
   };
 }
-export function shiftsMetricsOptions(owner: string, day: string) {
+export function shiftsMetricsOptions(
+  owner: string,
+  day: string,
+  range: { from?: string; to?: string } = {},
+) {
   return {
     ...policy,
-    queryKey: [...appDataKey(owner, 'workOrders'), 'shifts-metrics', day],
+    queryKey: [
+      ...appDataKey(owner, 'workOrders'),
+      'shifts-metrics',
+      day,
+      range,
+    ],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      fetchShiftsMetrics(signal),
+      fetchShiftsMetrics(signal, range),
   };
 }
 export function shiftReadDetailOptions(

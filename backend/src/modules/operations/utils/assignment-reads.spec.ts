@@ -143,6 +143,29 @@ describe('assignment page and weekly read contracts', () => {
       to: '2026-11-15',
     });
   });
+  it.each([10, 25, 50])(
+    'keeps complete parents and totals when requesting %i rows',
+    async (limit) => {
+      const { controller } = setup();
+      const result = await controller.page(
+        { limit: String(limit), page: '1' },
+        req,
+      );
+      expect(result.data).toHaveLength(limit);
+      expect(result.meta).toMatchObject({
+        limit,
+        total: 60,
+        totalItems: 1248,
+        totalPages: Math.ceil(60 / limit),
+      });
+      expect(
+        result.data.every(
+          (row) => row.shifts.length === 2 && row.shifts[1].pmApprovedAt,
+        ),
+      ).toBe(true);
+      await expect(controller.page({ limit: '51' }, req)).rejects.toThrow();
+    },
+  );
   it('retains date ordering, all-history reads, grid date bounds and empty pages', async () => {
     const f = setup(40);
     let result = await f.controller.page(

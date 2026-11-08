@@ -88,6 +88,20 @@ describe('payroll report contract', () => {
     expect(sql).not.toContain('t.signature');
     expect(query.mock.calls[1][1]).toEqual([null, null]);
   });
+  it.each([10, 25, 50])(
+    'keeps payroll totals independent of a %i row limit',
+    async (limit) => {
+      const { controller } = setup();
+      const result = await controller.list(
+        { today: '2026-11-05', limit: String(limit) },
+        request,
+      );
+      expect(result.pageRows).toHaveLength(Math.min(limit, 20));
+      expect(result.totalRecords).toBe(20);
+      expect(result.totals.grossPay).toBe(4370);
+      expect(result.totals.hours).toBe(180);
+    },
+  );
   it.each([
     ['week', '2026-11-01', '2026-11-07'],
     ['last_week', '2026-10-25', '2026-10-31'],

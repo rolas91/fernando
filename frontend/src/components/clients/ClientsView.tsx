@@ -87,6 +87,7 @@ const ClientsView: React.FC = () => {
 
         <CatalogQueryState
           loading={catalog.query.isPending}
+          refreshing={catalog.query.isFetching && !catalog.query.isPending}
           error={catalog.query.error}
           retry={() => void catalog.query.refetch()}
         />

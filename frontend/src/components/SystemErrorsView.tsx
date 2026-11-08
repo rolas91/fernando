@@ -1,3 +1,4 @@
+import TableLoading from '@/components/shared/TableLoading';
 import DataPagination from '@/components/shared/DataPagination';
 import { usePaginationState } from '@/hooks/use-pagination-state';
 import { useEffect, useState } from 'react';
@@ -203,7 +204,8 @@ export default function SystemErrorsView() {
           {notice || (query.error as Error)?.message}
         </p>
       )}
-      {query.isLoading && <p role="status">Loading errors…</p>}
+      {query.isLoading && <TableLoading label="Loading errors…" />}
+      {!query.isLoading && query.isFetching && <TableLoading variant="inline" label="Updating errors…" />}
       {query.data && (
         <>
           <p className="text-sm text-gray-600">

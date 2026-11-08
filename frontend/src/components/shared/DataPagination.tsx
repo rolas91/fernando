@@ -3,6 +3,8 @@ import {
   paginationNumbers,
   paginationRange,
 } from '@/lib/pagination';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import TableLoading from './TableLoading';
 
 export default function DataPagination({
   page,
@@ -34,18 +36,23 @@ export default function DataPagination({
     <nav
       aria-label={`${itemLabel} pagination`}
       aria-busy={busy}
-      className={`flex shrink-0 flex-wrap items-center justify-between gap-3 bg-white py-3 text-sm text-gray-700 ${className}`}
+      className={`data-pagination shrink-0 bg-white px-4 py-3 text-sm text-gray-700 ${className}`}
     >
-      <span role="status" aria-live="polite" className="tabular-nums">
-        {total === undefined
-          ? busy
-            ? 'Loading…'
-            : 'Results unavailable'
-          : `${range.first}–${range.last} of ${total} ${itemLabel}`}
-        {total !== undefined && busy ? ' · Loading…' : ''}
-      </span>
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2">
+      <div className="data-pagination__layout">
+        <div role="status" aria-live="polite" className="min-w-0 tabular-nums">
+          {total === undefined
+            ? !busy && 'Results unavailable'
+            : `${range.first}–${range.last} of ${total} ${itemLabel}`}
+          {busy && (
+            <TableLoading
+              variant="inline"
+              label="Loading…"
+              announce={false}
+              className={total === undefined ? '' : 'ml-2'}
+            />
+          )}
+        </div>
+        <label className="data-pagination__size flex items-center gap-2">
           <span>Rows per page</span>
           <select
             value={pageSize}
@@ -60,19 +67,30 @@ export default function DataPagination({
             ))}
           </select>
         </label>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="data-pagination__navigation">
           <button
             type="button"
+            aria-label="Previous"
             className={button}
             disabled={busy || total === undefined || range.current <= 1}
             onClick={() => onPage(range.current - 1)}
           >
-            Previous
+            <ChevronLeft
+              aria-hidden="true"
+              size={16}
+              className="data-pagination__compact-icon"
+            />
+            <span className="data-pagination__button-label">Previous</span>
           </button>
           {numbers.map((number, index) => (
-            <span key={number} className="flex items-center gap-2">
+            <span
+              key={number}
+              className={`flex items-center gap-2 ${number !== 1 && number !== range.pages && number !== range.current ? 'data-pagination__nearby' : ''}`}
+            >
               {index > 0 && number > numbers[index - 1] + 1 && (
-                <span aria-hidden="true">…</span>
+                <span aria-hidden="true" className="data-pagination__ellipsis">
+                  …
+                </span>
               )}
               <button
                 type="button"
@@ -91,13 +109,19 @@ export default function DataPagination({
           </span>
           <button
             type="button"
+            aria-label="Next"
             className={button}
             disabled={
               busy || total === undefined || range.current >= range.pages
             }
             onClick={() => onPage(range.current + 1)}
           >
-            Next
+            <span className="data-pagination__button-label">Next</span>
+            <ChevronRight
+              aria-hidden="true"
+              size={16}
+              className="data-pagination__compact-icon"
+            />
           </button>
         </div>
       </div>

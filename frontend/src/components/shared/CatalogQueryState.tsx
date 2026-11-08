@@ -1,9 +1,13 @@
+import TableLoading from './TableLoading';
+
 export default function CatalogQueryState({
   loading,
+  refreshing = false,
   error,
   retry,
 }: {
   loading: boolean;
+  refreshing?: boolean;
   error: Error | null;
   retry: () => void;
 }) {
@@ -23,11 +27,14 @@ export default function CatalogQueryState({
         </button>
       </div>
     );
-  if (loading)
+  if (loading) return <TableLoading />;
+  if (refreshing)
     return (
-      <p role="status" className="p-4 text-sm text-gray-600">
-        Loading catalog…
-      </p>
+      <TableLoading
+        variant="inline"
+        label="Updating data…"
+        className="px-4 py-3"
+      />
     );
   return null;
 }

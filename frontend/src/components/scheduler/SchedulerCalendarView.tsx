@@ -3138,7 +3138,7 @@ const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
             })}
 
             {}
-            <AssignmentReadState pending={scopeRead.isPending || (!pageLoaded && completeRecords.isFetching)} failed={scopeRead.isError || completeRecords.isError} retry={() => { void scopeRead.refetch(); void completeRecords.refetch(); }} />
+            <AssignmentReadState refreshing={scopeRead.isFetching || completeRecords.isFetching} pending={scopeRead.isPending || (!pageLoaded && completeRecords.isFetching)} failed={scopeRead.isError || completeRecords.isError} retry={() => { void scopeRead.refetch(); void completeRecords.refetch(); }} />
             {!scopeRead.isPending && !scopeRead.isError && pageLoaded && calendarWorkOrders.length === 0 && (
               <div className="flex items-center justify-center py-20">
                 <div className="text-center">

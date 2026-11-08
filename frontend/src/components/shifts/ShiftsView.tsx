@@ -482,11 +482,13 @@ const ShiftsView: React.FC<{ embedded?: boolean }> = () => {
       <section className={`min-w-0 flex-1 p-6 ${selected ? 'border-r' : ''}`}>
         <CatalogQueryState
           loading={read.query.isPending && read.valid}
+          refreshing={read.query.isFetching && !read.query.isPending}
           error={read.query.error}
           retry={() => void read.query.refetch()}
         />
         <CatalogQueryState
-          loading={read.metrics.isPending}
+          loading={read.metrics.isPending && !read.query.isPending}
+          refreshing={read.metrics.isFetching && !read.metrics.isPending && !read.query.isFetching}
           error={read.metrics.error}
           retry={() => void read.metrics.refetch()}
         />
@@ -617,7 +619,7 @@ const ShiftsView: React.FC<{ embedded?: boolean }> = () => {
         </div>
         {viewMode === 'list' && (
           <div className="mt-5 space-y-3">
-            {projectGroups.length === 0 && (
+            {!read.query.isPending && projectGroups.length === 0 && (
               <div className="rounded-xl border p-12 text-center text-slate-500">
                 No shifts match the selected filters.
               </div>

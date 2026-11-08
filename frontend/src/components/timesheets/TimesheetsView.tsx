@@ -364,6 +364,7 @@ const TimesheetsView: React.FC = () => {
     <div className="min-min-h-[calc(100dvh-64px)] lg:h-[calc(100dvh-64px)] bg-gray-50 p-5 text-gray-950">
       <CatalogQueryState
         loading={query.isPending}
+        refreshing={query.isFetching && !query.isPending}
         error={query.error}
         retry={() => void query.refetch()}
       />

@@ -121,6 +121,7 @@ const ReportsView: React.FC = () => {
     <div className="p-3 sm:p-6 space-y-6">
       <CatalogQueryState
         loading={report.valid && report.query.isPending}
+        refreshing={report.query.isFetching && !report.query.isPending}
         error={report.query.error}
         retry={() => void report.query.refetch()}
       />

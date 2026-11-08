@@ -1,12 +1,25 @@
+import TableLoading from './TableLoading';
+
 export function AssignmentReadState({
   pending,
+  refreshing = false,
   failed,
   retry,
 }: {
   pending: boolean;
+  refreshing?: boolean;
   failed: boolean;
   retry: () => unknown;
 }) {
+  if (!failed && pending) return <TableLoading label="Loading assignments…" />;
+  if (!failed && refreshing)
+    return (
+      <TableLoading
+        variant="inline"
+        label="Updating assignments…"
+        className="px-4 py-3"
+      />
+    );
   if (!pending && !failed) return null;
   return (
     <div

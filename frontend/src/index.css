@@ -192,6 +192,74 @@
   display: none; /* Chrome, Safari, Opera */
 }
 
+.data-pagination {
+  container: data-pagination / inline-size;
+  min-width: 0;
+}
+
+.data-pagination__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.data-pagination__size {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.data-pagination__navigation {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.data-pagination__compact-icon {
+  display: none;
+}
+
+@container data-pagination (max-width: 48rem) {
+  .data-pagination__layout {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .data-pagination__navigation {
+    grid-column: 1 / -1;
+  }
+  .data-pagination__button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .data-pagination__compact-icon {
+    display: block;
+  }
+}
+
+@container data-pagination (max-width: 24rem) {
+  .data-pagination__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .data-pagination__size {
+    justify-self: start;
+  }
+  .data-pagination__navigation {
+    justify-content: flex-start;
+    gap: 0.125rem;
+  }
+  .data-pagination__nearby,
+  .data-pagination__ellipsis {
+    display: none;
+  }
+}
+
 /* Google Places suggestions above modals (z-50) */
 .pac-container {
   z-index: 10050 !important;

@@ -680,6 +680,7 @@ const FormsView: React.FC = () => {
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
             <CatalogQueryState
               loading={catalog.query.isPending}
+              refreshing={catalog.query.isFetching && !catalog.query.isPending}
               error={catalog.query.error}
               retry={() => void catalog.query.refetch()}
             />
@@ -772,7 +773,7 @@ const FormsView: React.FC = () => {
                     </tr>
                   );
                 })}
-                {filteredSubmissions.length === 0 ? (
+                {!catalog.query.isPending && filteredSubmissions.length === 0 ? (
                   <tr>
                     <td
                       colSpan={6}
@@ -790,6 +791,7 @@ const FormsView: React.FC = () => {
             catalog.rows.some((row) => row.id === selectedSubmissionId) && (
               <CatalogQueryState
                 loading={detail.isPending}
+                refreshing={detail.isFetching && !detail.isPending}
                 error={detail.error}
                 retry={() => void detail.refetch()}
               />

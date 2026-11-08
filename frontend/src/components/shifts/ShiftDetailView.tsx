@@ -1,3 +1,4 @@
+import TableLoading from '@/components/shared/TableLoading';
 import { documentFileName } from '@/lib/documentFileName';
 import { useReferencedMaterials } from '@/hooks/use-referenced-materials';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -1520,9 +1521,7 @@ const TimesheetsTab = ({
 }) => {
   if (loading)
     return (
-      <p className="py-12 text-center text-sm text-slate-500">
-        Loading timesheets...
-      </p>
+      <TableLoading label="Loading timesheets…" />
     );
   if (error || rows.length === 0)
     return (

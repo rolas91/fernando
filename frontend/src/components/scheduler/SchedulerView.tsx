@@ -1,3 +1,4 @@
+import TableLoading from '@/components/shared/TableLoading';
 import { useDeferredAppData } from '@/hooks/use-deferred-app-data';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
@@ -1785,8 +1786,7 @@ const SchedulerView: React.FC = () => {
           onChangeView={setSchedulerViewType}
         />
         <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 gap-3">
-          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-          <div className="text-sm text-gray-600">Loading schedule…</div>
+          <TableLoading label="Loading schedule…" />
           <div className="text-xs text-gray-400">
             {isDbConnected
               ? 'Fetching assignments from the database'

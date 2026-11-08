@@ -32,8 +32,11 @@ backend/public/
 *.p12
 *.p8
 *.jks
+*.keystore
+*.pfx
 *.mobileprovision
 **/google-services.json
+**/GoogleService-Info.plist
 **/*service-account*.json
 **/*serviceAccount*.json
 **/credentials.json

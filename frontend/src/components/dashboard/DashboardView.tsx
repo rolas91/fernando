@@ -40,6 +40,7 @@ const DashboardView: React.FC = () => {
       <div className="p-6">
         <CatalogQueryState
           loading={dashboard.query.isPending}
+          refreshing={dashboard.query.isFetching && !dashboard.query.isPending}
           error={dashboard.query.error}
           retry={() => void dashboard.query.refetch()}
         />
@@ -57,6 +58,7 @@ const DashboardView: React.FC = () => {
       <div className="p-3 sm:p-6 space-y-6">
         <CatalogQueryState
           loading={false}
+          refreshing={dashboard.query.isFetching}
           error={dashboard.query.error}
           retry={() => void dashboard.query.refetch()}
         />
@@ -281,12 +283,11 @@ const DashboardView: React.FC = () => {
           </div>
 
           {}
-          <div className="bg-white rounded-xl border border-gray-200">
+          <div className="flex min-w-0 flex-col overflow-hidden bg-white rounded-xl border border-gray-200">
             <div className="p-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-800">Activity Feed</h2>
             </div>
-            <div className="max-h-[500px] overflow-y-auto">
-              <DataPagination page={dashboard.page} total={(data.activity.meta)?.total} pageSize={dashboard.pageSize} onPage={dashboard.setPage} onPageSize={dashboard.setPageSize} busy={dashboard.query.isFetching} />
+            <div className="max-h-[500px] flex-1 overflow-y-auto">
               {todayActivity.map((item) => (
                 <div
                   key={item.id}
@@ -366,11 +367,22 @@ const DashboardView: React.FC = () => {
                 </div>
               ))}
               {todayActivity.length === 0 && (
-                <p className="p-8 text-center text-sm text-gray-500">
+                <p className="flex min-h-40 items-center justify-center p-6 text-center text-sm text-gray-500">
                   No activity recorded today.
                 </p>
               )}
             </div>
+            {data.activity.meta.total > 0 && (
+              <DataPagination
+                page={dashboard.page}
+                total={data.activity.meta.total}
+                pageSize={dashboard.pageSize}
+                onPage={dashboard.setPage}
+                onPageSize={dashboard.setPageSize}
+                busy={dashboard.query.isFetching}
+                className="border-t border-gray-100"
+              />
+            )}
           </div>
         </div>
 

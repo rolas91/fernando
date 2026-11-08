@@ -1,3 +1,4 @@
+import TableLoading from '@/components/shared/TableLoading';
 export function DocumentReadNotice({
   pending,
   failed,
@@ -7,6 +8,7 @@ export function DocumentReadNotice({
   failed: boolean;
   retry: () => unknown;
 }) {
+  if (pending && !failed) return <TableLoading label="Loading form responses…" />;
   if (!pending && !failed) return null;
   return (
     <div

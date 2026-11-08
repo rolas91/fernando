@@ -5,7 +5,7 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { load, paginationHarness } = require('./pagination-harness.cjs');
 const utils = load('lib/pagination.ts');
-const Pager = load('components/shared/DataPagination.tsx', { '@/lib/pagination': utils }).default;
+const Pager = load('components/shared/DataPagination.tsx', { '@/lib/pagination': utils, './TableLoading': load('components/shared/TableLoading.tsx') }).default;
 const render = paginationHarness();
 let state = render('week1', 180);
 state.setPage(4); state = render('week1', 180); assert.equal(state.page, 4);
@@ -29,7 +29,7 @@ const props = { page: 2, pageSize: 25, total: 86, onPage: value => page = value,
 const tree = Pager(props);
 const select = nodes(tree, 'select')[0]; assert.deepEqual(nodes(select, 'option').map(node => node.props.value), [10, 25, 50]);
 select.props.onChange({ target: { value: '50' } }); assert.equal(selected, 50);
-nodes(tree, 'button').find(node => node.props.children === 'Next').props.onClick(); assert.equal(page, 3);
+nodes(tree, 'button').find(node => node.props['aria-label'] === 'Next').props.onClick(); assert.equal(page, 3);
 for (const [total, current, size, expected] of [[0, 1, 25, '0–0 of 0'], [86, 4, 25, '76–86 of 86'], [86, 2, 50, '51–86 of 86']]) {
   assert(renderToStaticMarkup(React.createElement(Pager, { ...props, total, page: current, pageSize: size })).includes(expected));
 }

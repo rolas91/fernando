@@ -13,7 +13,7 @@ const compact=full.map(({id,title,projectId,status,shifts})=>({id,title,projectI
 for(const worker of ['confirmed','declined','pending','absent']){for(const date of ['2026-11-05','2026-11-12']){assert.equal(restModule.exports.getWeeklyAssignedShiftCount(worker,compact,date),restModule.exports.getWeeklyAssignedShiftCount(worker,full,date));assert.equal(restModule.exports.getRestHoursSinceLastShift(worker,compact,date,'08:00'),restModule.exports.getRestHoursSinceLastShift(worker,full,date,'08:00'));}}
 assert.equal(restModule.exports.getRestHoursSinceLastShift('confirmed',compact,'2026-11-05','08:00'),2);assert.equal(restModule.exports.getRestHoursSinceLastShift('declined',compact,'2026-11-05','08:00'),null);
 const React=require('react'),renderMarkup=require('react-dom/server').renderToStaticMarkup;
-const Pager=load('components/shared/DataPagination.tsx',{'@/lib/pagination':load('lib/pagination.ts')}).default;
+const Pager=load('components/shared/DataPagination.tsx',{'@/lib/pagination':load('lib/pagination.ts'),'./TableLoading':load('components/shared/TableLoading.tsx')}).default;
 const markup=renderMarkup(React.createElement(Pager,{page:2,total:86,pageSize:25,onPage:()=>{},onPageSize:()=>{},itemLabel:'assignments'}));assert(markup.includes('26–50 of'));assert(markup.includes('86 assignments'));assert(markup.includes('aria-current="page"'));assert(markup.includes('aria-label="Page 4"'));assert(markup.includes('Rows per page'));assert(markup.includes('Next'));assert(markup.includes('Previous'));
 // Run the actual context writer with a complete page snapshot, preserving PM siblings.
 const action=declarations('../src/contexts/AppContext.tsx').updateWorkOrder;

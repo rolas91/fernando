@@ -326,7 +326,7 @@ const ProjectsView: React.FC = () => {
           loading={
             (related.loading || views.record.isPending) &&
             !(related.error || views.record.error)
-          }
+          } refreshing={views.record.isFetching && !views.record.isPending}
           error={related.error || views.record.error}
           retry={() => {
             related.retry();
@@ -539,6 +539,7 @@ const ProjectsView: React.FC = () => {
         {viewMode === 'list' && (
           <CatalogQueryState
             loading={catalog.query.isPending}
+            refreshing={catalog.query.isFetching && !catalog.query.isPending}
             error={catalog.query.error}
             retry={() => void catalog.query.refetch()}
           />
@@ -553,6 +554,7 @@ const ProjectsView: React.FC = () => {
         {viewMode === 'calendar' && (
           <CatalogQueryState
             loading={views.calendar.isPending}
+            refreshing={views.calendar.isFetching && !views.calendar.isPending}
             error={views.calendar.error}
             retry={() => void views.calendar.refetch()}
           />
@@ -560,6 +562,7 @@ const ProjectsView: React.FC = () => {
         {selectedProject && viewMode !== 'board' && (
           <CatalogQueryState
             loading={views.detail.isPending}
+            refreshing={views.detail.isFetching && !views.detail.isPending}
             error={views.detail.error}
             retry={() => void views.detail.refetch()}
           />
@@ -632,7 +635,7 @@ const ProjectsView: React.FC = () => {
                       </div>
                     );
                   })}
-                  {filtered.length === 0 && (
+                  {!catalog.query.isPending && filtered.length === 0 && (
                     <div className="text-center py-12 text-gray-400">
                       <FolderKanban
                         size={40}
@@ -964,7 +967,7 @@ const ProjectsView: React.FC = () => {
                               </button>
                             );
                           })}
-                          {dayProjects.length === 0 && (
+                          {!views.calendar.isPending && dayProjects.length === 0 && (
                             <div className="h-full flex items-center justify-center">
                               <span className="text-xs text-gray-300">-</span>
                             </div>
@@ -1144,6 +1147,7 @@ const ProjectsView: React.FC = () => {
                         {enabled && (
                           <CatalogQueryState
                             loading={columnQuery.isPending}
+                            refreshing={columnQuery.isFetching && !columnQuery.isPending}
                             error={columnQuery.error}
                             retry={() => void columnQuery.refetch()}
                           />
@@ -1200,7 +1204,7 @@ const ProjectsView: React.FC = () => {
                         {enabled && (
                           <DataPagination page={views.boardPage(status)} total={(columnQuery.data?.meta)?.total} pageSize={views.boardPageSize} onPage={(page) => views.setBoardPage(status, page)} onPageSize={views.setBoardPageSize} busy={columnQuery.isFetching} />
                         )}
-                        {columnProjects.length === 0 && (
+                        {(!enabled || !columnQuery.isPending) && columnProjects.length === 0 && (
                           <div className="text-center py-8 text-gray-400">
                             <p className="text-xs">No projects</p>
                           </div>

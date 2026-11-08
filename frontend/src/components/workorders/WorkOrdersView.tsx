@@ -1,3 +1,4 @@
+import TableLoading from '@/components/shared/TableLoading';
 import DataPagination from '@/components/shared/DataPagination';
 import { useAssignmentChatRead } from '@/hooks/use-assignment-chat-read';
 import { AppContextOverride } from '@/contexts/AppContext';
@@ -1077,7 +1078,7 @@ const WorkOrdersView: React.FC = () => {
       {}
       <div ref={assignmentRowsRef} className="flex-1 overflow-auto">
         {}
-        <AssignmentReadState pending={assignmentPage.isPending} failed={assignmentPage.isError} retry={assignmentPage.refetch} />
+        <AssignmentReadState refreshing={assignmentPage.isFetching && !assignmentPage.isPending} pending={assignmentPage.isPending} failed={assignmentPage.isError} retry={assignmentPage.refetch} />
         {viewMode === 'list' && (
           <div className="p-3 sm:p-6">
             <div className="flex gap-6">
@@ -1939,9 +1940,7 @@ const WorkOrdersView: React.FC = () => {
             </div>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               {trashLoading ? (
-                <p className="py-10 text-center text-sm text-gray-500">
-                  Loading Recycle Bin...
-                </p>
+                <TableLoading label="Loading Recycle Bin…" />
               ) : trashedWorkOrders.length === 0 ? (
                 <p className="py-10 text-center text-sm text-gray-500">
                   The Recycle Bin is empty.

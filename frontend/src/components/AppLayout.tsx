@@ -1,3 +1,4 @@
+import TableLoading from '@/components/shared/TableLoading';
 import React, { useEffect, useState } from 'react';
 import * as NavigationDialog from '@radix-ui/react-dialog';
 import { useAppContext } from '@/contexts/AppContext';
@@ -162,9 +163,11 @@ const AppLayout: React.FC = () => {
               </button>
             </div>
           )}
-          {pageDataReady ? renderPage() : (
-            <div role="status" aria-live="polite" className="flex min-h-64 items-center justify-center px-6 text-sm text-gray-600">
-              {isLoading ? 'Loading this section…' : 'This section could not finish loading. Use Retry loading above to try again.'}
+          {pageDataReady ? renderPage() : isLoading ? (
+            <TableLoading label="Loading this section…" className="px-4" />
+          ) : (
+            <div role="alert" className="flex min-h-64 items-center justify-center px-6 text-sm text-gray-600">
+              This section could not finish loading. Use Retry loading above to try again.
             </div>
           )}
         </main>

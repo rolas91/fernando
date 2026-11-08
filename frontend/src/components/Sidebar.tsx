@@ -259,7 +259,7 @@ const Sidebar: React.FC<{ mobile?: boolean; onNavigate?: () => void }> = ({
       {}
       <nav
         aria-label="Main navigation"
-        className="min-h-0 flex-1 py-2 overflow-y-auto overscroll-contain"
+        className="hide-scrollbar min-h-0 flex-1 py-2 overflow-y-auto overscroll-contain"
       >
         {visibleNavItems.map((item) => {
           if (isNavGroup(item)) {

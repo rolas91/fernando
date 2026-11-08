@@ -1,3 +1,5 @@
+import DataPagination from '@/components/shared/DataPagination';
+import { usePaginationState } from '@/hooks/use-pagination-state';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -16,10 +18,6 @@ import {
   ClipboardCheck,
   Timer,
   TrendingUp,
-  ChevronsLeft,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
   Info,
 } from 'lucide-react';
 import SearchableSelect from '@/components/shared/SearchableSelect';
@@ -34,8 +32,6 @@ const TimesheetsView: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [exportingExcel, setExportingExcel] = useState(false);
-  const [page, setPage] = useState(1);
-  const rowsPerPage = 7;
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -47,15 +43,17 @@ const TimesheetsView: React.FC = () => {
     projectId: projectFilter,
     workerId: workerFilter,
   };
+  const { page, setPage, pageSize: rowsPerPage, setPageSize } = usePaginationState(JSON.stringify([user?.id, filters]), undefined, 7);
   const query = useQuery({
     queryKey: [
       ...appDataKey(user?.id || 'guest', 'timesheets'),
       'payroll',
       filters,
       page,
+      rowsPerPage,
     ],
     queryFn: ({ signal }) =>
-      fetchPayrollReport({ ...filters, page: String(page) }, signal),
+      fetchPayrollReport({ ...filters, page: String(page), limit: String(rowsPerPage) }, signal),
     enabled: Boolean(user),
     staleTime: 30000,
     refetchOnWindowFocus: false,
@@ -621,67 +619,7 @@ const TimesheetsView: React.FC = () => {
                 </tbody>
               </table>
             </div>
-            <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-medium text-gray-600">
-                Showing {totalRecords === 0 ? 0 : (page - 1) * rowsPerPage + 1}{' '}
-                to {Math.min(page * rowsPerPage, totalRecords)} of{' '}
-                {totalRecords} timesheets
-              </p>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-600">
-                  Rows per page:
-                </span>
-                <select
-                  value={rowsPerPage}
-                  disabled
-                  className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700"
-                >
-                  <option>{rowsPerPage}</option>
-                </select>
-                <button
-                  onClick={() => setPage(1)}
-                  disabled={page === 1}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
-                >
-                  <ChevronsLeft size={16} />
-                </button>
-                <button
-                  onClick={() => setPage((value) => Math.max(1, value - 1))}
-                  disabled={page === 1}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                {Array.from(
-                  { length: Math.min(totalPages, 5) },
-                  (_, index) => index + 1,
-                ).map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => setPage(item)}
-                    className={`h-9 w-9 rounded-md text-sm font-bold ${page === item ? 'bg-blue-600 text-white' : 'border border-gray-200 bg-white text-gray-700'}`}
-                  >
-                    {item}
-                  </button>
-                ))}
-                <button
-                  onClick={() =>
-                    setPage((value) => Math.min(totalPages, value + 1))
-                  }
-                  disabled={page === totalPages}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
-                >
-                  <ChevronRight size={16} />
-                </button>
-                <button
-                  onClick={() => setPage(totalPages)}
-                  disabled={page === totalPages}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 disabled:opacity-40"
-                >
-                  <ChevronsRight size={16} />
-                </button>
-              </div>
-            </div>
+            <DataPagination page={page} total={report?.totalRecords} pageSize={rowsPerPage} onPage={setPage} onPageSize={setPageSize} busy={query.isFetching} itemLabel="timesheets" className="border-t border-gray-100 px-4" />
           </div>
         </div>
 

@@ -1,8 +1,8 @@
+import DataPagination from '@/components/shared/DataPagination';
 import { latestProjectSnapshot } from '@/lib/projectViews';
 import { usePagedCatalog } from '@/hooks/use-paged-catalog';
 import { useDeferredAppData } from '@/hooks/use-deferred-app-data';
 import { useProjectViews } from '@/hooks/use-project-views';
-import CatalogPagination from '@/components/shared/CatalogPagination';
 import CatalogQueryState from '@/components/shared/CatalogQueryState';
 import React, { useState, useMemo } from 'react';
 import { useAppContext, AppContextOverride } from '@/contexts/AppContext';
@@ -774,12 +774,7 @@ const ProjectsView: React.FC = () => {
                             <Plus size={12} /> Add Assignment
                           </button>
                         </div>
-                        <CatalogPagination
-                          meta={views.detail.data?.assignments.meta}
-                          page={views.detailPage}
-                          onPage={views.setDetailPage}
-                          busy={views.detail.isFetching}
-                        />
+                        <DataPagination page={views.detailPage} total={(views.detail.data?.assignments.meta)?.total} pageSize={views.detailPageSize} onPage={views.setDetailPage} onPageSize={views.setDetailPageSize} busy={views.detail.isFetching} />
                         {projectWorkOrders.length > 0 ? (
                           <div className="space-y-2">
                             {projectWorkOrders.map((wo) => {
@@ -1101,12 +1096,7 @@ const ProjectsView: React.FC = () => {
                       </div>
                     ))}
                   </div>
-                  <CatalogPagination
-                    meta={views.detail.data?.assignments.meta}
-                    page={views.detailPage}
-                    onPage={views.setDetailPage}
-                    busy={views.detail.isFetching}
-                  />
+                  <DataPagination page={views.detailPage} total={(views.detail.data?.assignments.meta)?.total} pageSize={views.detailPageSize} onPage={views.setDetailPage} onPageSize={views.setDetailPageSize} busy={views.detail.isFetching} />
                 </div>
               )}
             </div>
@@ -1208,12 +1198,7 @@ const ProjectsView: React.FC = () => {
                           );
                         })}
                         {enabled && (
-                          <CatalogPagination
-                            meta={columnQuery.data?.meta}
-                            page={views.boardPage(status)}
-                            onPage={(page) => views.setBoardPage(status, page)}
-                            busy={columnQuery.isFetching}
-                          />
+                          <DataPagination page={views.boardPage(status)} total={(columnQuery.data?.meta)?.total} pageSize={views.boardPageSize} onPage={(page) => views.setBoardPage(status, page)} onPageSize={views.setBoardPageSize} busy={columnQuery.isFetching} />
                         )}
                         {columnProjects.length === 0 && (
                           <div className="text-center py-8 text-gray-400">
@@ -1240,12 +1225,7 @@ const ProjectsView: React.FC = () => {
           />
         )}
         {viewMode === 'list' && (
-          <CatalogPagination
-            meta={catalog.meta}
-            page={catalog.page}
-            onPage={catalog.setPage}
-            busy={catalog.query.isFetching}
-          />
+          <DataPagination page={catalog.page} total={(catalog.meta)?.total} pageSize={catalog.pageSize} onPage={catalog.setPage} onPageSize={catalog.setPageSize} busy={catalog.query.isFetching} />
         )}
       </div>
     </AppContextOverride>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { usePaginationState } from './use-pagination-state';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   scheduleScopeOptions,
@@ -43,25 +44,18 @@ export function useConflictAssignments() {
   }, [query.isSuccess, query.isFetching, user?.id]);
   return { ...query, ready: Boolean(user && readyOwner === user.id) };
 }
-export function usePagePosition(key: string, total?: number) {
-  const [state, setState] = useState({ key, page: 1 });
-  const page = state.key === key ? state.page : 1;
-  const setPage = useCallback(
-    (page: number) => setState({ key, page: Math.max(1, page) }),
-    [key],
-  );
-  useEffect(() => {
-    if (total !== undefined && page > Math.max(1, Math.ceil(total / 25)))
-      setState({ key, page: Math.max(1, Math.ceil(total / 25)) });
-  }, [key, page, total]);
-  return { page, setPage };
-}
+export const usePagePosition = usePaginationState;
 export function useAssignmentPage(filters: Record<string, string>) {
   const { user } = useAuth();
   const key = JSON.stringify(filters);
   const position = usePagePosition(key);
   const query = useQuery({
-    ...assignmentPageOptions(user?.id || 'guest', filters, position.page),
+    ...assignmentPageOptions(
+      user?.id || 'guest',
+      filters,
+      position.page,
+      position.pageSize,
+    ),
     enabled: Boolean(user),
   });
   useEffect(() => {

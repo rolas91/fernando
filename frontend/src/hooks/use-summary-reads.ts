@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePaginationState } from './use-pagination-state';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from './use-toast';
 import {
@@ -12,8 +13,9 @@ import {
 export function useDashboardRead() {
   const { user } = useAuth();
   const [day, setDay] = useState(dashboardDay);
-  const [position, setPosition] = useState({ date: day.date, page: 1 });
-  const page = position.date === day.date ? position.page : 1;
+  const { page, setPage, pageSize, setPageSize } = usePaginationState(
+    user?.id + day.date,
+  );
   useEffect(() => {
     const now = new Date(),
       midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -24,16 +26,14 @@ export function useDashboardRead() {
     return () => clearTimeout(timer);
   }, [day]);
   const query = useQuery({
-    ...dashboardReadOptions(user?.id || 'guest', day, page),
+    ...dashboardReadOptions(user?.id || 'guest', day, page, pageSize),
     enabled: Boolean(user),
   });
-  const setPage = (page: number) =>
-    setPosition({ date: day.date, page: Math.max(1, page) });
   useEffect(() => {
     if (query.data && page > Math.max(1, query.data.activity.meta.totalPages))
       setPage(Math.max(1, query.data.activity.meta.totalPages));
   }, [query.data, page]);
-  return { query, day, page, setPage };
+  return { query, day, page, setPage, pageSize, setPageSize };
 }
 export function useOperationsRead(
   range: { start: string; end: string },
@@ -49,16 +49,21 @@ export function useOperationsRead(
       active.current = false;
     };
   }, [user?.id]);
-  const key = JSON.stringify({ range, section }),
-    [position, setPosition] = useState({ key, page: 1 }),
-    page = position.key === key ? position.page : 1;
+  const key = JSON.stringify({ range, section });
+  const { page, setPage, pageSize, setPageSize } = usePaginationState(
+    user?.id + key,
+  );
   const valid = Boolean(range.start && range.end && range.start <= range.end);
   const query = useQuery({
-    ...operationsReadOptions(user?.id || 'guest', range, section, page),
+    ...operationsReadOptions(
+      user?.id || 'guest',
+      range,
+      section,
+      page,
+      pageSize,
+    ),
     enabled: Boolean(user) && valid,
   });
-  const setPage = (page: number) =>
-    setPosition({ key, page: Math.max(1, page) });
   useEffect(() => {
     if (query.data && page > Math.max(1, query.data.meta.totalPages))
       setPage(Math.max(1, query.data.meta.totalPages));
@@ -85,5 +90,14 @@ export function useOperationsRead(
       if (active.current) setExporting(false);
     }
   };
-  return { query, page, setPage, valid, exportAll, exporting };
+  return {
+    query,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    valid,
+    exportAll,
+    exporting,
+  };
 }

@@ -57,6 +57,7 @@ export interface PayrollInput {
   projectFilter: string;
   workerFilter: string;
   page: number;
+  limit?: number;
 }
 
 const clockMinutes = (value?: string | null) => {
@@ -133,7 +134,7 @@ export function calculatePayroll(input: PayrollInput) {
       new Map(order.shifts.map((shift) => [shift.id, shift])),
     ]),
   );
-  const rowsPerPage = 7;
+  const rowsPerPage = input.limit ?? 7;
 
   const workersById = new Map(workers.map((row) => [row.id, row]));
   const projectsById = new Map(projects.map((row) => [row.id, row]));

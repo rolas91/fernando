@@ -41,11 +41,18 @@ export function catalogReadOptions<T>(
   resource: CatalogResource,
   page: number,
   filters: CatalogFilters,
+  pageSize = 25,
 ) {
   return {
-    queryKey: [...appDataKey(userId, resource), 'page', page, filters],
+    queryKey: [
+      ...appDataKey(userId, resource),
+      'page',
+      page,
+      filters,
+      pageSize,
+    ],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
-      fetchPaged<T>(resource, page, 25, filters, signal),
+      fetchPaged<T>(resource, page, pageSize, filters, signal),
     staleTime: 30000,
     refetchOnWindowFocus: false,
     retry: shouldRetryAppRead,

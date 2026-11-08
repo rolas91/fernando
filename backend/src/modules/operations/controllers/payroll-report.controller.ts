@@ -226,6 +226,7 @@ export class PayrollReportController {
       projectFilter,
       workerFilter,
       page,
+      limit: pageNumber(query.limit, 7, 50),
     });
     // The sidebar needs only the labels for its three recent entries per worker.
     const recentIds = new Set(

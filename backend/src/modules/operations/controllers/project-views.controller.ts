@@ -120,6 +120,7 @@ export class ProjectViewsController {
     @Param('id') id: string,
     @Query('page') pageValue: string | undefined,
     @Req() req: ActorRequest,
+    @Query('limit') limitValue?: string,
   ) {
     this.requirePermissions(req.user, [
       'projects.read',
@@ -128,7 +129,7 @@ export class ProjectViewsController {
       'workers.read',
     ]);
     const page = pageNumber(pageValue, 1, 10000000),
-      limit = 25;
+      limit = pageNumber(limitValue, 25, 50);
     const project = await this.source
       .getRepository(Project)
       .findOne({ where: { id } });

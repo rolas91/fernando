@@ -80,7 +80,7 @@ export class DashboardReadController {
         'Provide the local day boundaries for dashboard activity.',
       );
     const page = pageNumber(query.activityPage, 1, 10000000),
-      limit = 25;
+      limit = pageNumber(query.activityLimit, 25, 50);
     await this.timesheets.prepareForRead();
     await this.incidents.prepareForRead();
     const orders = await this.source

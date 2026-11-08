@@ -1,7 +1,7 @@
+import DataPagination from '@/components/shared/DataPagination';
 import React, { useState } from 'react';
 import { useOperationsRead } from '@/hooks/use-summary-reads';
 import type { ReportSection } from '@/lib/summaryReads';
-import CatalogPagination from '@/components/shared/CatalogPagination';
 import CatalogQueryState from '@/components/shared/CatalogQueryState';
 import {
   BarChart3,
@@ -576,12 +576,7 @@ const ReportsView: React.FC = () => {
         </div>
       )}
       {reportType !== 'overview' && (
-        <CatalogPagination
-          meta={data?.meta}
-          page={report.page}
-          onPage={report.setPage}
-          busy={report.query.isFetching}
-        />
+        <DataPagination page={report.page} total={(data?.meta)?.total} pageSize={report.pageSize} onPage={report.setPage} onPageSize={report.setPageSize} busy={report.query.isFetching} />
       )}
     </div>
   );

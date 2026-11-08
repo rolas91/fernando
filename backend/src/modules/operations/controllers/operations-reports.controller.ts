@@ -47,7 +47,7 @@ export class OperationsReportsController {
       await this.calculate(query, req.user);
     const section = this.section(query.section),
       page = pageNumber(query.page, 1, 10000000),
-      limit = 25;
+      limit = pageNumber(query.limit, 25, 50);
     const total =
       section === 'worker_hours'
         ? report.workerHours.length

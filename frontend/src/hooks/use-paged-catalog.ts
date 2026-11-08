@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePaginationState } from './use-pagination-state';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from './use-toast';
 import { appDataKey } from '@/lib/appDataQueries';
@@ -41,19 +42,17 @@ export function usePagedCatalog<T>(
     direction: filters.direction || '',
   };
   const filterKey = JSON.stringify(normalized);
-  const [position, setPosition] = useState({ key: filterKey, page: 1 });
-  const page = position.key === filterKey ? position.page : 1;
-  useEffect(() => {
-    setPosition((previous) =>
-      previous.key === filterKey ? previous : { key: filterKey, page: 1 },
-    );
-  }, [filterKey]);
-  const setPage = useCallback(
-    (next: number) => setPosition({ key: filterKey, page: Math.max(1, next) }),
-    [filterKey],
+  const { page, setPage, pageSize, setPageSize } = usePaginationState(
+    user?.id + filterKey,
   );
   const query = useQuery({
-    ...catalogReadOptions<T>(user?.id || 'guest', resource, page, normalized),
+    ...catalogReadOptions<T>(
+      user?.id || 'guest',
+      resource,
+      page,
+      normalized,
+      pageSize,
+    ),
     enabled: Boolean(user) && enabled,
   });
   useEffect(() => {
@@ -125,6 +124,8 @@ export function usePagedCatalog<T>(
     projectMetrics: query.data?.projectMetrics || {},
     page,
     setPage,
+    pageSize,
+    setPageSize,
     refresh,
     overrides,
     exportAll,

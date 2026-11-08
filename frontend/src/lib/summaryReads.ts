@@ -89,6 +89,7 @@ export function dashboardReadOptions(
   owner: string,
   day: ReturnType<typeof dashboardDay>,
   activityPage: number,
+  pageSize = 25,
 ) {
   return {
     ...policy,
@@ -97,10 +98,15 @@ export function dashboardReadOptions(
       'dashboard',
       day,
       activityPage,
+      pageSize,
     ],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       fetchDashboardRead(
-        { ...day, activityPage: String(activityPage) },
+        {
+          ...day,
+          activityPage: String(activityPage),
+          activityLimit: String(pageSize),
+        },
         signal,
       ),
   };
@@ -110,6 +116,7 @@ export function operationsReadOptions(
   range: { start: string; end: string },
   section: ReportSection,
   page: number,
+  pageSize = 25,
 ) {
   return {
     ...policy,
@@ -119,10 +126,17 @@ export function operationsReadOptions(
       range,
       section,
       page,
+      pageSize,
     ],
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       fetchOperationsRead(
-        { from: range.start, to: range.end, section, page: String(page) },
+        {
+          from: range.start,
+          to: range.end,
+          section,
+          page: String(page),
+          limit: String(pageSize),
+        },
         signal,
       ),
   };

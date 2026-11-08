@@ -1,6 +1,6 @@
+import DataPagination from '@/components/shared/DataPagination';
 import { useShiftsRead } from '@/hooks/use-shifts-read';
 import CatalogQueryState from '@/components/shared/CatalogQueryState';
-import CatalogPagination from '@/components/shared/CatalogPagination';
 import ScopedShiftDetail from './ScopedShiftDetail';
 import { documentFileName } from '@/lib/documentFileName';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -935,24 +935,14 @@ const ShiftsView: React.FC<{ embedded?: boolean }> = () => {
                         </button>
                       ))}
                     </div>
-                    <CatalogPagination
-                      meta={read.query.data?.columns?.[status]}
-                      page={read.columnPage(status)}
-                      onPage={(page) => read.setColumnPage(status, page)}
-                      busy={read.query.isFetching}
-                    />
+                    <DataPagination page={read.columnPage(status)} total={(read.query.data?.columns?.[status])?.total} pageSize={read.pageSize} onPage={(page) => read.setColumnPage(status, page)} onPageSize={read.setPageSize} busy={read.query.isFetching} />
                   </div>
                 );
               })}
           </div>
         )}
         {viewMode !== 'board' && (
-          <CatalogPagination
-            meta={read.query.data?.meta}
-            page={read.page}
-            onPage={read.setPage}
-            busy={read.query.isFetching}
-          />
+          <DataPagination page={read.page} total={(read.query.data?.meta)?.total} pageSize={read.pageSize} onPage={read.setPage} onPageSize={read.setPageSize} busy={read.query.isFetching} />
         )}
       </section>
       {exportPdfOpen && (

@@ -39,7 +39,7 @@
     "docker:logs": "docker compose --env-file .env.docker logs -f --tail=100",
     "docker:migrate": "docker compose --env-file .env.docker run --rm --build migrate",
     "docker:build": "docker compose --env-file .env.docker build",
-    "check:workspace": "node --test scripts/workspace.test.cjs scripts/security-dependencies.test.cjs",
+    "check:workspace": "node --test scripts/workspace.test.cjs scripts/security-dependencies.test.cjs scripts/deployment/*.test.cjs",
     "dev:local": "node scripts/run-local.cjs",
     "docker:db": "docker compose --env-file .env.docker up -d --wait db",
     "docker:seed": "docker compose --env-file .env.docker run --rm --build api node dist/database/seed-iam.js"

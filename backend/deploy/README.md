@@ -1,5 +1,7 @@
 # Despliegue con GitHub Actions, GHCR y Docker Compose
 
+El flujo actual de dev automático y promoción manual está documentado en `../../docs/deployment-promotion.md`. Usa `deploy-release.sh`, versiones verificadas y controles separados `ENABLE_DEV_DEPLOY` / `ENABLE_PRODUCTION_PROMOTION`. Las instrucciones siguientes describen el helper anterior `deploy.sh` y la configuración histórica; no activar `ENABLE_VPS_DEPLOY` para el flujo nuevo.
+
 Actualización de monorepo: el destino ahora es https://github.com/rolas91/fernando.git, rama master. Los workflows activos están en .github/workflows de la raíz y producen ghcr.io/rolas91/fernando-api y ghcr.io/rolas91/fernando-web. Los contratos usan frontend/backend del mismo commit; no requieren DEPENDENCIES_READ_TOKEN ni BACKEND_CONTRACT_REF. Las instrucciones de repositorios separados que siguen son históricas: consultar WORKSPACE.md de la raíz para la configuración actual de CI. Mantener ENABLE_VPS_DEPLOY desactivado durante la validación del entorno dev.
 
 Esta carpeta pertenece al repositorio backend y es la fuente de la configuración del VPS. No se ha conectado a ningún servidor real ni se han publicado imágenes durante la configuración.

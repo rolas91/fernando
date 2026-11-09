@@ -1,0 +1,77 @@
+name: Promover a producción
+run-name: Producción · versión ${{ inputs.release_run }} · ${{ inputs.operation }}
+on:
+  workflow_dispatch:
+    inputs:
+      release_run:
+        description: Número de ejecución de CI probado en dev (Actions run ID)
+        type: string
+        required: true
+      operation:
+        description: Promover o restaurar una versión anterior validada
+        type: choice
+        options: [promote, rollback]
+        default: promote
+      validated_in_dev:
+        description: Confirmo que probé esta versión en dev y autorizo actualizar producción
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: deployment-production
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.release.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Require explicit production activation
+        env:
+          ENABLED: ${{ vars.ENABLE_PRODUCTION_PROMOTION }}
+        run: test "$ENABLED" = true
+      - name: Validate successful master build and dev receipt
+        id: release
+        run: node scripts/deployment/release.cjs load
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN: ${{ inputs.release_run }}
+          VALIDATED_IN_DEV: ${{ inputs.validated_in_dev }}
+  production:
+    needs: validate
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: https://drworkops.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Revalidate selected receipt after environment approval
+        run: node scripts/deployment/release.cjs load
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN: ${{ inputs.release_run }}
+          VALIDATED_IN_DEV: ${{ inputs.validated_in_dev }}
+      - name: Deploy the exact version tested in dev
+        run: node scripts/deployment/release.cjs deploy
+        env:
+          DEPLOY_ENVIRONMENT: production
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: production-deployed-${{ github.run_attempt }}
+          path: production-deployed.json
+          retention-days: 90
+          if-no-files-found: error

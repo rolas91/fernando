@@ -4836,14 +4836,9 @@ const EditShiftModal: React.FC<{
         };
     const shiftsToPersist = found ? updatedShifts : [...wo.shifts, nextShift];
     try {
-      await updateWorkOrder(woId, { shifts: shiftsToPersist });
+      await updateWorkOrder(woId, { shifts: shiftsToPersist }, [nextShift.id]);
       if (isNewCancellation) {
         await cancelShift({ workOrderId: woId, shiftId: shift.id });
-        await updateWorkOrder(woId, {
-          shifts: shiftsToPersist.map((item) =>
-            item.id === shift.id ? { ...item, cancelled: true } : item,
-          ),
-        });
       }
     } catch (error) {
       if (isNewCancellation) {

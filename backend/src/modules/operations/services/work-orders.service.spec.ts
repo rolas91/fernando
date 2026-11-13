@@ -993,7 +993,7 @@ describe('WorkOrdersService.findOne shifts merge', () => {
 
 describe('PM approval isolation for independent shift updates', () => {
   const service = Object.create(WorkOrdersService.prototype) as {
-    preserveUnchangedApprovedShifts(previous: Record<string, unknown>[], next: Record<string, unknown>[], changed?: string[]): Record<string, unknown>[];
+    preserveUnchangedLockedShifts(previous: Record<string, unknown>[], next: Record<string, unknown>[], changed: string[] | undefined, workOrderId: string, completed: Set<string>): Record<string, unknown>[];
     assertPmApprovedShiftsUnchanged(previous: Record<string, unknown>[], next: Record<string, unknown>[]): void;
   };
   const approved = {
@@ -1002,8 +1002,19 @@ describe('PM approval isolation for independent shift updates', () => {
   };
   const independent = { id: 'independent', date: '2026-11-13', roles: [] };
   const staleApproved = { ...approved, roles: [{ id: 'role' }] };
+  it('preserves a completed sibling while cancelling a confirmed shift', () => {
+    const completed = { ...approved, pmApprovedAt: null };
+    const cancelled = { ...independent, cancelled: true };
+    expect(service.preserveUnchangedLockedShifts(
+      [completed, independent],
+      [{ ...completed, roles: [] }, cancelled],
+      [independent.id],
+      'wo-1',
+      new Set(['wo-1:approved']),
+    )).toEqual([completed, cancelled]);
+  });
   const validate = (next: Record<string, unknown>[], changed?: string[]) => {
-    const preserved = service.preserveUnchangedApprovedShifts([approved, independent], next, changed);
+    const preserved = service.preserveUnchangedLockedShifts([approved, independent], next, changed, 'wo-1', new Set());
     service.assertPmApprovedShiftsUnchanged([approved, independent], preserved);
     return preserved;
   };

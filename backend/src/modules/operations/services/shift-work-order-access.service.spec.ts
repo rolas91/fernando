@@ -53,6 +53,9 @@ describe('ShiftWorkOrderAccessService', () => {
     await expect(
       service.canManageShiftWorkOrder(workerActor, 'wo-1', 'shift-1'),
     ).resolves.toBe(true);
+    expect(workersRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'user-1' } }),
+    );
   });
 
   it('denies an assigned worker who was not selected', async () => {

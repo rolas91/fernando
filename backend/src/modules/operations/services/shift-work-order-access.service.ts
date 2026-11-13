@@ -1,11 +1,12 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../../entities/work-order-shift-role-worker.entity';
 import { Worker } from '../../../entities/worker.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
+import { findWorkerForActor } from '../utils/worker-actor-lookup.util';
 
 @Injectable()
 export class ShiftWorkOrderAccessService {
@@ -114,12 +115,9 @@ export class ShiftWorkOrderAccessService {
   ): Promise<boolean> {
     const normalizedWorkOrderId = workOrderId?.trim();
     const normalizedShiftId = shiftId?.trim();
-    const email = actor.email?.trim();
-    if (!normalizedWorkOrderId || !normalizedShiftId || !email) return false;
+    if (!normalizedWorkOrderId || !normalizedShiftId) return false;
 
-    const worker = await this.workersRepo.findOne({
-      where: { email: ILike(email) },
-    });
+    const worker = await findWorkerForActor(this.workersRepo, actor);
     if (!worker) return false;
 
     const shift = await this.shiftsRepo.findOne({

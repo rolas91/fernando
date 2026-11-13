@@ -3440,14 +3440,9 @@ const EditShiftModal: React.FC<{
       );
     });
     try {
-      await updateWorkOrder(workOrderId, { shifts: updatedShifts });
+      await updateWorkOrder(workOrderId, { shifts: updatedShifts }, [shiftId]);
       if (isNewCancellation) {
         await cancelShift({ workOrderId, shiftId });
-        await updateWorkOrder(workOrderId, {
-          shifts: updatedShifts.map((item) =>
-            item.id === shiftId ? { ...item, cancelled: true } : item,
-          ),
-        });
       }
     } catch (error) {
       if (isNewCancellation) {

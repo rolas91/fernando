@@ -2131,23 +2131,25 @@ export class WorkOrdersService {
     }
   }
 
-  private preserveUnchangedApprovedShifts(
+  private preserveUnchangedLockedShifts(
     previousShifts: Record<string, unknown>[],
     nextShifts: Record<string, unknown>[],
-    changedShiftIds?: string[],
+    changedShiftIds: string[] | undefined,
+    workOrderId: string,
+    completedShiftKeys: Set<string>,
   ): Record<string, unknown>[] {
     if (!changedShiftIds) return nextShifts;
     const changed = new Set(changedShiftIds);
-    const approvedById = new Map(
+    const lockedById = new Map(
       previousShifts
-        .filter((shift) => shift.pmApprovedAt)
+        .filter((shift) => shift.pmApprovedAt || completedShiftKeys.has(`${workOrderId}:${shift.id}`))
         .map((shift) => [String(shift.id), shift]),
     );
-    // Preserve approved siblings from the server; missing shifts still hit the deletion guard.
+    // Preserve locked siblings from the server; missing shifts still hit the deletion guard.
     return nextShifts.map((shift) => {
       const id = String(shift.id);
-      return !changed.has(id) && approvedById.has(id)
-        ? approvedById.get(id)!
+      return !changed.has(id) && lockedById.has(id)
+        ? lockedById.get(id)!
         : shift;
     });
   }
@@ -2248,10 +2250,12 @@ export class WorkOrdersService {
         : [];
 
     if (dto.shifts !== undefined) {
-      dto.shifts = this.preserveUnchangedApprovedShifts(
+      dto.shifts = this.preserveUnchangedLockedShifts(
         previousShiftsSnapshot,
         dto.shifts,
         dto.changedShiftIds,
+        id,
+        completedShiftKeys,
       );
       this.assertPmApprovedShiftsUnchanged(previousShiftsSnapshot, dto.shifts);
       this.assertCompletedShiftsUnchanged(

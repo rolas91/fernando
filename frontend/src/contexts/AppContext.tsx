@@ -257,7 +257,7 @@ interface AppContextType {
   addProject: (p: Project) => void;
   updateProject: (id: string, p: Partial<Project>) => void;
   addWorkOrder: (wo: WorkOrder) => void;
-  updateWorkOrder: (id: string, wo: Partial<WorkOrder>) => Promise<void>;
+  updateWorkOrder: (id: string, wo: Partial<WorkOrder>, editedShiftIds?: string[]) => Promise<void>;
   deleteWorkOrder: (
     id: string,
   ) => Promise<{ success: boolean; trashed: boolean } | undefined>;
@@ -806,21 +806,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const updateWorkOrder = useCallback(
-    async (id: string, wo: Partial<WorkOrder>) => {
+    async (id: string, wo: Partial<WorkOrder>, editedShiftIds?: string[]) => {
       if (!canMutate('updateWorkOrder')) return;
       const payload: Partial<WorkOrder> = { ...wo };
       if (payload.status !== undefined && payload.status !== 'cancelled') {
         delete payload.status;
       }
       const previous = completeAssignmentSnapshot(assignmentQueryClient, user?.id || 'guest', id) ?? workOrders.find((order) => order.id === id) ?? (payload.shifts ? await fetchAssignmentRecord(id) : undefined);
-      const changedShiftIds = payload.shifts && previous
+      const changedShiftIds = editedShiftIds ?? (payload.shifts && previous
         ? payload.shifts
             .filter((shift) => {
               const original = previous.shifts.find((item) => item.id === shift.id);
               return JSON.stringify(original) !== JSON.stringify(shift);
             })
             .map((shift) => shift.id)
-        : undefined;
+        : undefined);
       const saved = await dbUpdateWorkOrder(id, { ...payload, changedShiftIds });
       if (saved) {
         setWorkOrders((prev) => prev.map((x) => (x.id === id ? saved : x)));

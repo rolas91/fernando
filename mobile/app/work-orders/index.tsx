@@ -589,6 +589,13 @@ export default function AssignmentDetailScreen() {
   const selectedShiftIndex =
     assignment?.shifts.findIndex((shift) => shift.id === selectedShift?.id) ??
     -1;
+  const selectedShiftNotes = useMemo(
+    () =>
+      assignment?.quickAccess?.notes?.filter(
+        (note) => !note.shiftId || note.shiftId === selectedShift?.id,
+      ) ?? [],
+    [assignment?.quickAccess?.notes, selectedShift?.id],
+  );
   const quickAccessItems = useMemo(() => {
     if (!assignment) return [];
     const access = assignment.quickAccess;
@@ -670,16 +677,20 @@ export default function AssignmentDetailScreen() {
           }),
       });
     }
-    if (access?.hasNotes) {
+    if (selectedShiftNotes.length > 0) {
       items.push({
         id: 'notes',
         icon: 'document-text-outline',
         label: 'Notes',
-        count: access.notes?.length,
+        count: selectedShiftNotes.length,
         onPress: () =>
           router.push({
             pathname: JOB_DOCUMENTS_HREF,
-            params: { assignmentId: assignment.id, section: 'notes' },
+            params: {
+              assignmentId: assignment.id,
+              shiftId: selectedShift?.id,
+              section: 'notes',
+            },
           }),
       });
     }
@@ -709,7 +720,12 @@ export default function AssignmentDetailScreen() {
       });
     }
     return items;
-  }, [assignment, chatUnreadQuery.data?.unreadCount, selectedShift]);
+  }, [
+    assignment,
+    chatUnreadQuery.data?.unreadCount,
+    selectedShift,
+    selectedShiftNotes,
+  ]);
   const openCategory = (category: FormCategoryKey) => {
     if (openingCategoryRef.current) return;
     if (!assignment || !selectedShift) return;
@@ -1097,7 +1113,7 @@ export default function AssignmentDetailScreen() {
                   </Pressable>
                 ) : null}
 
-                {assignment.quickAccess?.notes?.length ? (
+                {selectedShiftNotes.length > 0 ? (
                   <View className="mt-5 rounded-xl border border-violet-100 dark:border-[#5b21b6] bg-[#F9F7FF] dark:bg-violet-950 p-4">
                     <View className="flex-row items-start gap-3">
                       <Ionicons
@@ -1109,7 +1125,7 @@ export default function AssignmentDetailScreen() {
                         <Text className="text-base font-extrabold text-[#071535] dark:text-slate-100">
                           Notes
                         </Text>
-                        {assignment.quickAccess.notes.map((note) => (
+                        {selectedShiftNotes.map((note) => (
                           <Text
                             key={note.id}
                             className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200"

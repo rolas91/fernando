@@ -82,6 +82,13 @@ type WorkOrderPdfExportQuery = {
   projectId?: string;
 };
 
+type MobileQuickAccessNote = {
+  id: string;
+  shiftId?: string;
+  title: string;
+  body: string;
+};
+
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isWorkOrderPdfTemplate(
@@ -1732,7 +1739,7 @@ export class WorkOrdersService {
     visibleShiftIds?: Set<string>,
   ) {
     const visibleDocumentTypes = new Set<string>();
-    const visibleShiftNotes: { id: string; title: string; body: string }[] = [];
+    const visibleShiftNotes: MobileQuickAccessNote[] = [];
     for (const rawShift of Array.isArray(workOrder.shifts)
       ? workOrder.shifts
       : []) {
@@ -1749,6 +1756,7 @@ export class WorkOrdersService {
       if (typeof shift.notes === 'string' && shift.notes.trim()) {
         visibleShiftNotes.push({
           id: `shift_note_${shiftId}`,
+          shiftId,
           title: 'Shift Notes',
           body: shift.notes.trim(),
         });
@@ -1838,9 +1846,7 @@ export class WorkOrdersService {
       workOrder.notes?.trim()
         ? { id: 'notes', title: 'Notes', body: workOrder.notes.trim() }
         : null,
-    ].filter((item): item is { id: string; title: string; body: string } =>
-      Boolean(item),
-    );
+    ].filter((item): item is MobileQuickAccessNote => Boolean(item));
     const allDocuments = [
       ...(maps?.pdfSubmissionsByWorkOrderId.get(workOrder.id) || []).map(
         (submission, index) => ({

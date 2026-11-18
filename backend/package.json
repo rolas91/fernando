@@ -24,6 +24,7 @@
     "seed:iam": "ts-node -r tsconfig-paths/register src/database/seed-iam.ts",
     "seed:dr": "ts-node -r tsconfig-paths/register src/database/seed-dr.ts",
     "seed:forms:restore": "ts-node -r tsconfig-paths/register src/database/seed-form-templates-backup.ts",
+    "seed:work-order-client-confirmation": "ts-node -r tsconfig-paths/register src/database/seed-work-order-client-confirmation.ts",
     "db:reset-assignments": "ts-node -r tsconfig-paths/register src/database/scripts/reset-assignments.ts",
     "db:sync-worker-roles": "ts-node -r tsconfig-paths/register src/database/scripts/sync-worker-roles.ts",
     "db:debug-pdf-data": "ts-node -r tsconfig-paths/register src/database/scripts/debug-pdf-data.ts",

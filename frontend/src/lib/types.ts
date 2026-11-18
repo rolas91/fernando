@@ -562,7 +562,8 @@ export interface FormField {
     | 'time'
     | 'timesheet'
     | 'resource_usage'
-    | 'work_order_types';
+    | 'work_order_types'
+    | 'email';
   required: boolean;
   options?: string[];
   placeholder?: string;

@@ -1599,7 +1599,15 @@ function TextField({
       }
       placeholder={field.placeholder}
       placeholderTextColor={themeColor(MUTED)}
-      keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'}
+      keyboardType={
+        field.type === 'number'
+          ? 'decimal-pad'
+          : field.type === 'email'
+            ? 'email-address'
+            : 'default'
+      }
+      autoCapitalize={field.type === 'email' ? 'none' : undefined}
+      autoCorrect={field.type === 'email' ? false : undefined}
       multiline={multiline}
       className="rounded-[14px] px-3.5 py-3.5 text-[14px] text-[#182641] dark:text-slate-100 border-[#dce4f0] dark:border-[#334155] bg-[#fff] dark:bg-[#1e293b]"
       style={{
@@ -2732,7 +2740,8 @@ function DynamicField({
       field.type === 'textarea' ||
       field.type === 'number' ||
       field.type === 'date' ||
-      field.type === 'time' ? (
+      field.type === 'time' ||
+      field.type === 'email' ? (
         <TextField field={field} value={value} onChange={onChange} />
       ) : null}
 

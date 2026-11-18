@@ -21,7 +21,8 @@ type FieldType =
   | 'time'
   | 'timesheet'
   | 'resource_usage'
-  | 'work_order_types';
+  | 'work_order_types'
+  | 'email';
 
 type FieldRules = {
   minLength?: number;
@@ -87,6 +88,7 @@ const SUPPORTED_TYPES: FieldType[] = [
   'timesheet',
   'resource_usage',
   'work_order_types',
+  'email',
 ];
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -144,7 +146,7 @@ function normalizeRules(
     false,
   );
 
-  if (type === 'text' || type === 'textarea') {
+  if (type === 'text' || type === 'textarea' || type === 'email') {
     if (minLength !== undefined) rules.minLength = minLength;
     if (maxLength !== undefined) rules.maxLength = maxLength;
     if (pattern) rules.pattern = pattern;
@@ -340,7 +342,11 @@ export function validateSubmissionAgainstFields(
 
     if (isValueEmpty(value)) continue;
 
-    if (field.type === 'text' || field.type === 'textarea') {
+    if (
+      field.type === 'text' ||
+      field.type === 'textarea' ||
+      field.type === 'email'
+    ) {
       if (typeof value !== 'string') {
         throw new BadRequestException(
           `Field "${field.label}" must be a string`,

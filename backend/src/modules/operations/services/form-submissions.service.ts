@@ -7,8 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { basename, resolve } from 'path';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import { basename, resolve, sep } from 'path';
 import { deflateSync, inflateSync } from 'zlib';
 import { StandardFontEmbedder } from 'pdf-lib';
 import { In, Repository } from 'typeorm';
@@ -34,6 +34,7 @@ import { ShiftWorkOrderAccessService } from './shift-work-order-access.service';
 import { CompanySettingsService } from './company-settings.service';
 import { NumberingService } from './numbering.service';
 import { WorkOrderShiftsWriteService } from './work-order-shifts-write.service';
+import { IntegrationsService } from '../../integrations/integrations.service';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -2959,6 +2960,7 @@ export class FormSubmissionsService {
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly companySettings: CompanySettingsService,
     private readonly numbering: NumberingService,
+    private readonly integrations: IntegrationsService,
   ) {}
 
   async buildPdfBuilderPreview(rawConfig: unknown): Promise<Buffer> {
@@ -3472,6 +3474,9 @@ export class FormSubmissionsService {
       saved.pdfUrl = await this.generatePdf(saved, template);
       await this.repo.save(saved);
     }
+    if (saved.status === 'submitted') {
+      await this.sendClientWorkOrderCopy(saved);
+    }
     this.realtime.emitTableUpdated('form_submissions');
     this.realtime.emitTableUpdated('work_orders');
     return saved;
@@ -3585,6 +3590,9 @@ export class FormSubmissionsService {
       await this.repo.save(saved);
     } else {
       await this.deleteGeneratedPdf(previousPdfUrl);
+    }
+    if (saved.status === 'submitted') {
+      await this.sendClientWorkOrderCopy(saved);
     }
     this.realtime.emitTableUpdated('form_submissions');
     this.realtime.emitTableUpdated('work_orders');
@@ -4018,6 +4026,98 @@ export class FormSubmissionsService {
           }`,
         );
       }
+    }
+  }
+
+  private async readGeneratedPdf(pdfUrl: string): Promise<Uint8Array> {
+    const value = pdfUrl.trim();
+    if (value.startsWith('/files/')) {
+      const publicRoot = resolve(process.cwd(), 'public');
+      const relativePath = decodeURIComponent(
+        value.slice('/files/'.length).split('?')[0],
+      );
+      const filePath = resolve(publicRoot, relativePath);
+      if (
+        filePath !== publicRoot &&
+        !filePath.startsWith(`${publicRoot}${sep}`)
+      ) {
+        throw new Error('Invalid generated PDF path.');
+      }
+      return readFile(filePath);
+    }
+
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Unsupported generated PDF URL.');
+    }
+    const response = await fetch(parsed, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`PDF download returned HTTP ${response.status}.`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  private async sendClientWorkOrderCopy(submission: FormSubmission) {
+    if (submission.status !== 'submitted') return;
+    const sendCopy = submission.data?.sendCopyToClient;
+    if (sendCopy !== true && sendCopy !== 'true') return;
+
+    const clientEmailValue = submission.data?.clientEmail;
+    const rawEmail =
+      typeof clientEmailValue === 'string' ? clientEmailValue.trim() : '';
+    if (!rawEmail) return;
+    if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(rawEmail)) {
+      this.logger.warn(
+        `Invalid client email for submission ${submission.id}: ${rawEmail}`,
+      );
+      return;
+    }
+
+    const template = submission.templateId
+      ? await this.templatesRepo.findOne({
+          where: { id: submission.templateId },
+        })
+      : null;
+    const category = `${template?.category || ''} ${template?.name || ''}`
+      .toLowerCase()
+      .replace(/[_\s-]+/g, '');
+    if (!submission.pdfUrl || !category.includes('workorder')) return;
+
+    const workOrder = submission.workOrderId
+      ? await this.workOrdersRepo.findOne({
+          where: { id: submission.workOrderId },
+        })
+      : null;
+    const project = workOrder?.projectId
+      ? await this.projectsRepo.findOne({ where: { id: workOrder.projectId } })
+      : null;
+
+    try {
+      const pdf = Buffer.from(await this.readGeneratedPdf(submission.pdfUrl));
+      if (pdf.length > 20 * 1024 * 1024) {
+        this.logger.warn(
+          `Generated PDF exceeds 20 MB email limit for submission ${submission.id}`,
+        );
+        return;
+      }
+      await this.integrations.sendWorkOrderDocument(
+        rawEmail,
+        uniqueDocumentFileName(
+          `Work Order ${submission.workOrderNumber || workOrder?.orderNumber || ''} - ${project?.name || 'Assignment'}.pdf`,
+        ),
+        pdf,
+      );
+      this.logger.log(
+        `Work Order copy sent to ${rawEmail} for submission ${submission.id}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to email Work Order copy for submission ${submission.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 

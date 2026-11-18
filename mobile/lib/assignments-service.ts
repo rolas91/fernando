@@ -94,6 +94,7 @@ export type AssignmentListItem = {
     } | null;
     notes?: {
       id: string;
+      shiftId?: string;
       title: string;
       body: string;
     }[];

@@ -62,6 +62,7 @@ const fieldTypeIcons: Record<string, React.ReactNode> = {
   timesheet: <Users size={14} />,
   resource_usage: <ClipboardList size={14} />,
   work_order_types: <CheckSquare size={14} />,
+  email: <Type size={14} />,
 };
 const CONTRACT_VERSION = '1.0.0';
 const SUPPORTED_FIELD_TYPES = new Set<FormField['type']>([
@@ -78,6 +79,7 @@ const SUPPORTED_FIELD_TYPES = new Set<FormField['type']>([
   'timesheet',
   'resource_usage',
   'work_order_types',
+  'email',
 ]);
 
 function asArray<T>(value: T[] | unknown): T[] {
@@ -2622,9 +2624,10 @@ const FormPreviewModal: React.FC<{
                     </code>
                   </p>
                 ) : null}
-                {field.type === 'text' && (
+                {(field.type === 'text' || field.type === 'email') && (
                   <input
                     defaultValue={String(field.ui?.defaultValue ?? '')}
+                    type={field.type === 'email' ? 'email' : 'text'}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     placeholder={field.placeholder}
                   />

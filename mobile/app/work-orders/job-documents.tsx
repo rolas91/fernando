@@ -132,8 +132,9 @@ export default function JobDocumentsScreen() {
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, 16);
   const { token } = useAuth();
-  const { assignmentId, section } = useLocalSearchParams<{
+  const { assignmentId, shiftId, section } = useLocalSearchParams<{
     assignmentId?: string;
+    shiftId?: string;
     section?: string;
   }>();
   const assignmentsQuery = useQuery({
@@ -144,7 +145,12 @@ export default function JobDocumentsScreen() {
   const assignment = assignmentsQuery.data?.find(
     (item) => item.id === assignmentId,
   );
-  const notes = assignment?.quickAccess?.notes ?? [];
+  const allNotes = assignment?.quickAccess?.notes ?? [];
+  const notes = shiftId
+    ? allNotes.filter(
+        (note) => !note.shiftId || note.shiftId === shiftId,
+      )
+    : allNotes;
   const documents = assignment?.quickAccess?.documents ?? [];
   const showNotes = section !== 'documents';
   const showDocuments = section !== 'notes';

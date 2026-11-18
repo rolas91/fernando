@@ -34,7 +34,7 @@ import { ShiftWorkOrderAccessService } from './shift-work-order-access.service';
 import { CompanySettingsService } from './company-settings.service';
 import { NumberingService } from './numbering.service';
 import { WorkOrderShiftsWriteService } from './work-order-shifts-write.service';
-import { IntegrationsService } from '../../integrations/integrations.service';
+import { ModuleRef } from '@nestjs/core';
 import {
   normalizeFormFields,
   normalizeSubmissionData,
@@ -2960,7 +2960,7 @@ export class FormSubmissionsService {
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
     private readonly companySettings: CompanySettingsService,
     private readonly numbering: NumberingService,
-    private readonly integrations: IntegrationsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async buildPdfBuilderPreview(rawConfig: unknown): Promise<Buffer> {
@@ -4102,7 +4102,13 @@ export class FormSubmissionsService {
         );
         return;
       }
-      await this.integrations.sendWorkOrderDocument(
+      const { IntegrationsService } = await import(
+        '../../integrations/integrations.service.js'
+      );
+      const integrations = this.moduleRef.get(IntegrationsService, {
+        strict: false,
+      });
+      await integrations.sendWorkOrderDocument(
         rawEmail,
         uniqueDocumentFileName(
           `Work Order ${submission.workOrderNumber || workOrder?.orderNumber || ''} - ${project?.name || 'Assignment'}.pdf`,

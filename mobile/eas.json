@@ -4,16 +4,19 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://drworkops.com/api"
+      }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
       "distribution": "internal"
-    },
-    "production": {
-      "autoIncrement": true
-    }
+    }  
   },
   "submit": {
     "production": {}

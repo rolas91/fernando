@@ -2,7 +2,7 @@
   "expo": {
     "name": "DR WorkOps",
     "slug": "drtraffic-control",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.drtrafficcontrol.mobile"
+      "bundleIdentifier": "com.drtrafficcontrol.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -53,6 +56,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "49fa4cd2-800e-439a-840c-c29c01043fc9"
+      }
     }
   }
 }

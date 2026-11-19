@@ -1,7 +1,9 @@
 import { ShiftCancellationConfirmation } from '../../entities/shift-cancellation-confirmation.entity';
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { randomBytes } from 'crypto';
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
@@ -111,6 +113,7 @@ export class IntegrationsService {
     private readonly realtime: RealtimeGateway,
     private readonly shiftsQuery: ShiftsQueryService,
     private readonly shiftsWrite: WorkOrderShiftsWriteService,
+    private readonly config: ConfigService,
   ) {}
 
   async geocodeJobs(locations: GeocodeInput[]) {
@@ -1099,46 +1102,53 @@ export class IntegrationsService {
     };
   }
 
-  async sendWorkOrderDocument(email: string, fileName: string, pdf: Buffer) {
-    const {
-      SMTP_HOST: host,
-      SMTP_USER: user,
-      SMTP_PASS: pass,
-      SMTP_FROM: from,
-    } = process.env;
-    if (
-      !host ||
-      !user ||
-      !pass ||
-      !from ||
-      host.includes('placeholder') ||
-      user.includes('placeholder')
-    ) {
+  async sendEmailWithAttachment(
+    to: string,
+    subject: string,
+    body: string,
+    fileName: string,
+    pdf: Buffer,
+  ) {
+    const apiKey = this.config.get<string>('SENDGRID_API_KEY', '').trim();
+    const fromEmail = this.config.get<string>('SENDGRID_FROM_EMAIL', '').trim();
+    const fromName = this.config
+      .get<string>('SENDGRID_FROM_NAME', 'DR WorkOps')
+      .trim();
+
+    if (!apiKey || !fromEmail) {
       throw new Error(
-        'Email delivery is not configured. Configure SMTP before sending Work Orders.',
+        'SendGrid is not configured. Configure SENDGRID_API_KEY and SENDGRID_FROM_EMAIL.',
       );
     }
-    const port = Number(process.env.SMTP_PORT || 587);
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      connectionTimeout: 15000,
-      socketTimeout: 30000,
-    });
-    const result = await transporter.sendMail({
-      from,
-      to: email,
-      subject: 'Your Work Order',
-      text: 'Please find your Work Order attached.',
+
+    sgMail.setApiKey(apiKey);
+
+    await sgMail.send({
+      to,
+      from: { email: fromEmail, name: fromName || 'DR WorkOps' },
+      subject,
+      text: body,
       attachments: [
-        { filename: fileName, content: pdf, contentType: 'application/pdf' },
+        {
+          content: pdf.toString('base64'),
+          filename: fileName,
+          type: 'application/pdf',
+          disposition: 'attachment',
+        },
       ],
     });
-    if (!result.accepted?.length)
-      throw new Error('The email server did not accept the recipient.');
-    return { success: true, recipient: email, messageId: result.messageId };
+
+    return { success: true, recipient: to };
+  }
+
+  async sendWorkOrderDocument(email: string, fileName: string, pdf: Buffer) {
+    return this.sendEmailWithAttachment(
+      email,
+      'Your Work Order',
+      'Please find your Work Order attached.',
+      fileName,
+      pdf,
+    );
   }
 
   private async sendEmail(body: NotificationBody) {

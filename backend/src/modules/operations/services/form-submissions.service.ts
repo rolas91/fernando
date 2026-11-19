@@ -22,6 +22,7 @@ import { Project } from '../../../entities/project.entity';
 import { Timesheet } from '../../../entities/timesheet.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
+import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateFormSubmissionDto } from '../dto/create-form-submission.dto';
@@ -2942,6 +2943,8 @@ export class FormSubmissionsService {
     private readonly workersRepo: Repository<Worker>,
     @InjectRepository(WorkOrder)
     private readonly workOrdersRepo: Repository<WorkOrder>,
+    @InjectRepository(WorkOrderShift)
+    private readonly shiftsRepo: Repository<WorkOrderShift>,
     @InjectRepository(Project)
     private readonly projectsRepo: Repository<Project>,
     @InjectRepository(Client)
@@ -4093,6 +4096,9 @@ export class FormSubmissionsService {
     const project = workOrder?.projectId
       ? await this.projectsRepo.findOne({ where: { id: workOrder.projectId } })
       : null;
+    const shift = submission.shiftId
+      ? await this.shiftsRepo.findOne({ where: { id: submission.shiftId } })
+      : null;
 
     try {
       const pdf = Buffer.from(await this.readGeneratedPdf(submission.pdfUrl));
@@ -4108,11 +4114,20 @@ export class FormSubmissionsService {
       const integrations = this.moduleRef.get(IntegrationsService, {
         strict: false,
       });
-      await integrations.sendWorkOrderDocument(
+      const fileName = uniqueDocumentFileName(
+        `Work Order ${submission.workOrderNumber || workOrder?.orderNumber || ''} - ${project?.name || 'Assignment'}.pdf`,
+      );
+      const { subject, body } = this.buildClientWorkOrderEmail(
         rawEmail,
-        uniqueDocumentFileName(
-          `Work Order ${submission.workOrderNumber || workOrder?.orderNumber || ''} - ${project?.name || 'Assignment'}.pdf`,
-        ),
+        workOrder,
+        project,
+        shift,
+      );
+      await integrations.sendEmailWithAttachment(
+        rawEmail,
+        subject,
+        body,
+        fileName,
         pdf,
       );
       this.logger.log(
@@ -4125,6 +4140,53 @@ export class FormSubmissionsService {
         }`,
       );
     }
+  }
+
+  private buildClientWorkOrderEmail(
+    clientEmail: string,
+    workOrder: WorkOrder | null,
+    project: Project | null,
+    shift: WorkOrderShift | null,
+  ) {
+    const clientName = clientEmail.split('@')[0] || 'Valued Client';
+    const projectNumber =
+      project?.number || workOrder?.orderNumber || 'N/A';
+    const shiftDate = shift?.date || workOrder?.startDate || 'N/A';
+    const shiftName = shift?.shiftName || 'N/A';
+    const jobLocation =
+      shift?.address || workOrder?.assignmentAddress || project?.location || 'N/A';
+    const shiftHours =
+      shift?.startTime && shift?.endTime
+        ? `${shift.startTime} – ${shift.endTime}`
+        : 'N/A';
+
+    const subject = `Work Order Copy – Project #${projectNumber} | ${shiftDate}`;
+
+    const body = `Dear ${clientName},
+
+Thank you for your confirmation.
+
+Attached is a copy of the Work Order completed and signed on-site for your records.
+
+Work Order Details
+
+* Project #: ${projectNumber}
+* Shift Date: ${shiftDate}
+* Shift: ${shiftName}
+* Job Location: ${jobLocation}
+* Shift Hours: ${shiftHours}
+
+This document reflects the information recorded and acknowledged on-site. It remains subject to DR Traffic Control’s internal administrative review.
+
+If you have any questions, please contact our office.
+
+Best regards,
+DR Traffic Control
+Operations Team
+
+This is an automated email. Please do not reply.`;
+
+    return { subject, body };
   }
 
   private stringArray(value: unknown): string[] {

@@ -1102,7 +1102,13 @@ export class IntegrationsService {
     };
   }
 
-  async sendWorkOrderDocument(email: string, fileName: string, pdf: Buffer) {
+  async sendEmailWithAttachment(
+    to: string,
+    subject: string,
+    body: string,
+    fileName: string,
+    pdf: Buffer,
+  ) {
     const apiKey = this.config.get<string>('SENDGRID_API_KEY', '').trim();
     const fromEmail = this.config.get<string>('SENDGRID_FROM_EMAIL', '').trim();
     const fromName = this.config
@@ -1111,17 +1117,17 @@ export class IntegrationsService {
 
     if (!apiKey || !fromEmail) {
       throw new Error(
-        'SendGrid is not configured. Configure SENDGRID_API_KEY and SENDGRID_FROM_EMAIL before sending Work Orders.',
+        'SendGrid is not configured. Configure SENDGRID_API_KEY and SENDGRID_FROM_EMAIL.',
       );
     }
 
     sgMail.setApiKey(apiKey);
 
     await sgMail.send({
-      to: email,
+      to,
       from: { email: fromEmail, name: fromName || 'DR WorkOps' },
-      subject: 'Your Work Order',
-      text: 'Please find your Work Order attached.',
+      subject,
+      text: body,
       attachments: [
         {
           content: pdf.toString('base64'),
@@ -1132,7 +1138,17 @@ export class IntegrationsService {
       ],
     });
 
-    return { success: true, recipient: email };
+    return { success: true, recipient: to };
+  }
+
+  async sendWorkOrderDocument(email: string, fileName: string, pdf: Buffer) {
+    return this.sendEmailWithAttachment(
+      email,
+      'Your Work Order',
+      'Please find your Work Order attached.',
+      fileName,
+      pdf,
+    );
   }
 
   private async sendEmail(body: NotificationBody) {

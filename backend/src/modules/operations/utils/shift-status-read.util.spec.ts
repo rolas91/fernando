@@ -7,6 +7,7 @@ import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../../entities/work-order-shift-role-worker.entity';
 import { FormSubmission } from '../../../entities/form-submission.entity';
+import { FormTemplate } from '../../../entities/form-template.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
 import { Project } from '../../../entities/project.entity';
 import { Client } from '../../../entities/client.entity';
@@ -42,6 +43,7 @@ describe('compact shift reads and pagination', () => {
     else process.env.BUSINESS_TIME_ZONE = originalZone;
   });
   function setup(count = 8) {
+    const templateId = 'ft_timesheet';
     const rows = Array.from({ length: count }, (_, i) => ({
       id: 's' + String(i).padStart(2, '0'),
       workOrderId: 'wo',
@@ -61,6 +63,7 @@ describe('compact shift reads and pagination', () => {
       latestShift: null,
       creatorFirst: 'Ana',
       creatorLast: 'Creator',
+      formTemplateIds: [templateId],
     }));
     if (count === 8) {
       rows[0].status = 'customer_pending';
@@ -83,12 +86,28 @@ describe('compact shift reads and pagination', () => {
         requestedAt: i % 2 ? new Date('2026-11-06T10:00:00Z') : null,
         notificationChannel: i % 2 ? 'sms' : null,
       }));
-    const submissions = [{ workOrderId: 'wo', shiftId: 's06' }];
+    const templates = [
+      {
+        id: templateId,
+        name: 'TimeSheet',
+        category: 'Timesheet',
+        isRequired: true,
+      },
+    ];
+    const submissions = [
+      {
+        workOrderId: 'wo',
+        shiftId: 's06',
+        templateId,
+        status: 'submitted',
+      },
+    ];
     const queries: Array<
       ReturnType<ReturnType<DataSource['getRepository']>['createQueryBuilder']>
     > = [];
     for (const entity of [
       WorkOrderShift,
+      FormTemplate,
       WorkOrderShiftRole,
       WorkOrderShiftRoleWorker,
       FormSubmission,
@@ -103,16 +122,18 @@ describe('compact shift reads and pagination', () => {
             ? alias === 'all_shift'
               ? [{ workOrderId: 'wo', latestShift: '2099-11-06T08:00' }]
               : rows
-            : entity === WorkOrderShiftRole
-              ? roles
-              : entity === WorkOrderShiftRoleWorker
-                ? workers
-                : submissions;
+            : entity === FormTemplate
+              ? templates
+              : entity === WorkOrderShiftRole
+                ? roles
+                : entity === WorkOrderShiftRoleWorker
+                  ? workers
+                  : submissions;
         jest.spyOn(query, 'getRawMany').mockResolvedValue(data);
         return query;
       });
     }
-    return { rows, roles, workers, submissions, queries };
+    return { rows, roles, workers, templates, submissions, queries };
   }
   it('maps minimal inputs to the exact existing classifier and counters in four bounded queries', async () => {
     const fixture = setup();
@@ -159,9 +180,10 @@ describe('compact shift reads and pagination', () => {
     expect(result.shifts[4].effectiveStatus).toBe('pm_approved');
     expect(result.shifts[5].effectiveStatus).not.toBe('pm_approved');
     expect(result.shifts[6].effectiveStatus).toBe('shift_completed');
-    expect(fixture.queries).toHaveLength(4);
+    expect(fixture.queries).toHaveLength(5);
     for (const query of fixture.queries) {
       const sql = query.getSql();
+      if (sql.replaceAll('"', '').includes('FROM form_templates')) continue;
       expect(sql.replaceAll('"', '')).toContain('deleted_at IS NULL');
       expect(sql).toContain('"s"."date" >=');
       expect(sql).toContain('"s"."date" <=');
@@ -188,7 +210,7 @@ describe('compact shift reads and pagination', () => {
     expect(stats.from).toBe('2026-11-01');
     expect(stats.to).toBeNull();
     expect(hydrate).not.toHaveBeenCalled();
-    expect(fixture.queries).toHaveLength(4);
+    expect(fixture.queries).toHaveLength(5);
     expect(
       fixture.queries.every(
         (query) => !Object.hasOwn(query.getParameters(), 'to'),
@@ -244,7 +266,7 @@ describe('compact shift reads and pagination', () => {
     expect(page.meta).toEqual({ page: 2, limit: 25, total: 40, totalPages: 2 });
     expect(hydrate.mock.calls[0][2]).toHaveLength(15);
     expect(page.rows[0].workOrder.shifts).toEqual([]);
-    expect(fixture.queries).toHaveLength(5);
+    expect(fixture.queries).toHaveLength(6);
     const latest = fixture.queries.find(
       (query) => query.alias === 'all_shift',
     )!;
@@ -340,7 +362,7 @@ describe('compact shift reads and pagination', () => {
       ),
     ).toHaveLength(25);
     expect(result.rows.length).toBeLessThanOrEqual(8 * 25);
-    expect(fixture.queries).toHaveLength(5);
+    expect(fixture.queries).toHaveLength(6);
   });
   it('opens a complete assignment with approved siblings, scoped form data and current effective status', async () => {
     const orders = {

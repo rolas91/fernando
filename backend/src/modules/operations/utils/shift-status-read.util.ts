@@ -3,9 +3,11 @@ import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { WorkOrderShiftRole } from '../../../entities/work-order-shift-role.entity';
 import { WorkOrderShiftRoleWorker } from '../../../entities/work-order-shift-role-worker.entity';
 import { FormSubmission } from '../../../entities/form-submission.entity';
+import { FormTemplate } from '../../../entities/form-template.entity';
 import {
   computeShiftStatus,
   aggregateShiftStatuses,
+  buildShiftCompletionLookup,
 } from './shift-status.util';
 interface IndexRow {
   id: string;
@@ -26,6 +28,7 @@ interface IndexRow {
   latestShift: string | null;
   creatorFirst: string | null;
   creatorLast: string | null;
+  formTemplateIds: string[];
 }
 interface RoleRow {
   id: string;
@@ -99,7 +102,15 @@ export async function loadShiftStatusIndex(
     .addSelect('wo.start_date::text', 'assignmentStart')
     .addSelect('NULL', 'latestShift')
     .addSelect('creator.first_name', 'creatorFirst')
-    .addSelect('creator.last_name', 'creatorLast');
+    .addSelect('creator.last_name', 'creatorLast')
+    .addSelect('s.form_template_ids', 'formTemplateIds');
+  const templatesQuery = manager
+    .getRepository(FormTemplate)
+    .createQueryBuilder('t')
+    .select('t.id', 'id')
+    .addSelect('t.name', 'name')
+    .addSelect('t.category', 'category')
+    .addSelect('t.is_required', 'isRequired');
   const roleQuery = manager
     .getRepository(WorkOrderShiftRole)
     .createQueryBuilder('r')
@@ -143,7 +154,8 @@ export async function loadShiftStatusIndex(
     )
     .select('submission.workOrderId', 'workOrderId')
     .addSelect('submission.shiftId', 'shiftId')
-    .distinct(true)
+    .addSelect('submission.templateId', 'templateId')
+    .addSelect('submission.status', 'status')
     .where('submission.status = :submitted', { submitted: 'submitted' });
   const latestQuery = withOrdering
     ? manager
@@ -163,13 +175,21 @@ export async function loadShiftStatusIndex(
         )
         .groupBy('all_shift.workOrderId')
     : undefined;
-  const [rows, roles, workers, submitted, latest] = await Promise.all([
+  const [rows, templates, roles, workers, submitted, latest] = await Promise.all([
     scoped(shiftsQuery).getRawMany<IndexRow>(),
+    templatesQuery.getRawMany<{
+      id: string;
+      name: string | null;
+      category: string | null;
+      isRequired: boolean | null;
+    }>(),
     scoped(roleQuery).getRawMany<RoleRow>(),
     scoped(workerQuery).getRawMany<WorkerRow>(),
     scoped(submittedQuery).getRawMany<{
       workOrderId: string;
       shiftId: string;
+      templateId: string;
+      status: string;
     }>(),
     latestQuery
       ? latestQuery.getRawMany<{ workOrderId: string; latestShift: string }>()
@@ -181,13 +201,15 @@ export async function loadShiftStatusIndex(
   rows.forEach((row) => {
     row.latestShift = latestByOrder.get(row.workOrderId) || null;
   });
-  const completed = new Set(
-    submitted.map((row) => row.workOrderId + ':' + row.shiftId),
+  const completion = buildShiftCompletionLookup(
+    rows.map((row) => ({
+      id: row.id,
+      workOrderId: row.workOrderId,
+      formTemplateIds: row.formTemplateIds,
+    })),
+    templates,
+    submitted,
   );
-  const completion = {
-    isShiftCompleted: (workOrderId: string, shiftId: string) =>
-      completed.has(workOrderId + ':' + shiftId),
-  };
   const workersByRole = new Map<string, WorkerRow[]>();
   for (const worker of workers) {
     if (!workersByRole.has(worker.roleId)) workersByRole.set(worker.roleId, []);

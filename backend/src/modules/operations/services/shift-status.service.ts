@@ -4,8 +4,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { FormSubmission } from '../../../entities/form-submission.entity';
+import { FormTemplate } from '../../../entities/form-template.entity';
 import { StatusCatalog } from '../../../entities/status-catalog.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
+import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { ShiftsQueryService } from './shifts-query.service';
 import {
   computeShiftStatus,
@@ -13,6 +15,7 @@ import {
   ShiftStatusValue,
   ShiftCompletionLookup,
   ALL_SHIFT_STATUSES,
+  buildShiftCompletionLookup,
 } from '../utils/shift-status.util';
 
 export interface ShiftCatalogItem {
@@ -35,6 +38,10 @@ export class ShiftStatusService {
     private readonly workOrdersRepo: Repository<WorkOrder>,
     @InjectRepository(FormSubmission)
     private readonly formSubmissionsRepo: Repository<FormSubmission>,
+    @InjectRepository(FormTemplate)
+    private readonly formTemplatesRepo: Repository<FormTemplate>,
+    @InjectRepository(WorkOrderShift)
+    private readonly shiftsRepo: Repository<WorkOrderShift>,
     private readonly shiftsQuery: ShiftsQueryService,
   ) {}
 
@@ -125,18 +132,38 @@ export class ShiftStatusService {
       return { isShiftCompleted: () => false };
     }
 
-    const rows = await this.formSubmissionsRepo.find({
-      select: { workOrderId: true, shiftId: true, status: true },
-      where: { workOrderId: In(workOrderIds), status: 'submitted' },
-    });
-    const completed = new Set<string>();
-    for (const r of rows) {
-      if (r.status !== 'submitted') continue;
-      if (!r.shiftId) continue;
-      completed.add(`${r.workOrderId}:${r.shiftId}`);
-    }
-    return {
-      isShiftCompleted: (woId, shiftId) => completed.has(`${woId}:${shiftId}`),
-    };
+    const [templates, shifts, submissions] = await Promise.all([
+      this.formTemplatesRepo.find({
+        select: { id: true, name: true, category: true, isRequired: true },
+      }),
+      this.shiftsRepo.find({
+        select: { id: true, workOrderId: true, formTemplateIds: true },
+        where: { workOrderId: In(workOrderIds) },
+      }),
+      this.formSubmissionsRepo.find({
+        select: {
+          workOrderId: true,
+          shiftId: true,
+          templateId: true,
+          status: true,
+        },
+        where: { workOrderId: In(workOrderIds), status: 'submitted' },
+      }),
+    ]);
+
+    return buildShiftCompletionLookup(
+      shifts.map((shift) => ({
+        id: shift.id,
+        workOrderId: shift.workOrderId,
+        formTemplateIds: shift.formTemplateIds,
+      })),
+      templates,
+      submissions.map((submission) => ({
+        workOrderId: submission.workOrderId,
+        shiftId: submission.shiftId || '',
+        templateId: submission.templateId,
+        status: submission.status,
+      })),
+    );
   }
 }

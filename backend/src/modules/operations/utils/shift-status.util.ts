@@ -69,6 +69,94 @@ export interface ShiftCompletionLookup {
   isShiftCompleted(workOrderId: string, shiftId: string): boolean;
 }
 
+export interface CompletionTemplate {
+  id: string;
+  name?: string | null;
+  category?: string | null;
+  isRequired?: boolean | null;
+}
+
+function templateText(template: CompletionTemplate): string {
+  return [template.category, template.name]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => String(value).toLowerCase())
+    .join(' ');
+}
+
+export function isTimesheetTemplate(template: CompletionTemplate): boolean {
+  return [template.category, template.name]
+    .filter((value): value is string => Boolean(value))
+    .some((value) =>
+      String(value).toLowerCase().replace(/\s+/g, '').includes('timesheet'),
+    );
+}
+
+export function isWorkOrderTemplate(template: CompletionTemplate): boolean {
+  const text = templateText(template);
+  return (
+    text.replace(/[\s_-]+/g, '').includes('workorder') || /\bwo\b/.test(text)
+  );
+}
+
+export function isIncidentTemplate(template: CompletionTemplate): boolean {
+  return [template.category, template.name]
+    .filter((value): value is string => Boolean(value))
+    .some((value) =>
+      String(value).toLowerCase().replace(/\s+/g, '').includes('incident'),
+    );
+}
+
+export function buildShiftCompletionLookup(
+  shifts: {
+    id: string;
+    workOrderId: string;
+    formTemplateIds?: string[] | null;
+  }[],
+  templates: CompletionTemplate[],
+  submissions: {
+    workOrderId: string;
+    shiftId: string;
+    templateId: string;
+    status: string;
+  }[],
+): ShiftCompletionLookup {
+  const requiredByShift = new Map<string, Set<string>>();
+  for (const shift of shifts) {
+    const pickedIds = new Set(asStringArray(shift.formTemplateIds));
+    const required = templates.filter((template) => {
+      if (template.isRequired === false || !pickedIds.has(template.id))
+        return false;
+      if (isIncidentTemplate(template)) return false;
+      return isWorkOrderTemplate(template) || isTimesheetTemplate(template);
+    });
+    if (required.length === 0) continue;
+    requiredByShift.set(
+      `${shift.workOrderId}:${shift.id}`,
+      new Set(required.map((template) => template.id)),
+    );
+  }
+
+  const submittedByShift = new Map<string, Set<string>>();
+  for (const submission of submissions) {
+    if (submission.status !== 'submitted') continue;
+    if (!submission.shiftId) continue;
+    const key = `${submission.workOrderId}:${submission.shiftId}`;
+    const set = submittedByShift.get(key) ?? new Set<string>();
+    set.add(submission.templateId);
+    submittedByShift.set(key, set);
+  }
+
+  return {
+    isShiftCompleted: (workOrderId, shiftId) => {
+      const key = `${workOrderId}:${shiftId}`;
+      const required = requiredByShift.get(key);
+      if (!required || required.size === 0) return false;
+      const submitted = submittedByShift.get(key) ?? new Set<string>();
+      return [...required].every((templateId) => submitted.has(templateId));
+    },
+  };
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const result: string[] = [];

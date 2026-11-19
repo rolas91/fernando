@@ -294,13 +294,26 @@ describe('requested improvements', () => {
         findOne: jest.fn(async () => ({
           id: 'sub',
           templateId: 't',
+          shiftId: 'shift-1',
           pdfUrl: '/files/test.pdf',
         })),
+        manager: {
+          getRepository: jest.fn(() => ({
+            findOne: jest.fn(async () => ({
+              id: 'shift-1',
+              shiftName: 'Day Shift',
+              date: '2026-11-18',
+              startTime: '08:00',
+              endTime: '16:00',
+              address: '123 Main St',
+            })),
+          })),
+        },
       },
       formTemplatesRepo: { findOne: async () => ({ category: 'work_order' }) },
       readGeneratedPdf: jest.fn(async () => Buffer.from('%PDF-test')),
       integrations: {
-        sendWorkOrderDocument: jest.fn(async () => ({ success: true })),
+        sendEmailWithAttachment: jest.fn(async () => ({ success: true })),
       },
       logger: { error: jest.fn() },
     });
@@ -314,8 +327,12 @@ describe('requested improvements', () => {
     expect(service.formSubmissionsRepo.findOne).toHaveBeenCalledWith({
       where: { id: 'sub', workOrderId: 'w', status: 'submitted' },
     });
-    expect(service.integrations.sendWorkOrderDocument).toHaveBeenCalledWith(
+    expect(
+      service.integrations.sendEmailWithAttachment,
+    ).toHaveBeenCalledWith(
       'client@example.com',
+      'Work Order Copy – Project #N/A | 2026-11-18',
+      expect.stringContaining('Project #: N/A'),
       expect.stringMatching(/^Work Order .* - Assignment-[a-f0-9]{12}\.pdf$/),
       expect.any(Buffer),
     );
@@ -325,9 +342,11 @@ describe('requested improvements', () => {
     await expect(
       service.emailWorkOrderPdf('w', 'sub', 'not-an-email'),
     ).rejects.toThrow('A valid recipient email is required.');
-    expect(service.integrations.sendWorkOrderDocument).not.toHaveBeenCalled();
-    service.integrations.sendWorkOrderDocument.mockRejectedValue(
-      new Error('SMTP unavailable'),
+    expect(
+      service.integrations.sendEmailWithAttachment,
+    ).not.toHaveBeenCalled();
+    service.integrations.sendEmailWithAttachment.mockRejectedValue(
+      new Error('SendGrid unavailable'),
     );
     await expect(
       service.emailWorkOrderPdf('w', 'sub', 'client@example.com'),

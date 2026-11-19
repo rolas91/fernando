@@ -21,6 +21,7 @@ import { Project } from '../../../entities/project.entity';
 import { Shift as ShiftCatalog } from '../../../entities/shift.entity';
 import { Worker } from '../../../entities/worker.entity';
 import { WorkOrder } from '../../../entities/work-order.entity';
+import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { CreateWorkOrderDto } from '../dto/create-work-order.dto';
 import { UpdateWorkOrderDto } from '../dto/update-work-order.dto';
@@ -573,17 +574,35 @@ export class WorkOrdersService {
       .replace(/[_\s-]+/g, '');
     if (!submission?.pdfUrl || !category.includes('workorder'))
       throw new BadRequestException('A submitted Work Order PDF is required.');
+
+    const shift = submission.shiftId
+      ? await this.formSubmissionsRepo.manager
+          .getRepository(WorkOrderShift)
+          .findOne({ where: { id: submission.shiftId } })
+      : null;
+
     const pdf = Buffer.from(await this.readGeneratedPdf(submission.pdfUrl));
     if (pdf.length > 20 * 1024 * 1024)
       throw new BadRequestException(
         'The PDF exceeds the 20 MB email attachment limit.',
       );
+
+    const fileName = uniqueDocumentFileName(
+      `Work Order ${submission.workOrderNumber || order.orderNumber || ''} - ${project?.name || 'Assignment'}.pdf`,
+    );
+    const { subject, body } = this.buildWorkOrderEmail(
+      email,
+      order,
+      project,
+      shift,
+    );
+
     try {
-      return await this.integrations.sendWorkOrderDocument(
+      return await this.integrations.sendEmailWithAttachment(
         email,
-        uniqueDocumentFileName(
-          `Work Order ${submission.workOrderNumber || order.orderNumber || ''} - ${project?.name || 'Assignment'}.pdf`,
-        ),
+        subject,
+        body,
+        fileName,
         pdf,
       );
     } catch (error) {
@@ -594,6 +613,51 @@ export class WorkOrdersService {
         'Could not send the Work Order. Check the SendGrid configuration and delivery status before retrying.',
       );
     }
+  }
+
+  private buildWorkOrderEmail(
+    recipientEmail: string,
+    workOrder: WorkOrder,
+    project: Project | null,
+    shift: WorkOrderShift | null,
+  ) {
+    const clientName = recipientEmail.split('@')[0] || 'Valued Client';
+    const projectNumber = project?.number || workOrder?.orderNumber || 'N/A';
+    const shiftDate = shift?.date || workOrder?.startDate || 'N/A';
+    const shiftName = shift?.shiftName || 'N/A';
+    const jobLocation =
+      shift?.address || workOrder?.assignmentAddress || project?.location || 'N/A';
+    const shiftHours =
+      shift?.startTime && shift?.endTime
+        ? `${shift.startTime} – ${shift.endTime}`
+        : 'N/A';
+
+    const subject = `Work Order Copy – Project #${projectNumber} | ${shiftDate}`;
+    const body = `Dear ${clientName},
+
+Thank you for your confirmation.
+
+Attached is a copy of the Work Order completed and signed on-site for your records.
+
+Work Order Details
+
+* Project #: ${projectNumber}
+* Shift Date: ${shiftDate}
+* Shift: ${shiftName}
+* Job Location: ${jobLocation}
+* Shift Hours: ${shiftHours}
+
+This document reflects the information recorded and acknowledged on-site. It remains subject to DR Traffic Control’s internal administrative review.
+
+If you have any questions, please contact our office.
+
+Best regards,
+DR Traffic Control
+Operations Team
+
+This is an automated email. Please do not reply.`;
+
+    return { subject, body };
   }
 
   private async readGeneratedPdf(pdfUrl: string): Promise<Uint8Array> {

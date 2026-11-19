@@ -4064,10 +4064,11 @@ export class FormSubmissionsService {
 
   private async sendClientWorkOrderCopy(submission: FormSubmission) {
     if (submission.status !== 'submitted') return;
-    const sendCopy = submission.data?.sendCopyToClient;
+    const data = submission.data || {};
+    const sendCopy = data.sendCopyToClient ?? data.send_copy_to_client;
     if (sendCopy !== true && sendCopy !== 'true') return;
 
-    const clientEmailValue = submission.data?.clientEmail;
+    const clientEmailValue = data.clientEmail ?? data.client_email;
     const rawEmail =
       typeof clientEmailValue === 'string' ? clientEmailValue.trim() : '';
     if (!rawEmail) return;

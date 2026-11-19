@@ -25,6 +25,9 @@ const CLIENT_CONFIRMATION_FIELDS: Record<string, unknown>[] = [
       layout: 'full',
       keyboardType: 'email-address',
       inputMode: 'email',
+      accentColor: '#7c3aed',
+      backgroundColor: '#f3e8ff',
+      icon: 'mail-outline',
     },
   },
   {
@@ -38,6 +41,8 @@ const CLIENT_CONFIRMATION_FIELDS: Record<string, unknown>[] = [
       section: 'Client Confirmation',
       layout: 'full',
       defaultValue: false,
+      accentColor: '#7c3aed',
+      backgroundColor: '#f3e8ff',
     },
   },
 ];

@@ -513,6 +513,32 @@ export class WorkersService {
       tokenCount: worker.fcmTokens.length,
     };
   }
+
+  async unregisterFcmTokenForActor(rawToken: string, actor?: UserAccessContext) {
+    const token = rawToken.trim();
+    if (!token) throw new ForbiddenException('FCM token is required.');
+    if (!actor?.email) {
+      throw new ForbiddenException('Authenticated user email is required.');
+    }
+
+    const worker = await findWorkerForActor(this.workersRepo, actor);
+    if (!worker) {
+      throw new NotFoundException(
+        `Worker profile for ${actor.email} was not found.`,
+      );
+    }
+
+    const previous = worker.fcmTokens || [];
+    worker.fcmTokens = previous.filter((item) => item !== token);
+    await this.workersRepo.save(worker);
+    this.realtime.emitTableUpdated('workers');
+    return {
+      success: true,
+      workerId: worker.id,
+      removed: previous.length > worker.fcmTokens.length,
+      tokenCount: worker.fcmTokens.length,
+    };
+  }
 }
 
 export function applyLegacyTypeField(

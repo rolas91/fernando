@@ -71,6 +71,9 @@ export type FormField = {
     tagTone?: 'blue' | 'amber' | 'slate';
     section?: string;
     sectionDescription?: string;
+    accentColor?: string;
+    backgroundColor?: string;
+    icon?: string;
   };
 };
 

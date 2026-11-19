@@ -1558,14 +1558,25 @@ function mobileFieldLabel(field: FormField) {
 }
 
 function FieldLabel({ field }: { field: FormField }) {
+  const { themeColor } = useNativeTheme();
+  const icon = field.ui?.icon;
   return (
-    <Text
-      className="mb-[7px] text-[12px] font-extrabold text-[#5d6c87] dark:text-slate-300"
-      style={{ letterSpacing: 0.4, textTransform: 'uppercase' }}
-    >
-      {mobileFieldLabel(field)}
-      {field.required ? ' *' : ''}
-    </Text>
+    <View className="mb-[7px] flex-row items-center gap-2">
+      {icon ? (
+        <Ionicons
+          name={icon as any}
+          size={18}
+          color={themeColor(field.ui?.accentColor ?? '#5d6c87', 'text')}
+        />
+      ) : null}
+      <Text
+        className="text-[12px] font-extrabold text-[#5d6c87] dark:text-slate-300"
+        style={{ letterSpacing: 0.4, textTransform: 'uppercase' }}
+      >
+        {mobileFieldLabel(field)}
+        {field.required ? ' *' : ''}
+      </Text>
+    </View>
   );
 }
 
@@ -1591,6 +1602,7 @@ function TextField({
 }) {
   const { themeColor } = useNativeTheme();
   const multiline = field.type === 'textarea';
+  const accentColor = field.ui?.accentColor;
   return (
     <TextInput
       value={asInputValue(value)}
@@ -1614,6 +1626,9 @@ function TextField({
         borderWidth: 1,
         minHeight: multiline ? 110 : undefined,
         textAlignVertical: multiline ? 'top' : 'center',
+        borderColor: accentColor
+          ? themeColor(accentColor, 'border')
+          : themeColor('#dce4f0', 'border'),
       }}
     />
   );
@@ -2728,12 +2743,21 @@ function DynamicField({
 }) {
   const { themeColor } = useNativeTheme();
   const helper = field.ui?.helperText;
+  const accentColor = field.ui?.accentColor;
+  const backgroundColor = field.ui?.backgroundColor;
 
   return (
     <View
       className="mb-4"
       pointerEvents={disabled ? 'none' : 'auto'}
-      style={{ opacity: disabled ? 0.72 : 1 }}
+      style={{
+        opacity: disabled ? 0.72 : 1,
+        backgroundColor: backgroundColor
+          ? themeColor(backgroundColor, 'background')
+          : undefined,
+        padding: backgroundColor ? 12 : undefined,
+        borderRadius: backgroundColor ? 14 : undefined,
+      }}
     >
       <FieldLabel field={field} />
       {field.type === 'text' ||
@@ -2774,13 +2798,24 @@ function DynamicField({
       {field.type === 'checkbox' ? (
         <Pressable
           onPress={() => onChange(!(value === true))}
-          className="flex-row items-center gap-2.5 rounded-[14px] bg-white dark:bg-slate-800 px-3.5 py-3 border-[#dce4f0] dark:border-[#334155]"
-          style={{ borderWidth: 1 }}
+          className="flex-row items-center gap-2.5 rounded-[14px] px-3.5 py-3"
+          style={{
+            borderWidth: 1,
+            backgroundColor: backgroundColor
+              ? 'transparent'
+              : themeColor('#fff', 'background'),
+            borderColor: accentColor
+              ? themeColor(accentColor, 'border')
+              : themeColor('#dce4f0', 'border'),
+          }}
         >
           <Ionicons
             name={value === true ? 'checkbox' : 'square-outline'}
             size={22}
-            color={themeColor(value === true ? BLUE_TEXT : MUTED)}
+            color={themeColor(
+              value === true ? accentColor ?? BLUE_TEXT : MUTED,
+              'text',
+            )}
           />
           <Text className="flex-1 text-[14px] leading-snug text-[#182641] dark:text-[#f1f5f9]">
             Yes

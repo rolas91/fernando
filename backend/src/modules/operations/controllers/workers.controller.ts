@@ -23,6 +23,7 @@ import { createSpacesUploadMulterOptions } from '../utils/spaces-multer-options'
 import type { Request } from 'express';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import { RegisterFcmTokenDto } from '../dto/register-fcm-token.dto';
+import { UnregisterFcmTokenDto } from '../dto/unregister-fcm-token.dto';
 
 type ReqWithOpsUser = Request & { user?: UserAccessContext };
 
@@ -84,6 +85,15 @@ export class WorkersController {
     @Req() req: ReqWithOpsUser,
   ) {
     return this.workersService.registerFcmTokenForActor(dto.token, req.user);
+  }
+
+  @Delete('me/fcm-token')
+  @ApiBody({ type: UnregisterFcmTokenDto })
+  unregisterMyFcmToken(
+    @Body() dto: UnregisterFcmTokenDto,
+    @Req() req: ReqWithOpsUser,
+  ) {
+    return this.workersService.unregisterFcmTokenForActor(dto.token, req.user);
   }
 
   @Get('me/profile')

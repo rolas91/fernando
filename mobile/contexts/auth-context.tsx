@@ -17,6 +17,7 @@ import { AUTH_MESSAGES, subscribeToSessionExpired } from '@/lib/auth-errors';
 import {
   registerDeviceForPush,
   setupPushTokenRefresh,
+  unregisterDeviceForPush,
 } from '@/lib/push-notifications-service';
 
 export type UserRole = 'admin' | 'manager' | 'scheduler' | 'viewer';
@@ -281,6 +282,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    if (token) {
+      tokenRefreshUnsub.current?.();
+      tokenRefreshUnsub.current = null;
+      await unregisterDeviceForPush(token).catch(() => {
+        // Ignore unregister errors so logout always completes.
+      });
+    }
     await Promise.all([
       safeRemoveItem(AUTH_TOKEN_KEY),
       safeRemoveItem(AUTH_USER_KEY),
@@ -288,7 +296,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setAuthNotice(null);
-  }, []);
+  }, [token]);
 
   const clearAuthNotice = useCallback(() => setAuthNotice(null), []);
 

@@ -320,11 +320,11 @@ describe('requested improvements', () => {
       expect.any(Buffer),
     );
   });
-  it('does not send when the recipient changed or delivery failed', async () => {
+  it('does not send when the recipient email is invalid or delivery failed', async () => {
     const service = emailService();
     await expect(
-      service.emailWorkOrderPdf('w', 'sub', 'other@example.com'),
-    ).rejects.toThrow('email changed');
+      service.emailWorkOrderPdf('w', 'sub', 'not-an-email'),
+    ).rejects.toThrow('A valid recipient email is required.');
     expect(service.integrations.sendWorkOrderDocument).not.toHaveBeenCalled();
     service.integrations.sendWorkOrderDocument.mockRejectedValue(
       new Error('SMTP unavailable'),

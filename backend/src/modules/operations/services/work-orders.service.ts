@@ -553,19 +553,13 @@ export class WorkOrdersService {
     const project = await this.projectsRepo.findOne({
       where: { id: order.projectId },
     });
-    const client = project?.clientId
-      ? await this.clientsRepo.findOne({ where: { id: project.clientId } })
-      : null;
-    const email = client?.email?.trim();
+
+    const email =
+      typeof expectedEmail === 'string' ? expectedEmail.trim() : '';
     if (!email || !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email)) {
-      throw new BadRequestException(
-        'The project client needs a valid email address.',
-      );
+      throw new BadRequestException('A valid recipient email is required.');
     }
-    if (expectedEmail !== email)
-      throw new BadRequestException(
-        'The client email changed. Refresh and confirm the recipient again.',
-      );
+
     const submission = await this.formSubmissionsRepo.findOne({
       where: { id: submissionId, workOrderId, status: 'submitted' },
     });
@@ -597,7 +591,7 @@ export class WorkOrdersService {
         `Work Order email failed for submission ${submission.id}`,
       );
       throw new BadRequestException(
-        'Could not send the Work Order. Check the SMTP configuration and delivery status before retrying.',
+        'Could not send the Work Order. Check the SendGrid configuration and delivery status before retrying.',
       );
     }
   }

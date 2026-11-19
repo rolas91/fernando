@@ -50,6 +50,26 @@ export async function registerDeviceForPush(authToken: string) {
   await sendTokenToBackend(authToken, pushTokenData.data);
 }
 
+export async function unregisterDeviceForPush(authToken: string) {
+  if (Platform.OS === 'web') return;
+
+  const pushTokenData = await Notifications.getExpoPushTokenAsync().catch(
+    () => null,
+  );
+  if (!pushTokenData?.data) return;
+
+  const url = buildUrl('/workers/me/fcm-token');
+  if (!url) return;
+  await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${authToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token: pushTokenData.data }),
+  });
+}
+
 export function setupPushTokenRefresh(authToken: string) {
   const sub = Notifications.addPushTokenListener((pushTokenData) => {
     if (!pushTokenData?.data) return;

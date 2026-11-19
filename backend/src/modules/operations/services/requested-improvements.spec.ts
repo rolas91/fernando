@@ -332,7 +332,7 @@ describe('requested improvements', () => {
     ).toHaveBeenCalledWith(
       'client@example.com',
       'Work Order Copy – Project #N/A | 2026-11-18',
-      expect.stringContaining('Project #: N/A'),
+      expect.stringContaining('Please find attached a copy of the Work Order'),
       expect.stringMatching(/^Work Order .* - Assignment-[a-f0-9]{12}\.pdf$/),
       expect.any(Buffer),
     );

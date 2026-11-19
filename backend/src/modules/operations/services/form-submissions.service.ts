@@ -4165,11 +4165,11 @@ export class FormSubmissionsService {
 
     const body = `Dear ${clientName},
 
-Thank you for your confirmation.
+Please find attached a copy of the Work Order completed on-site for your records.
 
-Attached is a copy of the Work Order completed and signed on-site for your records.
 
 Work Order Details
+
 
 * Project #: ${projectNumber}
 * Shift Date: ${shiftDate}
@@ -4177,15 +4177,16 @@ Work Order Details
 * Job Location: ${jobLocation}
 * Shift Hours: ${shiftHours}
 
-This document reflects the information recorded and acknowledged on-site. It remains subject to DR Traffic Control’s internal administrative review.
 
-If you have any questions, please contact our office.
+The attached document includes the work details recorded on-site and is subject to DR Traffic Control’s internal administrative review.
+
 
 Best regards,
 DR Traffic Control
 Operations Team
 
-This is an automated email. Please do not reply.`;
+
+This is an automated notification from DR Traffic Control.`;
 
     return { subject, body };
   }

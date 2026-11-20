@@ -47,6 +47,30 @@ export function hasWorkersPendingInitialNotification(shift: Shift): boolean {
   );
 }
 
+/**
+ * Workers that should receive a "removed from shift" message after a shift is
+ * saved. Only workers that were already notified about the assignment are
+ * included, because a worker that never received the shift notification cannot
+ * be notified about losing it. A pending (unanswered) request is enough; the
+ * worker does not need to have confirmed the shift.
+ */
+export function getShiftWorkerIdsToNotifyOfRemoval(
+  previousShift: Pick<Shift, 'roles'> | null | undefined,
+  remainingWorkerIds: Iterable<string>,
+): string[] {
+  const remaining = new Set(remainingWorkerIds);
+  const recipients: string[] = [];
+  for (const role of previousShift?.roles ?? []) {
+    for (const workerId of role.assignedWorkers ?? []) {
+      if (remaining.has(workerId) || recipients.includes(workerId)) continue;
+      if (hasWorkerConfirmationRequest(role, workerId)) {
+        recipients.push(workerId);
+      }
+    }
+  }
+  return recipients;
+}
+
 export function isWorkerAwaitingResponse(
   role: ShiftRole,
   workerId: string,

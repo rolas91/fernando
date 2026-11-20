@@ -69,6 +69,7 @@ import {
   canCancelShiftStatus,
   hasWorkersPendingInitialNotification,
   hasWorkerConfirmationRequest,
+  getShiftWorkerIdsToNotifyOfRemoval,
   isWorkerPendingInitialNotification,
   reactivateCancelledShiftWithManualStatus,
   prepareShiftDuplicate,
@@ -4571,9 +4572,6 @@ const EditShiftModal: React.FC<{
       });
       return;
     }
-    const originalWorkerIds = new Set(
-      shift.roles.flatMap((role) => role.assignedWorkers),
-    );
     const normalizedRoles = roles.map((r) => ({
       id: r.id,
       roleName: r.roleName,
@@ -4855,11 +4853,9 @@ const EditShiftModal: React.FC<{
       return;
     }
     if (found) {
-      const remainingWorkerIds = new Set(
+      const removedWorkerIds = getShiftWorkerIdsToNotifyOfRemoval(
+        shift,
         normalizedRoles.flatMap((role) => role.assignedWorkers),
-      );
-      const removedWorkerIds = [...originalWorkerIds].filter(
-        (workerId) => !remainingWorkerIds.has(workerId),
       );
       await Promise.allSettled(
         removedWorkerIds.map(async (workerId) => {

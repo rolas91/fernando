@@ -3548,7 +3548,7 @@ export class FormSubmissionsService {
               shiftId: dto.shiftId || item.shiftId,
             },
           )
-        : item.data;
+        : normalizeSubmissionData(item.data);
 
     if (template) {
       validateSubmissionAgainstFields(

@@ -1,7 +1,34 @@
 import {
   normalizeFormFields,
   validateSubmissionAgainstFields,
+  normalizeSubmissionData,
 } from './form-contract.util';
+
+describe('client copy checkbox submission', () => {
+  const fields = normalizeFormFields([
+    { id: 'send_copy_to_client', label: 'Send client copy', type: 'checkbox' },
+  ]);
+
+  it.each([['false', false], ['true', true]])(
+    'normalizes %s before checkbox validation',
+    (input, expected) => {
+      const data = normalizeSubmissionData({
+        send_copy_to_client: input,
+        sendCopyToClient: input,
+      });
+      expect(data.send_copy_to_client).toBe(expected);
+      expect(data.sendCopyToClient).toBe(expected);
+      expect(() => validateSubmissionAgainstFields(fields, data)).not.toThrow();
+    },
+  );
+
+  it('still rejects unsupported checkbox values', () => {
+    const data = normalizeSubmissionData({ send_copy_to_client: 'yes' });
+    expect(() => validateSubmissionAgainstFields(fields, data)).toThrow(
+      'must be boolean',
+    );
+  });
+});
 
 describe('shift-authorized mobile signatures', () => {
   const signatureField = {

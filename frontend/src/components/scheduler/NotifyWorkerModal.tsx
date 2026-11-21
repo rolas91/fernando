@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { Worker, Shift, WorkOrder } from '@/lib/types';
+import { getShiftPeriodLabel } from '@/lib/shiftPeriod';
 import {
   X,
   Send,
@@ -92,8 +93,13 @@ const NotifyWorkerModal: React.FC<NotifyWorkerModalProps> = ({
   onNotificationSent,
   isBulk = false,
 }) => {
-  const { getWorkerById, getProjectById, settings, workOrders } =
-    useAppContext();
+  const {
+    getWorkerById,
+    getProjectById,
+    settings,
+    workOrders,
+    shifts: shiftCatalog,
+  } = useAppContext();
   const { toast } = useToast();
 
   const [channels, setChannels] = useState<
@@ -139,6 +145,22 @@ const NotifyWorkerModal: React.FC<NotifyWorkerModalProps> = ({
     );
   };
 
+  const shiftPeriodFor = useCallback(
+    (r: NotificationRecipient) => {
+      const shift = workOrders
+        .find((workOrder) => workOrder.id === r.workOrderId)
+        ?.shifts.find((item) => item.id === r.shiftId);
+      const template = shiftCatalog.find(
+        (item) => item.id === shift?.shiftTemplateId,
+      );
+      return getShiftPeriodLabel(
+        r.roleStartTime,
+        template?.name || shift?.shiftName,
+      );
+    },
+    [workOrders, shiftCatalog],
+  );
+
   const generateTemplate = useCallback(
     (r: NotificationRecipient) => {
       const companyName = settings.name || 'DR Traffic Control';
@@ -146,12 +168,12 @@ const NotifyWorkerModal: React.FC<NotifyWorkerModalProps> = ({
         ? ` at ${r.location.trim()}`
         : '';
       if (r.action === 'assigned') {
-        return `Hi ${r.worker.firstName}, you have been assigned to ${r.projectName} on ${formatDate(r.shiftDate)} Start time ${formatArrivalTime(r.roleStartTime)} day shift as ${r.roleName}${locationPhrase}. Please confirm your availability. — ${companyName}`;
+        return `Hi ${r.worker.firstName}, you have been assigned to ${r.projectName} on ${formatDate(r.shiftDate)} Start time ${formatArrivalTime(r.roleStartTime)} ${shiftPeriodFor(r)} as ${r.roleName}${locationPhrase}. Please confirm your availability. — ${companyName}`;
       } else {
         return `Hi ${r.worker.firstName}, you have been removed from the ${r.roleName} shift at ${r.projectName} on ${formatDate(r.shiftDate)} (${formatTimeRange(r.shiftTime)}). Please contact your supervisor with any questions. — ${companyName}`;
       }
     },
-    [settings.name],
+    [settings.name, shiftPeriodFor],
   );
 
   const hasWorkOrderAccess = useCallback(

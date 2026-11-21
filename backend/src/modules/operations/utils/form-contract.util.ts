@@ -530,6 +530,14 @@ export function normalizeSubmissionData(
   data: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
   const payload = isRecord(data) ? { ...data } : {};
+  for (const key of ['send_copy_to_client', 'sendCopyToClient']) {
+    const value = payload[key];
+    if (typeof value !== 'string') continue;
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === 'false') {
+      payload[key] = normalized === 'true';
+    }
+  }
   const currentMeta = isRecord(payload._meta) ? payload._meta : {};
   payload._meta = {
     ...currentMeta,

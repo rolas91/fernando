@@ -10,6 +10,26 @@ function reporter() {
   const storage = new Map();
   const navigator = { onLine: true };
   let failReporting = false;
+  let apiStatus = 500;
+  let apiMessage = '';
+  const dispatched = [];
+  const session = new Map();
+  const auth = { exports: {}, window: {}, Event };
+  vm.runInNewContext(
+    ts.transpileModule(
+      fs.readFileSync(
+        require('node:path').join(__dirname, '../src/lib/authErrors.ts'),
+        'utf8',
+      ),
+      {
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.CommonJS,
+        },
+      },
+    ).outputText,
+    auth,
+  );
   const fetch = async (input, options) => {
     const url = String(input);
     calls.push({ url, options });
@@ -19,12 +39,14 @@ function reporter() {
     }
     return {
       ok: false,
-      status: 500,
+      status: apiStatus,
+      clone: () => ({ json: async () => ({ message: apiMessage }) }),
       headers: { get: () => '063a0934-6654-4f9c-9643-81fdc257a927' },
     };
   };
   const window = {
     fetch,
+    dispatchEvent: (event) => dispatched.push(event.type),
     addEventListener: (name, fn) => {
       events[name] = fn;
     },
@@ -56,6 +78,13 @@ function reporter() {
     Error,
     URL,
     Request,
+    Headers,
+    Event,
+    sessionStorage: { setItem: (key, value) => session.set(key, value) },
+    require: (name) => {
+      assert.equal(name, './authErrors');
+      return auth.exports;
+    },
     DOMException,
     AbortController,
   };
@@ -63,6 +92,13 @@ function reporter() {
   context.exports.installErrorReporting();
   return {
     ...context.exports,
+    dispatched,
+    session,
+    auth: auth.exports,
+    setApiResponse: (status, message) => {
+      apiStatus = status;
+      apiMessage = message;
+    },
     window,
     events,
     calls,
@@ -153,5 +189,51 @@ test('captures global JavaScript and promise failures', async () => {
   assert.deepEqual(
     r.calls.map((call) => JSON.parse(call.options.body).context),
     ['JavaScript', 'Unhandled promise'],
+  );
+});
+
+test('marks web API requests without changing authorization or external requests', async () => {
+  const r = reporter();
+  await r.window.fetch('/api/workers', {
+    headers: { Authorization: 'Bearer existing-token' },
+  });
+  const call = r.calls.find((c) => c.url === '/api/workers');
+  assert.equal(call.options.headers.get('X-Client-Platform'), 'web');
+  assert.equal(
+    call.options.headers.get('Authorization'),
+    'Bearer existing-token',
+  );
+  await r.window.fetch('https://external.local/data');
+  assert.equal(
+    r.calls.find((c) => c.url.includes('external.local')).options,
+    undefined,
+  );
+});
+
+test('revoked web access ends the panel session with a specific notice', async () => {
+  const r = reporter();
+  r.setApiResponse(403, r.auth.AUTH_MESSAGES.webAccessDenied);
+  await r.window.fetch('/api/workers');
+  assert.deepEqual(r.dispatched, [r.auth.AUTH_SESSION_EXPIRED_EVENT]);
+  assert.equal(
+    r.session.get(r.auth.AUTH_NOTICE_KEY),
+    r.auth.AUTH_MESSAGES.webAccessDenied,
+  );
+});
+
+test('ordinary forbidden operations do not end a valid session', async () => {
+  const r = reporter();
+  r.setApiResponse(403, 'Insufficient permissions');
+  await r.window.fetch('/api/workers');
+  assert.equal(r.dispatched.length, 0);
+});
+
+test('web login denial uses the platform-specific message', () => {
+  const r = reporter();
+  assert.equal(
+    r.auth.loginErrorMessage(
+      new r.auth.AuthHttpError(403, r.auth.AUTH_MESSAGES.webAccessDenied),
+    ),
+    r.auth.AUTH_MESSAGES.webAccessDenied,
   );
 });

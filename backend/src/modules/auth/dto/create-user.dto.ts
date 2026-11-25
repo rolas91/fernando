@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsOptional,
@@ -8,6 +9,11 @@ import {
 } from 'class-validator';
 
 export class CreateUserDto {
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  webAccessEnabled?: boolean;
+
   @ApiProperty({ example: 'new.user@drtrafficcontrol.com' })
   @IsEmail()
   email: string;

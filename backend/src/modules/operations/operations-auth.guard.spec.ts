@@ -1,7 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { OperationsAuthGuard } from './operations-auth.guard';
 
-type Verified = { sub: string };
+type Verified = { sub: string; platform?: 'web' | 'mobile' };
 
 describe('OperationsAuthGuard', () => {
   const verifyAccessToken = jest.fn<Verified | null, [string]>();
@@ -122,5 +122,54 @@ describe('OperationsAuthGuard', () => {
     });
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it.each(['signed', 'legacy'])(
+    'rejects revoked web access for %s sessions',
+    async (session) => {
+      process.env.AUTH_DEV_BYPASS = 'false';
+      verifyAccessToken.mockReturnValueOnce({
+        sub: 'u1',
+        ...(session === 'signed' ? { platform: 'web' as const } : {}),
+      });
+      getUserAccessContext.mockResolvedValueOnce({
+        role: 'viewer',
+        roles: ['viewer'],
+        webAccessEnabled: false,
+        permissions: ['workers.read'],
+      });
+      await expect(
+        guard.canActivate(
+          makeContext({
+            method: 'GET',
+            originalUrl: '/workers',
+            headers: {
+              authorization: 'Bearer token',
+              ...(session === 'legacy' ? { 'x-client-platform': 'web' } : {}),
+            },
+          }),
+        ),
+      ).rejects.toThrow('Web panel access is disabled');
+    },
+  );
+
+  it('allows the same disabled user to use the app', async () => {
+    process.env.AUTH_DEV_BYPASS = 'false';
+    verifyAccessToken.mockReturnValueOnce({ sub: 'u1', platform: 'mobile' });
+    getUserAccessContext.mockResolvedValueOnce({
+      role: 'viewer',
+      roles: ['viewer'],
+      webAccessEnabled: false,
+      permissions: ['workers.read'],
+    });
+    await expect(
+      guard.canActivate(
+        makeContext({
+          method: 'GET',
+          originalUrl: '/workers',
+          headers: { authorization: 'Bearer token' },
+        }),
+      ),
+    ).resolves.toBe(true);
   });
 });

@@ -8,6 +8,7 @@ export type UserAccessContext = {
   phone: string;
   avatarUrl: string;
   status: string;
+  webAccessEnabled?: boolean;
   lastLogin: string | null;
   createdAt: string;
   updatedAt: string;

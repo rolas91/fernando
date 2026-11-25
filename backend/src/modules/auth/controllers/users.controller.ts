@@ -47,6 +47,8 @@ export class UsersController {
       lastName: dto.lastName,
       phone: dto.phone,
       status: 'active',
+      webAccessEnabled:
+        dto.role === 'admin' ? false : (dto.webAccessEnabled ?? false),
       lastLogin: null,
     });
 
@@ -60,12 +62,15 @@ export class UsersController {
     @Param('userId') userId: string,
     @Body() dto: UpdateUserDto,
   ) {
+    const current = await this.accessService.getUserAccessContext(userId);
+    const role = dto.role ?? current.role;
     await this.usersService.update(userId, {
       email: dto.email,
       firstName: dto.firstName,
       lastName: dto.lastName,
       phone: dto.phone,
       status: dto.status,
+      webAccessEnabled: role === 'admin' ? false : dto.webAccessEnabled,
     });
 
     if (dto.role) {

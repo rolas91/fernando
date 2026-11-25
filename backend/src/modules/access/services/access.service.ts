@@ -213,6 +213,8 @@ export class AccessService implements OnModuleInit {
       phone: user.phone || '',
       avatarUrl: user.avatarUrl || '',
       status: user.status || 'active',
+      webAccessEnabled:
+        roles.includes('admin') || user.webAccessEnabled === true,
       lastLogin: user.lastLogin?.toISOString() || null,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),

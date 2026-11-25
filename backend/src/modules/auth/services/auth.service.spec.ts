@@ -43,7 +43,10 @@ describe('AuthService login', () => {
     tokenService as never,
   );
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    access.getUserAccessContext.mockResolvedValue(accessContext);
+  });
 
   it('returns the same generic rejection for an unknown email and bad password', async () => {
     users.findByEmail.mockResolvedValueOnce(null);
@@ -96,5 +99,68 @@ describe('AuthService login', () => {
       'user-1',
       expect.any(Date),
     );
+  });
+
+  it.each(['viewer', 'scheduler', 'manager'])(
+    'rejects web login for %s without web access',
+    async (role) => {
+      users.findByEmail.mockResolvedValue({
+        id: 'user-1',
+        email: accessContext.email,
+        passwordHash: 'hash',
+        status: 'active',
+      });
+      passwordHasher.compare.mockResolvedValue(true);
+      access.getUserAccessContext.mockResolvedValue({
+        ...accessContext,
+        role,
+        roles: [role],
+        webAccessEnabled: false,
+      });
+      await expect(
+        service.login(accessContext.email, 'correct', 'web'),
+      ).rejects.toThrow('Web panel access is disabled');
+      expect(tokenService.signAccessToken).not.toHaveBeenCalled();
+      expect(users.touchLastLogin).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, 'mobile'] as const)(
+    'preserves app login with platform %s',
+    async (platform) => {
+      users.findByEmail.mockResolvedValue({
+        id: 'user-1',
+        email: accessContext.email,
+        passwordHash: 'hash',
+        status: 'active',
+      });
+      passwordHasher.compare.mockResolvedValue(true);
+      await expect(
+        service.login(accessContext.email, 'correct', platform),
+      ).resolves.toHaveProperty('access_token', 'token');
+    },
+  );
+
+  it.each([
+    { role: 'admin', roles: ['admin'], webAccessEnabled: false },
+    { role: 'viewer', roles: ['viewer'], webAccessEnabled: true },
+  ])('issues a signed web session for authorized user %j', async (grant) => {
+    users.findByEmail.mockResolvedValue({
+      id: 'user-1',
+      email: accessContext.email,
+      passwordHash: 'hash',
+      status: 'active',
+    });
+    passwordHasher.compare.mockResolvedValue(true);
+    access.getUserAccessContext.mockResolvedValue({
+      ...accessContext,
+      ...grant,
+    });
+    await service.login(accessContext.email, 'correct', 'web');
+    expect(tokenService.signAccessToken).toHaveBeenCalledWith({
+      sub: 'user-1',
+      email: accessContext.email,
+      platform: 'web',
+    });
   });
 });

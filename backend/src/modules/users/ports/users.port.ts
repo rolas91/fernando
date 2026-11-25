@@ -8,6 +8,7 @@ export type CreateUserInput = {
   phone?: string;
   avatarUrl?: string | null;
   status?: string;
+  webAccessEnabled?: boolean;
   lastLogin?: Date | null;
 };
 

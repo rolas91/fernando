@@ -14,6 +14,7 @@ import type { UsersPort } from '../../users/ports/users.port';
 import { USERS_PORT } from '../../users/users.tokens';
 import type { JwtPayload } from '../strategies/jwt.strategy';
 import { AuthTokenService } from './auth-token.service';
+import { assertWebAccess } from '../web-access';
 import { PasswordHasherService } from './password-hasher.service';
 
 export type AuthResponse = {
@@ -66,7 +67,11 @@ export class AuthService {
     return this.buildAuthResponse(user.id, user.email);
   }
 
-  async login(email: string, password: string): Promise<AuthResponse> {
+  async login(
+    email: string,
+    password: string,
+    platform?: 'web' | 'mobile',
+  ): Promise<AuthResponse> {
     const user = await this.users.findByEmail(email);
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -81,19 +86,31 @@ export class AuthService {
       throw new ForbiddenException('Account unavailable');
     }
 
+    const response = await this.buildAuthResponse(
+      user.id,
+      user.email,
+      platform,
+    );
     await this.users.touchLastLogin(user.id, new Date());
-    return this.buildAuthResponse(user.id, user.email);
+    return response;
   }
 
   private async buildAuthResponse(
     userId: string,
     email: string,
+    platform?: 'web' | 'mobile',
   ): Promise<AuthResponse> {
-    const payload: JwtPayload = { sub: userId, email };
+    const user = await this.access.getUserAccessContext(userId);
+    if (platform === 'web') assertWebAccess(user);
+    const payload: JwtPayload = {
+      sub: userId,
+      email,
+      ...(platform ? { platform } : {}),
+    };
 
     return {
       access_token: this.tokenService.signAccessToken(payload),
-      user: await this.access.getUserAccessContext(userId),
+      user,
     };
   }
 }

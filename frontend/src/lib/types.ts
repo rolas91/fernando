@@ -8,6 +8,7 @@ export interface UserProfile {
   role: UserRole;
   roles?: string[];
   permissions?: string[];
+  webAccessEnabled?: boolean;
   phone: string;
   avatarUrl: string;
   status: 'active' | 'inactive' | 'archived';

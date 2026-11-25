@@ -58,7 +58,9 @@ export class AuthController {
   @Post('login')
   @ApiBody({ type: LoginDto })
   login(@Body() dto: LoginDto) {
-    return this.commandBus.execute(new LoginCommand(dto.email, dto.password));
+    return this.commandBus.execute(
+      new LoginCommand(dto.email, dto.password, dto.platform),
+    );
   }
 
   @Post('forgot-password')

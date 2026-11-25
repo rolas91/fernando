@@ -9,6 +9,10 @@ export class LoginHandler implements ICommandHandler<LoginCommand> {
   constructor(private readonly authService: AuthService) {}
 
   async execute(command: LoginCommand) {
-    return this.authService.login(command.email, command.password);
+    return this.authService.login(
+      command.email,
+      command.password,
+      command.platform,
+    );
   }
 }

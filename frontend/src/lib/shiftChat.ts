@@ -117,7 +117,7 @@ export function connectShiftChatSocket(params: {
 }) {
   const socket: Socket = io(`${REALTIME_URL}/shift-chat`, {
     transports: ['websocket'],
-    auth: { token: token() },
+    auth: { token: token(), platform: 'web' },
     reconnection: true,
     reconnectionAttempts: 10,
     reconnectionDelay: 800,

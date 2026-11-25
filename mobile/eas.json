@@ -7,7 +7,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dev.drworkops.com/api"
+        "EXPO_PUBLIC_API_URL": "https://drworkops.com/api"
       }
     },
     "development": {

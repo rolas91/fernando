@@ -106,6 +106,7 @@ function mapAuthUser(data: any): UserProfile {
     firstName: data.firstName || '',
     lastName: data.lastName || '',
     role: primaryRole,
+    webAccessEnabled: primaryRole === 'admin' || data.webAccessEnabled === true,
     roles,
     permissions: Array.isArray(data?.permissions) ? data.permissions : [],
     phone: data.phone || '',
@@ -127,6 +128,7 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        'X-Client-Platform': 'web',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...incomingHeaders,
       },
@@ -177,51 +179,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
+    let disposed = false;
+    let checking = false;
+    let initialized = false;
     const checkSession = async () => {
+      if (checking || disposed) return;
+      checking = true;
+      const token = getStoredToken();
       try {
-        const token = getStoredToken();
-        const storedUser =
-          localStorage.getItem(USER_KEY) ||
-          localStorage.getItem(LEGACY_USER_KEY);
-
         if (!token) {
+          setUser(null);
           setIsLoading(false);
           return;
         }
 
-        if (storedUser) {
-          try {
-            const parsed = JSON.parse(storedUser) as UserProfile;
-            if (parsed?.id && parsed?.email) {
-              setUser(parsed);
-            }
-          } catch {}
-        }
-
         const currentUser = await apiRequest<any>('/auth/me');
+        if (disposed || getStoredToken() !== token) return;
         const mappedUser = mapAuthUser(currentUser);
+        if (!mappedUser.webAccessEnabled)
+          throw new AuthHttpError(403, AUTH_MESSAGES.webAccessDenied);
         localStorage.setItem(USER_KEY, JSON.stringify(mappedUser));
         localStorage.setItem(SESSION_KEY, token);
         localStorage.removeItem(LEGACY_USER_KEY);
         localStorage.removeItem(LEGACY_SESSION_KEY);
         setUser(mappedUser);
       } catch (error) {
-        if (error instanceof AuthHttpError && error.status === 401) {
+        if (disposed || getStoredToken() !== token) return;
+        if (
+          initialized &&
+          (!(error instanceof AuthHttpError) ||
+            ![401, 403].includes(error.status))
+        )
+          return;
+        if (
+          error instanceof AuthHttpError &&
+          [401, 403].includes(error.status)
+        ) {
           try {
             sessionStorage.setItem(
               AUTH_NOTICE_KEY,
-              AUTH_MESSAGES.sessionExpired,
+              error.status === 403
+                ? AUTH_MESSAGES.webAccessDenied
+                : AUTH_MESSAGES.sessionExpired,
             );
           } catch {}
         }
         clearStoredSession();
         setUser(null);
       } finally {
-        setIsLoading(false);
+        checking = false;
+        initialized = true;
+        if (!disposed) setIsLoading(false);
       }
     };
 
-    checkSession();
+    void checkSession();
+    const timer = window.setInterval(() => {
+      void checkSession();
+    }, 30000);
+    const onFocus = () => {
+      void checkSession();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -233,11 +257,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           body: JSON.stringify({
             email: email.trim().toLowerCase(),
             password,
+            platform: 'web',
           }),
         },
       );
 
       const mappedUser = mapAuthUser(result.user);
+      if (!mappedUser.webAccessEnabled)
+        throw new AuthHttpError(403, AUTH_MESSAGES.webAccessDenied);
       persistSession(result.access_token, mappedUser);
       setUser(mappedUser);
       return { success: true };
@@ -271,6 +298,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         });
 
         const mappedUser = mapAuthUser(result.user);
+        if (!mappedUser.webAccessEnabled)
+          throw new AuthHttpError(403, AUTH_MESSAGES.webAccessDenied);
         persistSession(result.access_token, mappedUser);
         setUser(mappedUser);
         return { success: true };

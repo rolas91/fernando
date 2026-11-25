@@ -1,4 +1,6 @@
 export const AUTH_MESSAGES = {
+  webAccessDenied:
+    'Web panel access is disabled for your account. You can still use the mobile app.',
   invalidCredentials: 'Incorrect email or password. Please try again.',
   missingCredentials: 'Please enter your email and password.',
   accountUnavailable:
@@ -30,7 +32,10 @@ export function loginErrorMessage(error: unknown) {
     if (error.status === 400 || error.status === 401) {
       return AUTH_MESSAGES.invalidCredentials;
     }
-    if (error.status === 403) return AUTH_MESSAGES.accountUnavailable;
+    if (error.status === 403)
+      return error.message === AUTH_MESSAGES.webAccessDenied
+        ? AUTH_MESSAGES.webAccessDenied
+        : AUTH_MESSAGES.accountUnavailable;
     if (error.status === 429) return AUTH_MESSAGES.tooManyAttempts;
     if (error.status >= 500) return AUTH_MESSAGES.server;
   }

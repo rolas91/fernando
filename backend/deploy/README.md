@@ -108,3 +108,15 @@ Referencias oficiales: [Nx](https://nx.dev/docs/kb/adding-to-existing-project), 
 Esto valida la pila local. La ejecución de GitHub Actions, las imágenes arm64, TLS con el dominio real, la conexión al VPS y las compilaciones nativas EAS se verificarán al configurar esos entornos; no se ejecutó un despliegue de producción.
 
 La configuración de conexión ya no contiene la contraseña fija ni un host remoto de respaldo que existían en el código anterior. Completa DB_HOST/DB_PASSWORD en tu entorno privado. Si esa contraseña se utilizó realmente, rótala: quitarla del código actual no la elimina del historial Git.
+
+## Acceso al panel web por usuario
+
+Aplicar la migración `AddUserWebAccess20261125001000` antes de desplegar el backend y el frontend de esta versión. Agrega `users.web_access_enabled` con valor `false` para usuarios existentes y nuevos. Los administradores conservan acceso por su rol; no es necesario actualizar sus filas. No ejecutar seeds para activar esta regla.
+
+El administrador gestiona excepciones desde **Settings → System users → editar usuario → Allow web panel access**. Deshabilitar este campo no cambia el estado de la cuenta ni sus permisos en la app.
+
+Se conserva `POST /auth/login`: el frontend envía `platform: "web"`; la app existente puede seguir omitiéndolo. El backend firma la plataforma y vuelve a comprobar el permiso en peticiones de sesiones web. El frontend identifica también las peticiones de sesiones antiguas y revalida la sesión al recuperar foco y cada 30 segundos. Desplegar ambos componentes para completar la restricción; un frontend antiguo no identifica sus tokens antiguos como web.
+
+Este control restringe el panel web; no identifica físicamente un dispositivo ni sustituye los permisos de los endpoints compartidos con la app.
+
+Para rollback, restaurar primero las versiones anteriores de FE/BE y después revertir la migración si se necesita retirar la columna. Revertirla elimina las excepciones de acceso web configuradas; conservar un respaldo si deben restaurarse.

@@ -573,6 +573,7 @@ const UserFormModal: React.FC<{
     email: user?.email || '',
     phone: user?.phone || '',
     role: (user?.role || 'viewer') as UserRole,
+    webAccessEnabled: user?.role !== 'admin' && user?.webAccessEnabled === true,
     password: '',
   });
   const [saving, setSaving] = useState(false);
@@ -589,6 +590,7 @@ const UserFormModal: React.FC<{
       email: form.email,
       phone: form.phone,
       role: form.role,
+      webAccessEnabled: form.role === 'admin' ? false : form.webAccessEnabled,
     };
 
     if (mode === 'create') {
@@ -754,6 +756,27 @@ const UserFormModal: React.FC<{
               <option value="scheduler">Schedule - Edit schedules only</option>
               <option value="viewer">Viewer - Read-only</option>
             </select>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 p-3">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium text-gray-900">
+              <input
+                type="checkbox"
+                checked={form.role === 'admin' || form.webAccessEnabled}
+                disabled={form.role === 'admin' || saving}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, webAccessEnabled: e.target.checked }))
+                }
+                aria-describedby="web-access-help"
+                className="h-4 w-4 rounded border-gray-300 accent-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed"
+              />
+              Allow web panel access
+            </label>
+            <p id="web-access-help" className="mt-1 text-sm text-gray-600">
+              {form.role === 'admin'
+                ? 'Administrators always have web panel access.'
+                : 'Disabled by default. Turning this off does not disable mobile app access.'}
+            </p>
           </div>
 
           {mode === 'create' && (

@@ -15,6 +15,8 @@ import { AccessService } from '../access/services/access.service';
 import { AuthTokenService } from '../auth/services/auth-token.service';
 import { ShiftWorkOrderAccessService } from './services/shift-work-order-access.service';
 
+import { assertWebAccess } from '../auth/web-access';
+
 type Action = 'read' | 'write';
 
 @Injectable()
@@ -47,7 +49,7 @@ export class OperationsAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing bearer token');
     }
 
-    let payload: { sub: string };
+    let payload: { sub: string; platform?: 'web' | 'mobile' };
     try {
       payload = this.authTokenService.verifyAccessToken(token);
     } catch {
@@ -56,6 +58,11 @@ export class OperationsAuthGuard implements CanActivate {
     }
 
     const user = await this.accessService.getUserAccessContext(payload.sub);
+    if (
+      payload.platform === 'web' ||
+      req.headers['x-client-platform'] === 'web'
+    )
+      assertWebAccess(user);
     const method = req.method.toUpperCase();
     const action: Action = ['GET', 'HEAD', 'OPTIONS'].includes(method)
       ? 'read'

@@ -38,6 +38,7 @@ export class UsersService {
       phone: input.phone?.trim() || '',
       avatarUrl: input.avatarUrl ?? null,
       status: input.status || 'active',
+      webAccessEnabled: input.webAccessEnabled ?? false,
       lastLogin: input.lastLogin ?? null,
     });
     return this.usersRepo.save(user);
@@ -59,6 +60,7 @@ export class UsersService {
       phone: string;
       avatarUrl: string | null;
       status: string;
+      webAccessEnabled: boolean;
     }>,
   ) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
@@ -90,6 +92,9 @@ export class UsersService {
     }
     if (updates.avatarUrl !== undefined) {
       user.avatarUrl = updates.avatarUrl;
+    }
+    if (updates.webAccessEnabled !== undefined) {
+      user.webAccessEnabled = updates.webAccessEnabled;
     }
     if (updates.status !== undefined) {
       user.status = updates.status;

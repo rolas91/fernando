@@ -1,3 +1,4 @@
+import { assertWebAccess } from '../../auth/web-access';
 import {
   ConnectedSocket,
   MessageBody,
@@ -29,8 +30,7 @@ export class ShiftChatGateway implements OnGatewayConnection {
 
   async handleConnection(client: Socket) {
     try {
-      const actor = await this.resolveActor(client);
-      client.data.actor = actor;
+      await this.resolveActor(client);
     } catch {
       client.disconnect(true);
     }
@@ -42,7 +42,8 @@ export class ShiftChatGateway implements OnGatewayConnection {
     @MessageBody() body: { shiftId?: string },
   ) {
     const shiftId = (body?.shiftId || '').trim();
-    await this.shiftChat.assertActorCanAccessShift(client.data.actor, shiftId);
+    const actor = await this.resolveActor(client);
+    await this.shiftChat.assertActorCanAccessShift(actor, shiftId);
     await client.join(this.roomName(shiftId));
     client.emit('shift-chat:joined', { shiftId });
   }
@@ -53,11 +54,8 @@ export class ShiftChatGateway implements OnGatewayConnection {
     @MessageBody() body: CreateShiftChatMessageDto & { shiftId?: string },
   ) {
     const shiftId = (body?.shiftId || '').trim();
-    const message = await this.shiftChat.createMessage(
-      client.data.actor,
-      shiftId,
-      body,
-    );
+    const actor = await this.resolveActor(client);
+    const message = await this.shiftChat.createMessage(actor, shiftId, body);
     this.emitShiftMessage(shiftId, message);
     return message;
   }
@@ -83,7 +81,10 @@ export class ShiftChatGateway implements OnGatewayConnection {
           ? client.handshake.headers.authorization.replace(/^Bearer\s+/i, '')
           : '';
     const payload = this.authTokenService.verifyAccessToken(raw);
-    return this.accessService.getUserAccessContext(payload.sub);
+    const user = await this.accessService.getUserAccessContext(payload.sub);
+    if (payload.platform === 'web' || client.handshake.auth?.platform === 'web')
+      assertWebAccess(user);
+    return user;
   }
 
   private roomName(shiftId: string) {

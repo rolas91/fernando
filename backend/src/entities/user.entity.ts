@@ -35,6 +35,9 @@ export class User {
   @Column({ type: 'varchar', length: 32, default: 'active' })
   status: string;
 
+  @Column({ name: 'web_access_enabled', type: 'boolean', default: false })
+  webAccessEnabled: boolean;
+
   @Column({ name: 'last_login', type: 'timestamp', nullable: true })
   lastLogin: Date | null;
 

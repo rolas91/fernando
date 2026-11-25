@@ -1,3 +1,8 @@
+import {
+  AUTH_MESSAGES,
+  AUTH_NOTICE_KEY,
+  AUTH_SESSION_EXPIRED_EVENT,
+} from './authErrors';
 type ErrorReport = {
   message: string;
   stack?: string;
@@ -147,7 +152,36 @@ export function installErrorReporting() {
     const method =
       init?.method || (input instanceof Request ? input.method : 'GET');
     try {
+      const isApi =
+        url.origin === apiOrigin && url.pathname.startsWith('/api/');
+      if (isApi) {
+        const headers = new Headers(
+          init?.headers ??
+            (input instanceof Request ? input.headers : undefined),
+        );
+        headers.set('X-Client-Platform', 'web');
+        init = { ...init, headers };
+      }
       const response = await originalFetch(input, init);
+      if (
+        isApi &&
+        response.status === 403 &&
+        !url.pathname.startsWith('/api/auth/login')
+      ) {
+        const body = await response
+          .clone()
+          .json()
+          .catch(() => null);
+        if (body?.message === AUTH_MESSAGES.webAccessDenied) {
+          try {
+            sessionStorage.setItem(
+              AUTH_NOTICE_KEY,
+              AUTH_MESSAGES.webAccessDenied,
+            );
+          } catch {}
+          window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
+        }
+      }
       if (tracked && !response.ok)
         reportError(`HTTP ${response.status}`, {
           context: 'API',

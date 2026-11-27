@@ -12,6 +12,18 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
+# Empty defaults are overridable at runtime; never bake store credentials into the image.
+# Store credential variables are reserved until synchronization is implemented.
+ENV MOBILE_IOS_MIN_VERSION="" \
+    MOBILE_IOS_STORE_URL="" \
+    MOBILE_ANDROID_MIN_VERSION="" \
+    MOBILE_ANDROID_STORE_URL="https://play.google.com/store/apps/details?id=com.drtrafficcontrol.mobile" \
+    MOBILE_APPLE_APP_ID="" \
+    MOBILE_APPLE_ISSUER_ID="" \
+    MOBILE_APPLE_KEY_ID="" \
+    MOBILE_APPLE_PRIVATE_KEY_BASE64="" \
+    MOBILE_GOOGLE_PACKAGE_NAME="com.drtrafficcontrol.mobile" \
+    MOBILE_GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=""
 
 RUN apk add --no-cache wget
 

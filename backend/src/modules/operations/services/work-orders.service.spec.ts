@@ -57,7 +57,7 @@ describe('mobileShiftHasEnded', () => {
 });
 
 describe('WorkOrdersService mobile required-action completion', () => {
-  it('counts completed timesheet rows embedded in the submitted Work Order form', async () => {
+  it('recognizes a TimeSheet derived from a submitted Work Order', async () => {
     const submissions = [
       {
         workOrderId: 'wo-1',
@@ -118,14 +118,26 @@ describe('WorkOrdersService mobile required-action completion', () => {
         },
       ],
     } as WorkOrder;
-    const completion = await (
+    const mobileCompletion = (
       service as unknown as {
         resolveMobileShiftCompletion(workOrders: WorkOrder[]): Promise<{
           completedShiftKeys: Set<string>;
           completedTemplateIdsByShift: Map<string, Set<string>>;
         }>;
       }
-    ).resolveMobileShiftCompletion([workOrder]);
+    );
+
+    const before = await mobileCompletion.resolveMobileShiftCompletion([workOrder]);
+    expect(before.completedTemplateIdsByShift.get('wo-1:shift-1')).toEqual(
+      new Set(['template-wo']),
+    );
+    expect(before.completedShiftKeys.has('wo-1:shift-1')).toBe(false);
+
+    submissions.push({
+      ...submissions[0],
+      templateId: 'template-timesheet',
+    });
+    const completion = await mobileCompletion.resolveMobileShiftCompletion([workOrder]);
 
     expect(completion.completedTemplateIdsByShift.get('wo-1:shift-1')).toEqual(
       new Set(['template-wo', 'template-timesheet']),

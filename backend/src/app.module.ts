@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { MobileVersionController } from './mobile-version.controller';
+import { MobileVersionPolicyService } from './mobile-version-policy.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmModuleOptions } from './config/database.config';
@@ -24,7 +26,7 @@ import { SystemErrorsModule } from './modules/system-errors/system-errors.module
     IntegrationsModule,
     OperationsModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [MobileVersionController],
+  providers: [MobileVersionPolicyService],
 })
 export class AppModule {}

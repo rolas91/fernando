@@ -617,6 +617,12 @@ export class TimesheetsService {
       order: { submittedAt: 'ASC' },
     });
     for (const submission of submissions) {
+      // The originating Work Order already synchronized these hours.
+      if (
+        submission.id.startsWith('fs_wo_ts_') &&
+        typeof submission.data?._sourceWorkOrderSubmissionId === 'string'
+      )
+        continue;
       const rows = this.findTimesheetRows(submission.data ?? {});
       if (rows.length === 0) continue;
       try {

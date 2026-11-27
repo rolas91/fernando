@@ -1,11 +1,122 @@
 import type { FormTemplate } from '../../../entities/form-template.entity';
+import type { FormSubmission } from '../../../entities/form-submission.entity';
+import { WorkOrderShift } from '../../../entities/work-order-shift.entity';
+import { FormTemplate as FormTemplateEntity } from '../../../entities/form-template.entity';
 import type { UserAccessContext } from '../../access/ports/access.port';
 import {
   buildWorkOrderPdf,
+  FormSubmissionsService,
   findWorkOrderFooterSignatures,
   shouldGenerateSubmissionPdf,
   workOrderPdfTypeChecks,
 } from './form-submissions.service';
+
+describe('TimeSheet derived from a Work Order', () => {
+  function setup(workers: string[], standalone: Partial<FormSubmission>[] = []) {
+    const stored = new Map<string, FormSubmission>();
+    const target = {
+      id: 'timesheet',
+      name: 'TimeSheet',
+      fields: [{ id: 'hours', type: 'timesheet', label: 'Hours' }],
+    };
+    const shift = {
+      id: 'shift',
+      formTemplateIds: [target.id],
+      roles: [{ assignedWorkers: workers }],
+    };
+    const save = jest.fn(async (value: FormSubmission) => {
+      stored.set(value.id, value);
+      return value;
+    });
+    const repo = {
+      findOneBy: async ({ id }: { id: string }) => stored.get(id) ?? null,
+      findBy: async () => [...stored.values(), ...standalone],
+      create: (value: FormSubmission) => value,
+      save,
+    };
+    const manager = {
+      getRepository(entity: unknown) {
+        if (entity === WorkOrderShift) return { findOne: async () => shift };
+        if (entity === FormTemplateEntity) return { find: async () => [target] };
+        return repo;
+      },
+    };
+    const service = Object.assign(
+      Object.create(FormSubmissionsService.prototype) as {
+        completeTimesheetFromWorkOrder(
+          submission: FormSubmission,
+          template: FormTemplate,
+          allowCreate: boolean,
+        ): Promise<void>;
+      },
+      {
+        shiftsQuery: { loadShiftsForWorkOrder: async () => [shift] },
+        repo: {
+          manager: {
+            transaction: async (run: (tx: typeof manager) => Promise<void>) =>
+              run(manager),
+          },
+        },
+      },
+    );
+    const row = {
+      workerId: 'worker',
+      status: 'completed',
+      startTime: '06:00',
+      endTime: '14:30',
+    };
+    const source = {
+      id: 'work-order-submission',
+      shiftId: shift.id,
+      workOrderId: 'work-order',
+      data: { time: [row] },
+      status: 'submitted',
+    } as FormSubmission;
+    const workOrder = {
+      ...template('Work Order'),
+      fields: [{ id: 'time', type: 'timesheet', label: 'Hours' }],
+    } as FormTemplate;
+    return {
+      stored,
+      save,
+      submit: () =>
+        service.completeTimesheetFromWorkOrder(source, workOrder, true),
+    };
+  }
+
+  it('uses one record across retries and keeps the original submission ID', async () => {
+    const { stored, submit } = setup(['worker']);
+    await submit();
+    await submit();
+    expect([...stored.values()]).toEqual([
+      expect.objectContaining({
+        templateId: 'timesheet',
+        status: 'submitted',
+        data: expect.objectContaining({
+          _sourceWorkOrderSubmissionId: 'work-order-submission',
+          hours: [expect.objectContaining({ workerId: 'worker' })],
+        }),
+      }),
+    ]);
+  });
+
+  it('does not generate a TimeSheet when assigned workers lack hours', async () => {
+    const { save, submit } = setup(['worker', 'other-worker']);
+    await submit();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('preserves a complete standalone TimeSheet', async () => {
+    const { save, submit } = setup(['worker'], [
+      {
+        id: 'standalone',
+        data: { hours: [{ workerId: 'worker', status: 'completed' }] },
+      },
+    ]);
+    await submit();
+    expect(save).not.toHaveBeenCalled();
+  });
+});
 
 function template(category: string): FormTemplate {
   return {

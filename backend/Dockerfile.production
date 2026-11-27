@@ -14,6 +14,18 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 DB_SYNCHRONIZE=false AUTH_DEV_BYPASS=false SERVE_FRONTEND=false
+# Empty defaults are overridable at runtime; never bake store credentials into the image.
+# Store credential variables are reserved until synchronization is implemented.
+ENV MOBILE_IOS_MIN_VERSION="" \
+    MOBILE_IOS_STORE_URL="" \
+    MOBILE_ANDROID_MIN_VERSION="" \
+    MOBILE_ANDROID_STORE_URL="https://play.google.com/store/apps/details?id=com.drtrafficcontrol.mobile" \
+    MOBILE_APPLE_APP_ID="" \
+    MOBILE_APPLE_ISSUER_ID="" \
+    MOBILE_APPLE_KEY_ID="" \
+    MOBILE_APPLE_PRIVATE_KEY_BASE64="" \
+    MOBILE_GOOGLE_PACKAGE_NAME="com.drtrafficcontrol.mobile" \
+    MOBILE_GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=""
 COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/package.json ./package.json

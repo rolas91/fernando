@@ -992,15 +992,6 @@ function submissionCoversVisibleTimesheets(
   return countTimesheetRows(submission.data) >= visibleRows;
 }
 
-function submissionHasCompletedTimesheets(
-  submission: { data?: Record<string, unknown> },
-  visibleData: Record<string, unknown> | undefined,
-) {
-  if (!submissionCoversVisibleTimesheets(submission, visibleData)) return false;
-  const rows = Object.values(submission.data ?? {}).flatMap(asTimesheetRows);
-  return rows.length > 0 && rows.every((row) => row.status === 'completed');
-}
-
 function isSignatureValue(value: unknown): value is SignatureValue {
   return (
     typeof value === 'object' &&
@@ -3179,17 +3170,32 @@ export default function WorkOrderFormScreen() {
     selectedCategory !== 'timesheet' &&
     existingSubmission?.status === 'submitted';
   const timesheetCompleted = useMemo(() => {
-    if (selectedCategory !== 'timesheet') return false;
-    return shiftSubmissions.some(
-      (submission) =>
-        submission.status === 'submitted' &&
-        Boolean(submission.pdfUrl?.trim()) &&
-        submissionHasCompletedTimesheets(
-          submission,
-          previewQuery.data?.suggestedData,
-        ),
+    if (selectedCategory !== 'timesheet' || !selectedTemplate) return false;
+    const completedWorkers = new Set(
+      shiftSubmissions
+        .filter(
+          (submission) =>
+            submission.status === 'submitted' &&
+            submission.templateId === selectedTemplate.id,
+        )
+        .flatMap((submission) => Object.values(submission.data ?? {}))
+        .flatMap(asTimesheetRows)
+        .filter((row) => row.status === 'completed')
+        .map((row) => row.workerId),
     );
-  }, [previewQuery.data?.suggestedData, selectedCategory, shiftSubmissions]);
+    const visibleRows = Object.values(
+      previewQuery.data?.suggestedData ?? {},
+    ).flatMap(asTimesheetRows);
+    return (
+      completedWorkers.size > 0 &&
+      visibleRows.every((row) => completedWorkers.has(row.workerId))
+    );
+  }, [
+    previewQuery.data?.suggestedData,
+    selectedCategory,
+    selectedTemplate,
+    shiftSubmissions,
+  ]);
   const formCompleted = submittedLocked || timesheetCompleted;
   const canEditCompletedWorkOrder =
     selectedCategory === 'workorder' &&

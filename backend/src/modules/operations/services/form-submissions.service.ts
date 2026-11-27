@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import { basename, resolve, sep } from 'path';
 import { deflateSync, inflateSync } from 'zlib';
@@ -3478,6 +3479,7 @@ export class FormSubmissionsService {
       await this.repo.save(saved);
     }
     if (saved.status === 'submitted') {
+      await this.completeTimesheetFromWorkOrder(saved, template, true);
       await this.sendClientWorkOrderCopy(saved);
     }
     this.realtime.emitTableUpdated('form_submissions');
@@ -3595,6 +3597,11 @@ export class FormSubmissionsService {
       await this.deleteGeneratedPdf(previousPdfUrl);
     }
     if (saved.status === 'submitted') {
+      await this.completeTimesheetFromWorkOrder(
+        saved,
+        template,
+        dto.status === 'submitted',
+      );
       await this.sendClientWorkOrderCopy(saved);
     }
     this.realtime.emitTableUpdated('form_submissions');
@@ -3726,6 +3733,126 @@ export class FormSubmissionsService {
   private async resolveWorkerIdForActor(actor?: UserAccessContext) {
     const worker = await findWorkerForActor(this.workersRepo, actor);
     return worker?.id || actor?.id || '';
+  }
+
+  private async completeTimesheetFromWorkOrder(
+    submission: FormSubmission,
+    template: FormTemplate | null,
+    allowCreate: boolean,
+  ) {
+    if (!template || !isWorkOrderTemplate(template) || !submission.shiftId)
+      return;
+
+    const field = normalizeFormFields(template.fields).find(
+      (field) => field.type === 'timesheet',
+    );
+    if (!field) return;
+    const rows = findTimesheetRows({ timesheet: submission.data?.[field.id] });
+    const shift = (
+      await this.shiftsQuery.loadShiftsForWorkOrder(submission.workOrderId)
+    )?.find((shift) => shift.id === submission.shiftId);
+    if (!shift || shift.cancelled || shift.pmApprovedAt) return;
+    const workerIds = new Set(
+      ((shift.roles ?? []) as { assignedWorkers?: string[] }[]).flatMap(
+        (role) => role.assignedWorkers ?? [],
+      ),
+    );
+    const completedRows = rows.filter(
+      (row) =>
+        row.status === 'completed' &&
+        workerIds.has(String(row.workerId)) &&
+        (!row.shiftId || row.shiftId === submission.shiftId) &&
+        (!row.workOrderId || row.workOrderId === submission.workOrderId) &&
+        typeof row.startTime === 'string' &&
+        row.startTime.trim() &&
+        typeof row.endTime === 'string' &&
+        row.endTime.trim(),
+    );
+    const complete =
+      workerIds.size > 0 &&
+      completedRows.length === workerIds.size &&
+      new Set(completedRows.map((row) => row.workerId)).size === workerIds.size;
+    if (this.stringArray(shift.formTemplateIds).length === 0) return;
+
+    await this.repo.manager.transaction(async (manager) => {
+      const submissions = manager.getRepository(FormSubmission);
+      const currentShift = await manager.getRepository(WorkOrderShift).findOne({
+        where: { id: submission.shiftId, workOrderId: submission.workOrderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!currentShift || currentShift.cancelled || currentShift.pmApprovedAt)
+        return;
+
+      const timesheetTemplates = await manager.getRepository(FormTemplate).find({
+        where: { id: In(currentShift.formTemplateIds) },
+      });
+      for (const timesheetTemplate of timesheetTemplates) {
+        if (!isTimesheetTemplate(timesheetTemplate)) continue;
+        const fields = normalizeFormFields(timesheetTemplate.fields);
+        if (fields.length !== 1 || fields[0].type !== 'timesheet') continue;
+
+        const identity = [
+          submission.workOrderId,
+          submission.shiftId,
+          timesheetTemplate.id,
+        ];
+        const hash = createHash('sha256')
+          .update(JSON.stringify(identity))
+          .digest('hex')
+          .slice(0, 48);
+        const id = `fs_wo_ts_${hash}`;
+        const existing = await submissions.findOneBy({ id });
+        if (
+          existing &&
+          existing.data?._sourceWorkOrderSubmissionId !== submission.id
+        )
+          continue;
+        if (!complete) {
+          if (existing) await submissions.delete(id);
+          continue;
+        }
+        if (!existing && !allowCreate) continue;
+
+        const previous = await submissions.findBy({
+          workOrderId: submission.workOrderId,
+          shiftId: submission.shiftId,
+          templateId: timesheetTemplate.id,
+          status: 'submitted',
+        });
+        const alreadyReported = new Set(
+          previous
+            .filter((item) => item.id !== id)
+            .flatMap((item) => findTimesheetRows(item.data))
+            .filter((row) => row.status === 'completed')
+            .map((row) => row.workerId),
+        );
+        if (
+          !existing &&
+          [...workerIds].every((workerId) => alreadyReported.has(workerId))
+        )
+          continue;
+
+        const data = normalizeSubmissionData({
+          [fields[0].id]: completedRows,
+          _sourceWorkOrderSubmissionId: submission.id,
+        });
+        validateSubmissionAgainstFields(fields, data);
+        await submissions.save(
+          submissions.create({
+            id,
+            templateId: timesheetTemplate.id,
+            projectId: submission.projectId,
+            workOrderId: submission.workOrderId,
+            shiftId: submission.shiftId,
+            workerId: submission.workerId,
+            data,
+            status: 'submitted',
+            submittedAt: submission.submittedAt ?? new Date(),
+            pdfUrl: '',
+          }),
+        );
+      }
+    });
   }
 
   private async syncTimesheetsFromSubmission(
@@ -3903,7 +4030,20 @@ export class FormSubmissionsService {
     );
     const removedTimesheetRows = findTimesheetRows(item.data ?? {});
     const incidentId = `inc_${item.id}`.slice(0, 64);
-    await this.repo.remove(item);
+    await this.repo.manager.transaction(async (manager) => {
+      const submissions = manager.getRepository(FormSubmission);
+      await submissions
+        .createQueryBuilder()
+        .delete()
+        .where("data ->> '_sourceWorkOrderSubmissionId' = :id", { id })
+        .andWhere('left(id, 9) = :prefix', { prefix: 'fs_wo_ts_' })
+        .andWhere('work_order_id = :workOrderId AND shift_id = :shiftId', {
+          workOrderId: item.workOrderId,
+          shiftId: item.shiftId,
+        })
+        .execute();
+      await submissions.remove(item);
+    });
     await this.reconcileTimesheetsAfterSubmissionRemoval(
       item,
       removedTimesheetRows,

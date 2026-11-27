@@ -1252,11 +1252,17 @@ This is an automated notification from DR Traffic Control.`;
     const completedShiftKeys = new Set<string>();
     const completedTemplateIdsByShift = new Map<string, Set<string>>();
     const completedAtByShift = new Map<string, Date>();
-    const completedTimesheetWorkersByShift = new Map<string, Set<string>>();
+    const completedTimesheetWorkersByTemplate = new Map<string, Set<string>>();
+    const timesheetTemplateIds = new Set(
+      templates
+        .filter((template) => this.isTimesheetTemplate(template))
+        .map((template) => template.id),
+    );
     for (const submission of eligibleSubmissions) {
-      const shiftKey = `${submission.workOrderId}:${submission.shiftId}`;
+      if (!timesheetTemplateIds.has(submission.templateId)) continue;
+      const templateKey = `${submission.workOrderId}:${submission.shiftId}:${submission.templateId}`;
       const completedWorkers =
-        completedTimesheetWorkersByShift.get(shiftKey) ?? new Set<string>();
+        completedTimesheetWorkersByTemplate.get(templateKey) ?? new Set<string>();
       for (const row of this.findTimesheetRows(submission.data ?? {})) {
         const workerId =
           typeof row.workerId === 'string' ? row.workerId.trim() : '';
@@ -1269,7 +1275,7 @@ This is an automated notification from DR Traffic Control.`;
           completedWorkers.add(workerId);
         }
       }
-      completedTimesheetWorkersByShift.set(shiftKey, completedWorkers);
+      completedTimesheetWorkersByTemplate.set(templateKey, completedWorkers);
     }
 
     for (const workOrder of workOrders) {
@@ -1301,18 +1307,19 @@ This is an automated notification from DR Traffic Control.`;
         if (requiredTemplates.length === 0) continue;
         const shiftKey = `${workOrder.id}:${shiftId}`;
         const assignedWorkerIds = this.assignedWorkerIdsForShift(record);
-        const completedTimesheetWorkers =
-          completedTimesheetWorkersByShift.get(shiftKey) ?? new Set<string>();
         const completedTemplateIds = new Set<string>();
         for (const template of requiredTemplates) {
           const isTimesheet = this.isTimesheetTemplate(template);
+          const templateKey = `${shiftKey}:${template.id}`;
           const hasDirectSubmission =
-            !isTimesheet && submittedKeys.has(`${shiftKey}:${template.id}`);
+            !isTimesheet && submittedKeys.has(templateKey);
+          const completedTimesheetWorkers =
+            completedTimesheetWorkersByTemplate.get(templateKey);
           const hasSharedTimesheets =
             isTimesheet &&
             assignedWorkerIds.size > 0 &&
             [...assignedWorkerIds].every((workerId) =>
-              completedTimesheetWorkers.has(workerId),
+              completedTimesheetWorkers?.has(workerId),
             );
           if (hasDirectSubmission || hasSharedTimesheets) {
             completedTemplateIds.add(template.id);

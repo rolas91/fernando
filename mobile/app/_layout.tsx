@@ -20,6 +20,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { AppearanceProvider } from '@/contexts/appearance-context';
 import { notificationDeepLink } from '@/lib/notification-deep-link';
+import { RequiredUpdateGate } from '@/components/required-update-gate';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -132,7 +133,9 @@ function PushNotificationQuerySync() {
 export default function RootLayout() {
   return (
     <AppearanceProvider>
-      <RootNavigator />
+      <RequiredUpdateGate>
+        <RootNavigator />
+      </RequiredUpdateGate>
     </AppearanceProvider>
   );
 }
